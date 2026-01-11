@@ -214,11 +214,19 @@ export default defineEventHandler(async (event) => {
     // 3. Update thumbnails if provided
     if (files?.thumbnails && files.thumbnails.length > 0) {
       for (const thumbnail of files.thumbnails) {
+        // Create blob for binary image content
+        const { data: blob } = await octokit.git.createBlob({
+          owner,
+          repo: repoName,
+          content: thumbnail.content,
+          encoding: 'base64'
+        })
+
         tree.push({
           path: `templates/${thumbnail.filename}`,
           mode: '100644' as const,
           type: 'blob' as const,
-          content: files.thumbnails ? thumbnail.content : ''
+          sha: blob.sha
         })
       }
     }
