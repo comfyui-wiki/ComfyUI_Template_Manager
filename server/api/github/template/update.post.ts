@@ -15,6 +15,7 @@ interface UpdateTemplateRequest {
     comfyuiVersion?: string
     date?: string
   }
+  templateOrder?: string[]  // Array of template names in new order
   files?: {
     workflow?: {
       content: string // base64
@@ -39,7 +40,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody<UpdateTemplateRequest>(event)
-    const { repo, branch, templateName, metadata, files } = body
+    const { repo, branch, templateName, metadata, templateOrder, files } = body
 
     if (!repo || !branch || !templateName) {
       throw createError({
@@ -165,6 +166,33 @@ export default defineEventHandler(async (event) => {
       } else {
         // Update template in the same category
         indexData[oldCategoryIndex].templates[oldTemplateIndex] = templateData
+      }
+
+      // Reorder templates if templateOrder is provided
+      if (templateOrder && Array.isArray(templateOrder)) {
+        console.log('[Update Template] Reordering templates in category:', {
+          category: indexData[oldCategoryIndex].title,
+          oldOrder: indexData[oldCategoryIndex].templates.map((t: any) => t.name),
+          newOrder: templateOrder
+        })
+
+        // Create a map of templates by name for quick lookup
+        const templatesMap = new Map()
+        indexData[oldCategoryIndex].templates.forEach((t: any) => {
+          templatesMap.set(t.name, t)
+        })
+
+        // Reorder templates array based on templateOrder
+        const reorderedTemplates = []
+        for (const name of templateOrder) {
+          if (templatesMap.has(name)) {
+            reorderedTemplates.push(templatesMap.get(name))
+          }
+        }
+
+        // Update the category with reordered templates
+        indexData[oldCategoryIndex].templates = reorderedTemplates
+        console.log('[Update Template] Templates reordered successfully')
       }
 
       // Delete unused thumbnails if variant changed to require fewer thumbnails
