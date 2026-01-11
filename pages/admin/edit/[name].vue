@@ -198,6 +198,25 @@
                       </div>
                     </div>
 
+                    <!-- Thumbnail Effect - Moved here under Thumbnail Files -->
+                    <div class="space-y-2 pt-2 border-t">
+                      <Label for="thumbnailVariant">Thumbnail Effect</Label>
+                      <Select v-model="form.thumbnailVariant">
+                        <SelectTrigger>
+                          <SelectValue placeholder="No special effect" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (default)</SelectItem>
+                          <SelectItem value="hoverDissolve">Hover Dissolve (2 images)</SelectItem>
+                          <SelectItem value="compareSlider">Compare Slider (2 images)</SelectItem>
+                          <SelectItem value="zoomHover">Zoom Hover</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p class="text-xs text-muted-foreground">
+                        Current: {{ requiredThumbnailCount }} thumbnail(s) required
+                      </p>
+                    </div>
+
                     <div class="text-xs text-muted-foreground text-center py-2 bg-muted/30 rounded border">
                       💡 Edit & Convert features coming soon
                     </div>
@@ -250,21 +269,17 @@
                     </p>
                   </div>
 
+                  <!-- Date -->
                   <div class="space-y-2">
-                    <Label for="thumbnailVariant">Thumbnail Effect</Label>
-                    <Select v-model="form.thumbnailVariant">
-                      <SelectTrigger>
-                        <SelectValue placeholder="No special effect" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None (default)</SelectItem>
-                        <SelectItem value="hoverDissolve">Hover Dissolve (2 images)</SelectItem>
-                        <SelectItem value="compareSlider">Compare Slider (2 images)</SelectItem>
-                        <SelectItem value="zoomHover">Zoom Hover</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label for="date">Date (optional)</Label>
+                    <Input
+                      id="date"
+                      v-model="form.date"
+                      type="date"
+                      placeholder="YYYY-MM-DD"
+                    />
                     <p class="text-xs text-muted-foreground">
-                      Current: {{ requiredThumbnailCount }} thumbnail(s) required
+                      When this template was created or last updated
                     </p>
                   </div>
 
@@ -384,6 +399,7 @@
                 </CardHeader>
                 <CardContent>
                   <TemplateCardPreview
+                    :key="thumbnailPreviewKey"
                     :title="form.title"
                     :description="form.description"
                     :thumbnail-images="thumbnailFiles"
@@ -397,6 +413,7 @@
                     :has-workflow="true"
                     :model-count="originalTemplate?.models?.length || 0"
                     :comfyui-version="form.comfyuiVersion"
+                    :date="form.date"
                   />
                 </CardContent>
               </Card>
@@ -473,7 +490,8 @@ const form = ref({
   thumbnailVariant: 'none',
   tutorialUrl: '',
   tags: [] as string[],
-  comfyuiVersion: ''
+  comfyuiVersion: '',
+  date: ''
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
@@ -517,13 +535,53 @@ const removeTag = (tag: string) => {
   form.value.tags = form.value.tags.filter(t => t !== tag)
 }
 
-// Watch thumbnailVariant changes to reload thumbnails with correct count
+// Watch thumbnailVariant changes to adjust thumbnail count
 watch(() => form.value.thumbnailVariant, async (newVariant, oldVariant) => {
   if (newVariant !== oldVariant && originalTemplate.value) {
-    const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
-    const branch = selectedBranch.value || 'main'
-    const [owner, repoName] = repo.split('/')
-    await loadThumbnails(owner, repoName, branch)
+    const newCount = (newVariant === 'hoverDissolve' || newVariant === 'compareSlider') ? 2 : 1
+    const currentCount = thumbnailFiles.value.length
+
+    console.log('[Variant Change]', { oldVariant, newVariant, currentCount, newCount })
+
+    // If we need more thumbnails and don't have reuploaded ones, load from server
+    if (newCount > currentCount) {
+      const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+      const branch = selectedBranch.value || 'main'
+      const [owner, repoName] = repo.split('/')
+
+      // Only load the additional thumbnails we need
+      const mediaSubtype = originalTemplate.value.mediaSubtype || 'webp'
+      for (let i = currentCount + 1; i <= newCount; i++) {
+        // Skip if user already uploaded this index
+        if (reuploadedThumbnails.value.has(i)) {
+          console.log(`[Variant Change] Skipping index ${i} - user uploaded`)
+          continue
+        }
+
+        const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/${templateName}-${i}.${mediaSubtype}`
+        try {
+          const response = await fetch(url)
+          if (response.ok) {
+            const blob = await response.blob()
+            const file = new File([blob], `${templateName}-${i}.${mediaSubtype}`, { type: blob.type })
+
+            // Add to array
+            const newFiles = [...thumbnailFiles.value]
+            newFiles[i - 1] = file
+            thumbnailFiles.value = newFiles
+
+            // Calculate file info
+            await calculateFileInfo(file, i)
+          }
+        } catch (err) {
+          console.warn(`Failed to load thumbnail ${i}`)
+        }
+      }
+    } else if (newCount < currentCount) {
+      // If we need fewer thumbnails, trim the array but keep reuploaded ones
+      console.log(`[Variant Change] Trimming from ${currentCount} to ${newCount} thumbnails`)
+      thumbnailFiles.value = thumbnailFiles.value.slice(0, newCount)
+    }
   }
 })
 
@@ -537,6 +595,12 @@ const requiredThumbnailCount = computed(() => {
   const count = (form.value.thumbnailVariant === 'hoverDissolve' || form.value.thumbnailVariant === 'compareSlider') ? 2 : 1
   console.log('[requiredThumbnailCount] Variant:', form.value.thumbnailVariant, '→ Count:', count)
   return count
+})
+
+// Computed: Preview key to force re-render when thumbnails change
+const thumbnailPreviewKey = computed(() => {
+  // Create a key based on file names, sizes, and last modified to trigger re-render when files change
+  return thumbnailFiles.value.map(f => `${f.name}_${f.size}_${f.lastModified}`).join('_') + `_${form.value.thumbnailVariant}`
 })
 
 // Get thumbnail label based on variant and index
@@ -565,12 +629,17 @@ const getThumbnailDescription = (index: number) => {
 
 // Get thumbnail preview URL
 const getThumbnailPreview = (index: number): string | undefined => {
-  // Check if we have a reuploaded file
+  // Check if we have a reuploaded file with cached URL
   if (reuploadedThumbnails.value.has(index)) {
     return thumbnailPreviewUrls.value.get(index) || undefined
   }
 
-  // Check if we have loaded files
+  // Check if we already have a cached URL for this file
+  if (thumbnailPreviewUrls.value.has(index)) {
+    return thumbnailPreviewUrls.value.get(index)
+  }
+
+  // Check if we have loaded files - create URL only once
   if (thumbnailFiles.value[index - 1]) {
     const url = URL.createObjectURL(thumbnailFiles.value[index - 1])
     thumbnailPreviewUrls.value.set(index, url)
@@ -748,13 +817,19 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
   // Store the file for this index
   reuploadedThumbnails.value.set(index, file)
 
-  // Update preview
-  thumbnailFiles.value[index - 1] = file
+  // Update preview - create new array to trigger reactivity
+  const newFiles = [...thumbnailFiles.value]
+  newFiles[index - 1] = file
+  thumbnailFiles.value = newFiles
 
   // Calculate file info
   await calculateFileInfo(file, index)
 
-  // Create preview URL
+  // Create preview URL and revoke old one if exists
+  const oldUrl = thumbnailPreviewUrls.value.get(index)
+  if (oldUrl) {
+    URL.revokeObjectURL(oldUrl)
+  }
   const previewUrl = URL.createObjectURL(file)
   thumbnailPreviewUrls.value.set(index, previewUrl)
 
@@ -840,6 +915,7 @@ onMounted(async () => {
     form.value.tutorialUrl = foundTemplate.tutorialUrl || ''
     form.value.tags = foundTemplate.tags || []
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
+    form.value.date = foundTemplate.date || ''
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
@@ -969,7 +1045,8 @@ const handleSubmit = async () => {
           thumbnailVariant: form.value.thumbnailVariant,
           tags: form.value.tags,
           tutorialUrl: form.value.tutorialUrl,
-          comfyuiVersion: form.value.comfyuiVersion
+          comfyuiVersion: form.value.comfyuiVersion,
+          date: form.value.date
         },
         files: Object.keys(filesData).length > 0 ? filesData : undefined
       }

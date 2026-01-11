@@ -155,16 +155,53 @@ watch(
   }
 )
 
+// Cache object URLs for File objects
+const fileUrlCache = ref<Map<File, string>>(new Map())
+
+// Get or create object URL for a file
 const getFileUrl = (file: File): string => {
-  return URL.createObjectURL(file)
+  if (!file) return ''
+
+  // Check cache first
+  if (fileUrlCache.value.has(file)) {
+    return fileUrlCache.value.get(file)!
+  }
+
+  // Create new URL and cache it
+  const url = URL.createObjectURL(file)
+  fileUrlCache.value.set(file, url)
+  return url
 }
+
+// Watch for changes in images array and clean up old URLs
+watch(() => props.images, (newImages, oldImages) => {
+  console.log('[ThumbnailPreview] Images changed', {
+    oldCount: oldImages?.length,
+    newCount: newImages?.length,
+    cacheSize: fileUrlCache.value.size
+  })
+
+  // Clear all cached URLs when images array changes to ensure fresh rendering
+  fileUrlCache.value.forEach((url) => {
+    URL.revokeObjectURL(url)
+  })
+  fileUrlCache.value.clear()
+
+  // Force immediate re-creation of URLs for new images
+  newImages.forEach((file, index) => {
+    if (file) {
+      const url = URL.createObjectURL(file)
+      fileUrlCache.value.set(file, url)
+      console.log(`[ThumbnailPreview] Created URL for image ${index}:`, file.name)
+    }
+  })
+})
 
 // Cleanup object URLs when component unmounts
 onUnmounted(() => {
-  props.images.forEach(file => {
-    if (file instanceof File) {
-      URL.revokeObjectURL(getFileUrl(file))
-    }
+  fileUrlCache.value.forEach((url) => {
+    URL.revokeObjectURL(url)
   })
+  fileUrlCache.value.clear()
 })
 </script>

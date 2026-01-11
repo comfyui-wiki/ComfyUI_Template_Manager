@@ -13,6 +13,7 @@ interface UpdateTemplateRequest {
     tags?: string[]
     tutorialUrl?: string
     comfyuiVersion?: string
+    date?: string
   }
   files?: {
     workflow?: {
@@ -121,6 +122,7 @@ export default defineEventHandler(async (event) => {
       if (metadata.tags) templateData.tags = metadata.tags
       if (metadata.tutorialUrl) templateData.tutorialUrl = metadata.tutorialUrl
       if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
+      if (metadata.date) templateData.date = metadata.date
 
       // Calculate new required thumbnail count
       const newThumbnailVariant = templateData.thumbnailVariant || 'none'

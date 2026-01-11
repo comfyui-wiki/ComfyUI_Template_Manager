@@ -193,7 +193,8 @@ export const useTemplateDiff = () => {
       tutorialUrl: template.tutorialUrl, // Include tutorial URL
       comfyuiVersion: template.comfyuiVersion, // Include ComfyUI version
       mediaType: template.mediaType, // Include media type
-      mediaSubtype: template.mediaSubtype // Include media subtype
+      mediaSubtype: template.mediaSubtype, // Include media subtype
+      date: template.date // Include date
     }
     return hash(relevantData)
   }
