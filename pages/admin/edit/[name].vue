@@ -287,6 +287,16 @@
                               >
                                 ⬆ Upload
                               </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                @click="openConverter(index)"
+                                class="flex-1 h-6 text-[10px] px-2"
+                                title="Convert image/video to WebP"
+                              >
+                                🔄 Convert
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -320,9 +330,6 @@
                       </p>
                     </div>
 
-                    <div class="text-xs text-muted-foreground text-center py-2 bg-muted/30 rounded border">
-                      💡 Edit & Convert features coming soon
-                    </div>
                   </div>
 
                   <!-- Display Title -->
@@ -535,6 +542,19 @@
       <!-- Close flex container -->
     </div>
     <!-- Close pt-[73px] container -->
+
+    <!-- Thumbnail Converter Dialog -->
+    <Dialog v-model:open="isConverterDialogOpen">
+      <DialogScrollContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Convert to WebP - {{ getThumbnailLabel(converterTargetIndex) }}</DialogTitle>
+          <DialogDescription>
+            Convert your image or video file to optimized WebP format for {{ getThumbnailLabel(converterTargetIndex) }}
+          </DialogDescription>
+        </DialogHeader>
+        <ThumbnailConverter @converted="handleConvertedFile" />
+      </DialogScrollContent>
+    </Dialog>
   </div>
   <!-- Close min-h-screen container -->
 </template>
@@ -548,7 +568,9 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxEmpty, ComboboxList, ComboboxItem } from '~/components/ui/combobox'
+import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
+import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -571,6 +593,10 @@ const reuploadedThumbnails = ref<Map<number, File>>(new Map())
 const workflowContent = ref<any>(null)
 const thumbnailPreviewUrls = ref<Map<number, string>>(new Map())
 const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }>>(new Map())
+
+// Thumbnail converter state
+const isConverterDialogOpen = ref(false)
+const converterTargetIndex = ref<number>(1)
 
 // Drag and drop state for template reordering
 const draggedIndex = ref<number | null>(null)
@@ -957,6 +983,41 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
   thumbnailReuploadStatus.value = {
     success: true,
     message: `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
+  }
+}
+
+// Open converter dialog for specific thumbnail index
+const openConverter = (index: number) => {
+  converterTargetIndex.value = index
+  isConverterDialogOpen.value = true
+}
+
+// Handle converted file from ThumbnailConverter
+const handleConvertedFile = async (file: File) => {
+  const index = converterTargetIndex.value
+
+  // Store the converted file
+  reuploadedThumbnails.value.set(index, file)
+
+  // Update preview
+  const newFiles = [...thumbnailFiles.value]
+  newFiles[index - 1] = file
+  thumbnailFiles.value = newFiles
+
+  // Calculate file info
+  await calculateFileInfo(file, index)
+
+  // Update preview URL
+  const previewUrl = URL.createObjectURL(file)
+  thumbnailPreviewUrls.value.set(index, previewUrl)
+
+  // Close dialog
+  isConverterDialogOpen.value = false
+
+  // Show success message
+  thumbnailReuploadStatus.value = {
+    success: true,
+    message: `✓ ${getThumbnailLabel(index)} converted: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
   }
 }
 

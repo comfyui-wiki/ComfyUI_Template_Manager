@@ -56,6 +56,13 @@ export default defineNuxtConfig({
   // Server-side rendering
   ssr: true,
 
+  // Vite configuration for FFmpeg
+  vite: {
+    optimizeDeps: {
+      exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+    }
+  },
+
   // PostCSS configuration for Tailwind
   postcss: {
     plugins: {
