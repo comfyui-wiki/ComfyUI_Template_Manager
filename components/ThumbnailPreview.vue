@@ -47,21 +47,21 @@
 
     <!-- Compare Slider Effect -->
     <div v-else-if="variant === 'compareSlider' && images.length >= 2" class="h-full w-full relative">
-      <!-- Base image -->
-      <img 
+      <!-- Base image - now using image 1 (right/after) -->
+      <img
         v-if="images[0] && images[0].type.startsWith('image/')"
-        :src="getFileUrl(images[0])" 
-        :alt="'Before image'"
+        :src="getFileUrl(images[0])"
+        :alt="'After image'"
         class="w-full h-full object-cover"
         draggable="false"
       />
-      
-      <!-- Overlay container -->
+
+      <!-- Overlay container - now using image 2 (left/before) -->
       <div class="absolute inset-0">
-        <img 
+        <img
           v-if="images[1] && images[1].type.startsWith('image/')"
-          :src="getFileUrl(images[1])" 
-          :alt="'After image'"
+          :src="getFileUrl(images[1])"
+          :alt="'Before image'"
           class="w-full h-full object-cover"
           :style="{
             clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`
@@ -69,7 +69,7 @@
           draggable="false"
         />
       </div>
-      
+
       <!-- Slider line -->
       <div
         class="pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-white/30 backdrop-blur-sm"

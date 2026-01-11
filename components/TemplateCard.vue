@@ -35,35 +35,29 @@
           v-else-if="template.thumbnailVariant === 'compareSlider'"
           class="w-full h-full relative select-none"
           ref="compareContainer"
+          @mouseenter="isHovered = true"
+          @mouseleave="isHovered = false"
         >
-          <!-- After image (background) -->
+          <!-- After image (background) - now using image 1 -->
           <img
-            :src="thumbnailUrl2"
+            :src="thumbnailUrl"
             :alt="`${template.title || template.name} - after`"
             class="w-full h-full object-cover pointer-events-none"
             draggable="false"
           />
-          <!-- Before image (clipped using clip-path) -->
+          <!-- Before image (clipped using clip-path) - now using image 2 -->
           <img
-            :src="thumbnailUrl"
+            :src="thumbnailUrl2"
             :alt="`${template.title || template.name} - before`"
             class="w-full h-full object-cover absolute top-0 left-0 pointer-events-none"
             :style="{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }"
             draggable="false"
           />
-          <!-- Slider handle -->
+          <!-- Slider line (no handle, just visual indicator) -->
           <div
-            class="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-lg z-10"
+            class="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-white/30 backdrop-blur-sm z-10"
             :style="{ left: sliderPosition + '%' }"
-            @mousedown="startDragging"
-            @touchstart="startDragging"
-          >
-            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-none">
-              <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-              </svg>
-            </div>
-          </div>
+          />
         </div>
 
         <!-- Default thumbnail -->
@@ -165,7 +159,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useMouseInElement } from '@vueuse/core'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -182,9 +177,11 @@ defineEmits(['edit', 'view'])
 
 const imageError = ref(false)
 const sliderPosition = ref(50) // For compareSlider, start at 50%
-const isDragging = ref(false)
-const sliderContainer = ref<HTMLElement | null>(null)
+const isHovered = ref(false)
 const compareContainer = ref<HTMLElement | null>(null)
+
+// Use VueUse to track mouse position
+const { elementX, elementWidth, isOutside } = useMouseInElement(compareContainer)
 
 const thumbnailUrl = computed(() => {
   // For deleted templates, load from main branch where they still exist
@@ -237,43 +234,14 @@ const openInCloud = () => {
   window.open(cloudUrl, '_blank')
 }
 
-// Compare slider functionality
-const startDragging = (e: MouseEvent | TouchEvent) => {
-  e.preventDefault()
-  isDragging.value = true
-
-  // Use the compareContainer ref directly
-  sliderContainer.value = compareContainer.value
-}
-
-const onDrag = (e: MouseEvent | TouchEvent) => {
-  if (!isDragging.value || !sliderContainer.value) return
-
-  const rect = sliderContainer.value.getBoundingClientRect()
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const x = clientX - rect.left
-  const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100))
-
-  sliderPosition.value = percentage
-}
-
-const stopDragging = () => {
-  isDragging.value = false
-  sliderContainer.value = null
-}
-
-// Add and remove event listeners
-onMounted(() => {
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', stopDragging)
-  document.addEventListener('touchmove', onDrag)
-  document.addEventListener('touchend', stopDragging)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDragging)
-  document.removeEventListener('touchmove', onDrag)
-  document.removeEventListener('touchend', stopDragging)
-})
+// Update slider position based on mouse position (hover-based)
+watch(
+  [() => isHovered.value, elementX, elementWidth, isOutside],
+  ([hovered, x, width, outside]) => {
+    if (!hovered || props.template.thumbnailVariant !== 'compareSlider') return
+    if (!outside && width > 0) {
+      sliderPosition.value = (x / width) * 100
+    }
+  }
+)
 </script>

@@ -608,7 +608,7 @@ const getThumbnailLabel = (index: number) => {
   if (form.value.thumbnailVariant === 'hoverDissolve') {
     return index === 1 ? 'Base Image' : 'Hover Image'
   } else if (form.value.thumbnailVariant === 'compareSlider') {
-    return index === 1 ? 'Before Image' : 'After Image'
+    return index === 1 ? 'After Image' : 'Before Image'
   }
   return `Thumbnail ${index}`
 }
@@ -621,8 +621,8 @@ const getThumbnailDescription = (index: number) => {
       : 'Image shown when user hovers'
   } else if (form.value.thumbnailVariant === 'compareSlider') {
     return index === 1
-      ? 'Before state for comparison'
-      : 'After state for comparison'
+      ? 'After state (right side, visible when slider is moved left)'
+      : 'Before state (left side, visible when slider is moved right)'
   }
   return 'Main thumbnail image'
 }
