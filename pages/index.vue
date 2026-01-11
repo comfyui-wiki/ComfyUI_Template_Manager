@@ -317,6 +317,7 @@
                 :can-edit="canEditCurrentRepo"
                 :repo="selectedRepo"
                 :branch="selectedBranch"
+                :cache-bust="cacheBustTimestamp"
                 @edit="editTemplate"
                 @view="viewTemplate"
               />
@@ -341,6 +342,7 @@
                     :can-edit="canEditCurrentRepo"
                     :repo="selectedRepo"
                     :branch="selectedBranch"
+                    :cache-bust="cacheBustTimestamp"
                     @edit="editTemplate"
                     @view="viewTemplate"
                   />
@@ -424,6 +426,9 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
 // Track page visibility for smart refresh
 const lastVisitTime = ref(Date.now())
 
+// Cache-busting timestamp (updated when we force refresh)
+const cacheBustTimestamp = ref<number | undefined>(undefined)
+
 // Initial load - initialize GitHub and load templates
 onMounted(async () => {
   // Initialize GitHub repo/branch management (checks permissions and fork status)
@@ -431,11 +436,26 @@ onMounted(async () => {
     await initializeGitHub()
   }
 
+  // Check if we just saved a template (force refresh if so)
+  let forceRefresh = false
+  if (process.client && sessionStorage.getItem('template_just_saved') === 'true') {
+    console.log('[Homepage] Detected recent template save, forcing refresh')
+    forceRefresh = true
+    cacheBustTimestamp.value = Date.now() // Set cache-bust timestamp
+    sessionStorage.removeItem('template_just_saved')
+  }
+
   // Load templates from selected repo/branch (or default to main)
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
   const branch = selectedBranch.value || 'main'
   const [owner, name] = repo.split('/')
-  await loadTemplates(owner, name, branch)
+
+  if (forceRefresh) {
+    // Clear cache before loading
+    clearCache(owner, name, branch)
+  }
+
+  await loadTemplates(owner, name, branch, forceRefresh)
 
   // Listen for page visibility changes (user returns to this page)
   if (process.client) {
@@ -464,6 +484,8 @@ const handleVisibilityChange = async () => {
         const [owner, name] = selectedRepo.value.split('/')
         // Clear cache for this specific repo/branch before refreshing
         clearCache(owner, name, selectedBranch.value)
+        // Update cache-bust timestamp to force fresh images
+        cacheBustTimestamp.value = Date.now()
         await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
       }
     }
@@ -496,6 +518,8 @@ const refreshTemplates = async () => {
     console.log('[Manual Refresh] Clearing cache and reloading templates from:', owner, name, selectedBranch.value)
     // Clear cache first to ensure fresh data
     clearCache(owner, name, selectedBranch.value)
+    // Update cache-bust timestamp to force fresh images
+    cacheBustTimestamp.value = Date.now()
     await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
   }
 }

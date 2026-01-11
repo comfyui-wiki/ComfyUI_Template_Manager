@@ -175,6 +175,7 @@ const props = defineProps<{
   canEdit?: boolean
   repo?: string
   branch?: string
+  cacheBust?: number // Optional timestamp to force fresh images
 }>()
 
 defineEmits(['edit', 'view'])
@@ -194,7 +195,9 @@ const thumbnailUrl = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  return `${baseUrl}/${props.template.name}-1.webp`
+  // Add cache-busting timestamp if provided (used after saves)
+  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  return `${baseUrl}/${props.template.name}-1.webp${cacheBust}`
 })
 
 const thumbnailUrl2 = computed(() => {
@@ -206,7 +209,9 @@ const thumbnailUrl2 = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  return `${baseUrl}/${props.template.name}-2.webp`
+  // Add cache-busting timestamp if provided (used after saves)
+  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  return `${baseUrl}/${props.template.name}-2.webp${cacheBust}`
 })
 
 const audioUrl = computed(() => {
@@ -218,7 +223,9 @@ const audioUrl = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  return `${baseUrl}/${props.template.name}-1.mp3`
+  // Add cache-busting timestamp if provided (used after saves)
+  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  return `${baseUrl}/${props.template.name}-1.mp3${cacheBust}`
 })
 
 const onImageError = () => {

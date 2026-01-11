@@ -534,10 +534,9 @@ const currentCategoryTitle = computed(() => {
 
 // Computed: Required thumbnail count based on variant
 const requiredThumbnailCount = computed(() => {
-  if (form.value.thumbnailVariant === 'hoverDissolve' || form.value.thumbnailVariant === 'compareSlider') {
-    return 2
-  }
-  return 1
+  const count = (form.value.thumbnailVariant === 'hoverDissolve' || form.value.thumbnailVariant === 'compareSlider') ? 2 : 1
+  console.log('[requiredThumbnailCount] Variant:', form.value.thumbnailVariant, '→ Count:', count)
+  return count
 })
 
 // Get thumbnail label based on variant and index
@@ -888,6 +887,13 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
       count = 2
     }
 
+    console.log('[loadThumbnails] Loading thumbnails:', {
+      variant,
+      count,
+      templateName,
+      mediaSubtype
+    })
+
     const files: File[] = []
     for (let i = 1; i <= count; i++) {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}-${i}.${mediaSubtype}`
@@ -907,6 +913,8 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
     }
 
     thumbnailFiles.value = files
+    console.log('[loadThumbnails] Loaded files:', files.length, 'thumbnails')
+    console.log('[loadThumbnails] thumbnailFiles.value now has', thumbnailFiles.value.length, 'items')
   } catch (err) {
     console.error('Error loading thumbnails:', err)
   }
@@ -968,15 +976,23 @@ const handleSubmit = async () => {
     })
 
     if (response.success) {
-      alert(`✅ Template updated successfully!\n\nCommit: ${response.commit.sha.substring(0, 7)}\n\nYou can view the commit on GitHub.`)
-
       // Clear reuploaded files status
       reuploadedThumbnails.value.clear()
       workflowReuploadStatus.value = null
       thumbnailReuploadStatus.value = null
 
-      // Optionally redirect or reload
-      // navigateTo(`/admin/edit/${templateName}`)
+      // Show brief success message
+      alert(`✅ Template updated successfully!\n\nCommit: ${response.commit.sha.substring(0, 7)}\n\nRedirecting to homepage...`)
+
+      // Mark that we just saved, so homepage knows to force refresh
+      if (process.client) {
+        sessionStorage.setItem('template_just_saved', 'true')
+      }
+
+      // Redirect to homepage after brief delay
+      setTimeout(() => {
+        navigateTo('/')
+      }, 500)
     }
 
   } catch (error: any) {

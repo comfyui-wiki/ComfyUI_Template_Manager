@@ -65,18 +65,22 @@ export const useTemplateDiff = () => {
     if (!forceRefresh) {
       const cached = getCachedData(cacheKey)
       if (cached) {
+        console.log('[fetchTemplates] ⚡ Using cached data (skip refresh button to force latest)')
         return cached
       }
+    } else {
+      console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache, fetching latest from GitHub')
     }
 
     try {
-      console.log('[fetchTemplates] Fetching fresh data from API for', owner, repo, branch)
+      console.log(`[fetchTemplates] 🌐 Fetching fresh data from: ${owner}/${repo}/${branch}`)
       const response = await $fetch('/api/github/templates', {
         query: { owner, repo, branch }
       })
 
       // Cache the fresh data
       setCachedData(cacheKey, response.categories)
+      console.log('[fetchTemplates] ✅ Fresh data fetched and cached')
 
       return response.categories
     } catch (err: any) {
@@ -180,11 +184,16 @@ export const useTemplateDiff = () => {
       title: template.title,
       description: template.description,
       thumbnail: template.thumbnail,
+      thumbnailVariant: template.thumbnailVariant, // Include thumbnail variant
       models: template.models,
       tags: template.tags,
       openSource: template.openSource,
       audio: template.audio,
-      hoverThumbnail: template.hoverThumbnail
+      hoverThumbnail: template.hoverThumbnail,
+      tutorialUrl: template.tutorialUrl, // Include tutorial URL
+      comfyuiVersion: template.comfyuiVersion, // Include ComfyUI version
+      mediaType: template.mediaType, // Include media type
+      mediaSubtype: template.mediaSubtype // Include media subtype
     }
     return hash(relevantData)
   }
