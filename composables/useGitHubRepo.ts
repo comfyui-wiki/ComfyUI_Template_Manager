@@ -326,10 +326,30 @@ export const useGitHubRepo = () => {
   })
 
   // Initialize: check permissions and fork status
+  // Reset to main repo and main branch (called on sign out)
+  const resetToMain = () => {
+    console.log('[useGitHubRepo] Resetting to main repo and branch')
+    selectedRepo.value = 'Comfy-Org/workflow_templates'
+    selectedBranch.value = 'main'
+    hasMainRepoAccess.value = false
+    hasFork.value = false
+    branches.value = []
+    forkInfo.value = null
+    branchPermission.value = null
+    forkCompareStatus.value = null
+
+    // Clear localStorage
+    if (process.client) {
+      localStorage.removeItem('github_selected_repo')
+      localStorage.removeItem('github_selected_branch')
+    }
+  }
+
   const initialize = async () => {
     console.log('[useGitHubRepo] Initializing...')
     if (status.value !== 'authenticated') {
-      console.log('[useGitHubRepo] User not authenticated, skipping initialization')
+      console.log('[useGitHubRepo] User not authenticated, resetting to main')
+      resetToMain()
       return
     }
 
@@ -428,6 +448,7 @@ export const useGitHubRepo = () => {
     createFork,
     loadBranches,
     createBranch,
-    initialize
+    initialize,
+    resetToMain
   }
 }

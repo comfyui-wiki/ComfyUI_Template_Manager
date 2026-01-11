@@ -32,5 +32,21 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 
-const { status, data, signIn, signOut } = useAuth()
+const { status, data, signIn, signOut: authSignOut } = useAuth()
+const { resetToMain } = useGitHubRepo()
+const { clearCache } = useTemplateDiff()
+
+// Custom sign out handler that resets to main repo
+const signOut = async () => {
+  // Reset to main repo and branch (clears state and localStorage)
+  resetToMain()
+  console.log('[Sign Out] Reset to main repo and branch')
+
+  // Clear all template caches
+  clearCache()
+  console.log('[Sign Out] Cleared template cache')
+
+  // Call the actual auth sign out
+  await authSignOut()
+}
 </script>
