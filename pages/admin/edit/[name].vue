@@ -61,12 +61,12 @@
       <!-- Edit Form with Sidebar -->
       <div v-else class="flex">
         <!-- Left Sidebar: Template List for Reordering -->
-        <div class="w-64 border-r bg-muted/30 min-h-[calc(100vh-73px)] sticky top-[73px] overflow-y-auto">
+        <div class="w-80 border-r bg-muted/30 min-h-[calc(100vh-73px)] sticky top-[73px] overflow-y-auto">
           <div class="p-4">
             <h2 class="text-sm font-semibold mb-2">Category Order</h2>
             <p class="text-xs text-muted-foreground mb-4">{{ currentCategoryTitle }}</p>
 
-            <div class="space-y-1">
+            <div class="space-y-2">
               <div
                 v-for="(template, index) in categoryTemplates"
                 :key="template.name"
@@ -75,18 +75,71 @@
                 @dragover="onDragOver($event, index)"
                 @drop="onDrop($event, index)"
                 @dragend="onDragEnd"
-                class="p-2 rounded text-sm cursor-move transition-colors"
+                class="p-2 rounded-lg cursor-move transition-all relative"
                 :class="{
-                  'bg-primary text-primary-foreground': template.name === templateName,
-                  'bg-background hover:bg-accent': template.name !== templateName,
+                  'bg-primary text-primary-foreground shadow-lg ring-2 ring-primary ring-offset-2': template.name === templateName,
+                  'bg-background hover:bg-accent hover:shadow': template.name !== templateName,
                   'opacity-50': draggedIndex === index
                 }"
               >
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex items-center gap-3">
+                  <!-- Drag Handle -->
+                  <svg class="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
                   </svg>
-                  <span class="truncate">{{ template.title || template.name }}</span>
+
+                  <!-- Thumbnail -->
+                  <div class="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                    <img
+                      :src="getTemplateThumbnailUrl(template)"
+                      :alt="template.title || template.name"
+                      class="w-full h-full object-cover"
+                      @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
+                    />
+                  </div>
+
+                  <!-- Template Info -->
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-medium truncate">
+                      {{ template.title || template.name }}
+                    </div>
+                  </div>
+
+                  <!-- Position Change Indicator -->
+                  <div
+                    v-if="templatePositionChanges.has(template.name)"
+                    class="flex items-center gap-1 flex-shrink-0"
+                  >
+                    <div
+                      class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold"
+                      :class="{
+                        'bg-green-500 text-white': templatePositionChanges.get(template.name)!.change > 0,
+                        'bg-red-500 text-white': templatePositionChanges.get(template.name)!.change < 0
+                      }"
+                    >
+                      <!-- Up arrow for moved up (positive change) -->
+                      <svg
+                        v-if="templatePositionChanges.get(template.name)!.change > 0"
+                        class="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" />
+                      </svg>
+                      <!-- Down arrow for moved down (negative change) -->
+                      <svg
+                        v-else
+                        class="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" />
+                      </svg>
+                      <span>{{ Math.abs(templatePositionChanges.get(template.name)!.change) }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -522,7 +575,34 @@ const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }
 // Drag and drop state for template reordering
 const draggedIndex = ref<number | null>(null)
 const categoryTemplates = ref<any[]>([])
+const originalCategoryTemplates = ref<any[]>([])
 const templateOrderChanged = ref(false)
+
+// Computed: Calculate position changes for each template
+const templatePositionChanges = computed(() => {
+  const changes = new Map<string, { oldIndex: number; newIndex: number; change: number }>()
+
+  originalCategoryTemplates.value.forEach((template, oldIndex) => {
+    const newIndex = categoryTemplates.value.findIndex(t => t.name === template.name)
+    if (newIndex !== -1 && newIndex !== oldIndex) {
+      changes.set(template.name, {
+        oldIndex,
+        newIndex,
+        change: oldIndex - newIndex // positive = moved up, negative = moved down
+      })
+    }
+  })
+
+  return changes
+})
+
+// Helper: Get thumbnail URL for a template
+const getTemplateThumbnailUrl = (template: any) => {
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  const mediaSubtype = template.mediaSubtype || 'webp'
+  return `https://raw.githubusercontent.com/${repo}/${branch}/templates/${template.name}-1.${mediaSubtype}`
+}
 
 const form = ref({
   title: '',
@@ -984,6 +1064,7 @@ onMounted(async () => {
 
     // Populate category templates for reordering sidebar
     categoryTemplates.value = foundCategoryTemplates
+    originalCategoryTemplates.value = [...foundCategoryTemplates] // Deep copy for comparison
     console.log('[Edit Page] Loaded category templates for reordering:', categoryTemplates.value.length)
 
     // Populate form with existing data
