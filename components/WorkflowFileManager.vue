@@ -117,7 +117,30 @@
 
               <!-- File Info -->
               <div class="flex-1 min-w-0">
-                <div class="font-mono text-sm truncate">{{ fileRef.filename }}</div>
+                <!-- Editable filename -->
+                <div class="flex items-center gap-2 group">
+                  <input
+                    v-if="editingFilename === fileRef.filename"
+                    v-model="tempFilename"
+                    type="text"
+                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                    @keyup.enter="saveFilenameEdit(fileRef.filename)"
+                    @keyup.esc="cancelFilenameEdit"
+                    @blur="saveFilenameEdit(fileRef.filename)"
+                  />
+                  <div v-else class="font-mono text-sm truncate">{{ fileRef.filename }}</div>
+                  <button
+                    v-if="editingFilename !== fileRef.filename"
+                    type="button"
+                    class="opacity-0 group-hover:opacity-100 transition-opacity"
+                    @click="startFilenameEdit(fileRef.filename)"
+                    title="Edit filename"
+                  >
+                    <svg class="w-3 h-3 text-muted-foreground hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </div>
                 <div class="flex items-center gap-2 text-xs text-muted-foreground">
                   <span class="capitalize">{{ fileRef.nodeType }}</span>
                   <span>•</span>
@@ -250,6 +273,8 @@ const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const inputFileWarnings = ref<Map<string, string>>(new Map())
 const pendingConversionFiles = ref<Map<string, File>>(new Map())
 const formatChangedFiles = ref<Map<string, string>>(new Map()) // new filename -> old filename
+const editingFilename = ref<string | null>(null)
+const tempFilename = ref<string>('')
 
 // Node types that require input assets (from Python script)
 const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo']
@@ -421,6 +446,8 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 
   if (!file) return
 
+  console.log('[WorkflowFileManager] File uploaded:', file.name, file.type, file.size)
+
   // Clear previous warning
   inputFileWarnings.value.delete(originalFilename)
 
@@ -431,38 +458,10 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 
   const fileSizeMB = file.size / (1024 * 1024)
 
-  // Check size limits
-  let sizeWarning = ''
-  if (isImage && fileSizeMB > 2) {
-    sizeWarning = `⚠️ Image size is ${fileSizeMB.toFixed(2)}MB (recommended: < 2MB). This may be too large for the server.`
-  } else if (isVideo && fileSizeMB > 4) {
-    sizeWarning = `⚠️ Video size is ${fileSizeMB.toFixed(2)}MB (recommended: < 4MB). This may be too large for the server.`
-  }
-
-  // Check if needs conversion (non-WebP images or videos should be converted)
-  if ((isImage && !isWebP) || isVideo) {
-    // Show warning and offer conversion
-    inputFileWarnings.value.set(originalFilename,
-      `${sizeWarning ? sizeWarning + ' ' : ''}📝 File format: ${file.type}. Consider converting to WebP for optimal size. Click "Convert" to optimize.`
-    )
-
-    // Store file temporarily for conversion
-    pendingConversionFiles.value.set(originalFilename, file)
-
-    // Don't store in final map yet - wait for user to convert or re-upload
-    // Reset input
-    input.value = ''
-    return
-  }
-
-  if (sizeWarning) {
-    inputFileWarnings.value.set(originalFilename, sizeWarning)
-  }
-
-  // Store the reuploaded file
+  // ALWAYS store the file first to mark it as uploaded
   reuploadedInputFiles.value.set(originalFilename, file)
 
-  // Update the file ref
+  // Update the file ref to mark as exists
   const fileRef = inputFileRefs.value.find(f => f.filename === originalFilename)
   if (fileRef) {
     fileRef.exists = true
@@ -472,6 +471,53 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     if (isImageFile(file.name)) {
       fileRef.previewUrl = URL.createObjectURL(file)
     }
+  }
+
+  // Check size limits
+  let sizeWarning = ''
+  if (isImage && fileSizeMB > 2) {
+    sizeWarning = `⚠️ Image size is ${fileSizeMB.toFixed(2)}MB (recommended: < 2MB). This may be too large for the server.`
+  } else if (isVideo && fileSizeMB > 4) {
+    sizeWarning = `⚠️ Video size is ${fileSizeMB.toFixed(2)}MB (recommended: < 4MB). This may be too large for the server.`
+  }
+
+  // Check if needs conversion (non-WebP images or videos should be converted)
+  const needsConversion = (isImage && !isWebP) || isVideo
+
+  if (needsConversion) {
+    // Show info message about auto-opening converter
+    inputFileWarnings.value.set(originalFilename,
+      `${sizeWarning ? sizeWarning + ' ' : ''}✨ File uploaded: ${file.name} (${fileSizeMB.toFixed(2)}MB). Opening converter to optimize format and size...`
+    )
+
+    // Store file for conversion
+    pendingConversionFiles.value.set(originalFilename, file)
+
+    // Emit updated files
+    emit('inputFilesUpdated', reuploadedInputFiles.value)
+
+    // Reset input
+    input.value = ''
+
+    // Auto-trigger converter after a short delay to let UI update
+    setTimeout(() => {
+      emit('openConverter', file, originalFilename, false)
+    }, 500)
+
+    return
+  }
+
+  // WebP file - show success message
+  if (sizeWarning) {
+    inputFileWarnings.value.set(originalFilename, sizeWarning)
+  } else {
+    inputFileWarnings.value.set(originalFilename,
+      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). WebP format is optimal!`
+    )
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      inputFileWarnings.value.delete(originalFilename)
+    }, 3000)
   }
 
   // Emit updated files
@@ -611,6 +657,82 @@ const handleConvertedFileReceived = (file: File, targetFilename: string, oldFile
 const resetFormatChanges = () => {
   formatChangedFiles.value.clear()
   formatChangeNotice.value = null
+}
+
+// Filename editing functions
+const startFilenameEdit = (filename: string) => {
+  editingFilename.value = filename
+  tempFilename.value = filename
+}
+
+const cancelFilenameEdit = () => {
+  editingFilename.value = null
+  tempFilename.value = ''
+}
+
+const saveFilenameEdit = (oldFilename: string) => {
+  const newFilename = tempFilename.value.trim()
+
+  // If no change or empty, cancel
+  if (!newFilename || newFilename === oldFilename) {
+    cancelFilenameEdit()
+    return
+  }
+
+  // Validate filename (basic check)
+  if (!/^[a-zA-Z0-9_\-\.]+$/.test(newFilename)) {
+    inputFileWarnings.value.set(oldFilename, '⚠️ Invalid filename. Use only letters, numbers, dots, dashes, and underscores.')
+    cancelFilenameEdit()
+    return
+  }
+
+  console.log('[WorkflowFileManager] Renaming file:', oldFilename, '→', newFilename)
+
+  // Get the file if it was uploaded
+  const file = reuploadedInputFiles.value.get(oldFilename)
+
+  // Find and update the file ref
+  const index = inputFileRefs.value.findIndex(f => f.filename === oldFilename)
+  if (index !== -1) {
+    const oldRef = inputFileRefs.value[index]
+    const newRef = {
+      ...oldRef,
+      filename: newFilename,
+    }
+
+    // If file was uploaded, create new File object with new name
+    if (file) {
+      const newFile = new File([file], newFilename, { type: file.type })
+      reuploadedInputFiles.value.delete(oldFilename)
+      reuploadedInputFiles.value.set(newFilename, newFile)
+
+      // Update preview if image
+      if (isImageFile(newFilename)) {
+        newRef.previewUrl = URL.createObjectURL(newFile)
+      }
+    }
+
+    // Replace in array to trigger Vue reactivity
+    inputFileRefs.value.splice(index, 1, newRef)
+  }
+
+  // Track format change (new filename -> old filename)
+  formatChangedFiles.value.set(newFilename, oldFilename)
+
+  // Show format change notice
+  formatChangeNotice.value = {
+    oldFilename,
+    newFilename
+  }
+
+  // Clear any warnings on old filename
+  inputFileWarnings.value.delete(oldFilename)
+
+  // Emit changes
+  emit('inputFilesUpdated', reuploadedInputFiles.value)
+  emit('formatChanged', oldFilename, newFilename)
+
+  cancelFilenameEdit()
 }
 
 // Expose method for parent to call when converter finishes

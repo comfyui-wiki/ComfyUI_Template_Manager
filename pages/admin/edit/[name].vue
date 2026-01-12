@@ -650,6 +650,7 @@ const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }
 
 // Workflow and input files state
 const updatedWorkflowContent = ref<string>('')
+const hasWorkflowChanged = ref<boolean>(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 
 // Thumbnail converter state
@@ -962,6 +963,9 @@ const calculateFileInfo = async (file: File, index: number) => {
 // Handler for workflow updates from WorkflowFileManager
 const handleWorkflowUpdated = (content: string) => {
   updatedWorkflowContent.value = content
+  // Also update workflowContent so format changes can be detected on the new workflow
+  workflowContent.value = content
+  console.log('[Edit Page] Workflow manually updated, content synced')
 }
 
 // Handler for input files updates from WorkflowFileManager
@@ -1174,7 +1178,9 @@ const handleInputFileFormatChange = (oldFilename: string, newFilename: string) =
       workflowContent.value = JSON.stringify(workflow, null, 2)
       hasWorkflowChanged.value = true
 
-      console.log('[Edit Page] Workflow JSON updated successfully')
+      console.log('[Edit Page] Workflow JSON updated successfully, hasWorkflowChanged:', hasWorkflowChanged.value)
+    } else {
+      console.warn('[Edit Page] No workflow content to update')
     }
   } catch (error) {
     console.error('[Edit Page] Failed to update workflow JSON:', error)
@@ -1418,10 +1424,18 @@ const handleSubmit = async () => {
     // Prepare files data if there are reuploaded files
     const filesData: any = {}
 
-    // Check if workflow was reuploaded
-    if (updatedWorkflowContent.value) {
+    // Check if workflow was reuploaded or changed by format conversion
+    if (updatedWorkflowContent.value || hasWorkflowChanged.value) {
+      // Use updated content if manually reuploaded, otherwise use modified workflowContent
+      const contentToSave = updatedWorkflowContent.value || workflowContent.value
+
+      console.log('[Submit] Workflow changed, saving updates:', {
+        manualReupload: !!updatedWorkflowContent.value,
+        formatChanged: hasWorkflowChanged.value
+      })
+
       // Create a temporary File object to convert to base64
-      const workflowBlob = new Blob([updatedWorkflowContent.value], { type: 'application/json' })
+      const workflowBlob = new Blob([contentToSave], { type: 'application/json' })
       const workflowFile = new File([workflowBlob], 'workflow.json', { type: 'application/json' })
       const workflowBase64 = await fileToBase64(workflowFile)
       filesData.workflow = {
@@ -1497,6 +1511,7 @@ const handleSubmit = async () => {
       // Clear reuploaded files status
       reuploadedThumbnails.value.clear()
       updatedWorkflowContent.value = ''
+      hasWorkflowChanged.value = false
       reuploadedInputFiles.value.clear()
       thumbnailReuploadStatus.value = null
 
