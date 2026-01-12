@@ -2049,6 +2049,12 @@ const handleSubmit = async () => {
           commitUrl: response.commit.url
         }
 
+        // Set sessionStorage flag to trigger cache refresh on homepage
+        if (process.client) {
+          sessionStorage.setItem('template_just_saved', 'true')
+          console.log('[Submit] Set template_just_saved flag for cache refresh')
+        }
+
         // Wait 2 seconds to let user see the success message, then redirect to homepage
         setTimeout(() => {
           navigateTo('/', { replace: true })
@@ -2060,6 +2066,12 @@ const handleSubmit = async () => {
       saveSuccess.value = {
         commitSha: response.commit.sha,
         commitUrl: response.commit.url
+      }
+
+      // Set sessionStorage flag to trigger cache refresh on homepage
+      if (process.client) {
+        sessionStorage.setItem('template_just_saved', 'true')
+        console.log('[Submit] Set template_just_saved flag for cache refresh')
       }
 
       // Set flag to prevent watch from clearing saveSuccess during cleanup

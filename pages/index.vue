@@ -469,6 +469,7 @@
                 :repo="selectedRepo"
                 :branch="selectedBranch"
                 :cache-bust="cacheBustTimestamp"
+                :commit-sha="latestCommitSha"
                 @edit="editTemplate"
                 @view="viewTemplate"
               />
@@ -494,6 +495,7 @@
                     :repo="selectedRepo"
                     :branch="selectedBranch"
                     :cache-bust="cacheBustTimestamp"
+                    :commit-sha="latestCommitSha"
                     @edit="editTemplate"
                     @view="viewTemplate"
                   />
@@ -515,7 +517,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onActivated, watch } from 'vue'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -600,7 +602,32 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
 const lastVisitTime = ref(Date.now())
 
 // Cache-busting timestamp (updated when we force refresh)
+// We use commit SHA for better CDN cache busting
 const cacheBustTimestamp = ref<number | undefined>(undefined)
+const latestCommitSha = ref<string | undefined>(undefined)
+
+// Fetch latest commit SHA for cache busting
+const fetchLatestCommitSha = async (owner: string, repo: string, branch: string) => {
+  try {
+    if (status.value === 'authenticated') {
+      // Use GitHub API with authentication
+      const response = await $fetch(`/api/github/latest-commit`, {
+        query: { owner, repo, branch }
+      })
+      return response.sha
+    } else {
+      // Fallback to public GitHub API
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}`)
+      if (response.ok) {
+        const data = await response.json()
+        return data.sha
+      }
+    }
+  } catch (error) {
+    console.error('[fetchLatestCommitSha] Failed to fetch commit SHA:', error)
+  }
+  return undefined
+}
 
 // Initial load - initialize GitHub and load templates
 onMounted(async () => {
@@ -617,7 +644,6 @@ onMounted(async () => {
   if (process.client && sessionStorage.getItem('template_just_saved') === 'true') {
     console.log('[Homepage] Detected recent template save, forcing refresh')
     forceRefresh = true
-    cacheBustTimestamp.value = Date.now() // Set cache-bust timestamp
     sessionStorage.removeItem('template_just_saved')
   }
 
@@ -629,6 +655,15 @@ onMounted(async () => {
   if (forceRefresh) {
     // Clear cache before loading
     clearCache(owner, name, branch)
+    // Fetch latest commit SHA for stronger CDN cache busting
+    const sha = await fetchLatestCommitSha(owner, name, branch)
+    if (sha) {
+      latestCommitSha.value = sha
+      cacheBustTimestamp.value = Date.now() // Also set timestamp as fallback
+      console.log('[Homepage] Using commit SHA for cache bust:', sha.substring(0, 8))
+    } else {
+      cacheBustTimestamp.value = Date.now() // Fallback to timestamp
+    }
   }
 
   await loadTemplates(owner, name, branch, forceRefresh)
@@ -651,22 +686,71 @@ onBeforeUnmount(() => {
   }
 })
 
+// Handle component activation (when kept-alive component is reused)
+onActivated(async () => {
+  console.log('[onActivated] Component activated, checking for template_just_saved flag')
+
+  // Check if template was just saved
+  if (process.client && sessionStorage.getItem('template_just_saved') === 'true') {
+    console.log('[onActivated] Template just saved - forcing cache refresh')
+    sessionStorage.removeItem('template_just_saved')
+
+    if (selectedRepo.value && selectedBranch.value) {
+      const [owner, name] = selectedRepo.value.split('/')
+      // Clear cache for this specific repo/branch before refreshing
+      clearCache(owner, name, selectedBranch.value)
+      // Fetch latest commit SHA for stronger CDN cache busting
+      const sha = await fetchLatestCommitSha(owner, name, selectedBranch.value)
+      if (sha) {
+        latestCommitSha.value = sha
+        cacheBustTimestamp.value = Date.now()
+        console.log('[onActivated] Using commit SHA for cache bust:', sha.substring(0, 8))
+      } else {
+        cacheBustTimestamp.value = Date.now()
+      }
+      await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
+      // Also refresh PR status
+      if (status.value === 'authenticated') {
+        await checkPRStatus()
+      }
+    }
+  }
+})
+
 // Handle page becoming visible again (user returned from edit page)
 const handleVisibilityChange = async () => {
   if (document.visibilityState === 'visible') {
     const timeSinceLastVisit = Date.now() - lastVisitTime.value
 
-    // If user was away for more than 2 seconds, force refresh
+    // Check if template was just saved (even if returned quickly)
+    const justSaved = process.client && sessionStorage.getItem('template_just_saved') === 'true'
+    if (justSaved) {
+      console.log('[Page Visible] Template just saved - forcing cache refresh')
+      sessionStorage.removeItem('template_just_saved')
+    }
+
+    // If user was away for more than 2 seconds OR just saved a template, force refresh
     // This catches quick edits where user saves and immediately returns
-    if (timeSinceLastVisit > 2000) {
-      console.log('[Page Visible] User returned after', Math.round(timeSinceLastVisit / 1000), 'seconds - refreshing data')
+    if (timeSinceLastVisit > 2000 || justSaved) {
+      if (justSaved) {
+        console.log('[Page Visible] User returned after saving - refreshing data')
+      } else {
+        console.log('[Page Visible] User returned after', Math.round(timeSinceLastVisit / 1000), 'seconds - refreshing data')
+      }
 
       if (selectedRepo.value && selectedBranch.value) {
         const [owner, name] = selectedRepo.value.split('/')
         // Clear cache for this specific repo/branch before refreshing
         clearCache(owner, name, selectedBranch.value)
-        // Update cache-bust timestamp to force fresh images
-        cacheBustTimestamp.value = Date.now()
+        // Fetch latest commit SHA for stronger CDN cache busting
+        const sha = await fetchLatestCommitSha(owner, name, selectedBranch.value)
+        if (sha) {
+          latestCommitSha.value = sha
+          cacheBustTimestamp.value = Date.now()
+          console.log('[Page Visible] Using commit SHA for cache bust:', sha.substring(0, 8))
+        } else {
+          cacheBustTimestamp.value = Date.now()
+        }
         await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
         // Also refresh PR status
         if (status.value === 'authenticated') {
@@ -713,8 +797,15 @@ const refreshTemplates = async () => {
     console.log('[Manual Refresh] Clearing cache and reloading templates from:', owner, name, selectedBranch.value)
     // Clear cache first to ensure fresh data
     clearCache(owner, name, selectedBranch.value)
-    // Update cache-bust timestamp to force fresh images
-    cacheBustTimestamp.value = Date.now()
+    // Fetch latest commit SHA for stronger CDN cache busting
+    const sha = await fetchLatestCommitSha(owner, name, selectedBranch.value)
+    if (sha) {
+      latestCommitSha.value = sha
+      cacheBustTimestamp.value = Date.now()
+      console.log('[Manual Refresh] Using commit SHA for cache bust:', sha.substring(0, 8))
+    } else {
+      cacheBustTimestamp.value = Date.now()
+    }
     await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
   }
 }
@@ -1096,7 +1187,15 @@ const handleUpdateBranch = async () => {
       if (selectedRepo.value && selectedBranch.value) {
         const [owner, name] = selectedRepo.value.split('/')
         clearCache(owner, name, selectedBranch.value)
-        cacheBustTimestamp.value = Date.now()
+        // Fetch latest commit SHA for stronger CDN cache busting
+        const sha = await fetchLatestCommitSha(owner, name, selectedBranch.value)
+        if (sha) {
+          latestCommitSha.value = sha
+          cacheBustTimestamp.value = Date.now()
+          console.log('[Update Branch] Using commit SHA for cache bust:', sha.substring(0, 8))
+        } else {
+          cacheBustTimestamp.value = Date.now()
+        }
         await loadTemplates(owner, name, selectedBranch.value, true)
       }
       await checkPRStatus()

@@ -186,6 +186,7 @@ const props = defineProps<{
   repo?: string
   branch?: string
   cacheBust?: number // Optional timestamp to force fresh images
+  commitSha?: string // Optional commit SHA for stronger cache busting
 }>()
 
 defineEmits(['edit', 'view'])
@@ -208,8 +209,12 @@ const thumbnailUrl = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Add cache-busting timestamp if provided (used after saves)
-  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
+  const cacheBust = props.commitSha
+    ? `?sha=${props.commitSha.substring(0, 8)}`
+    : props.cacheBust
+      ? `?cb=${props.cacheBust}`
+      : ''
   return `${baseUrl}/${props.template.name}-1.webp${cacheBust}`
 })
 
@@ -222,8 +227,12 @@ const thumbnailUrl2 = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Add cache-busting timestamp if provided (used after saves)
-  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
+  const cacheBust = props.commitSha
+    ? `?sha=${props.commitSha.substring(0, 8)}`
+    : props.cacheBust
+      ? `?cb=${props.cacheBust}`
+      : ''
   return `${baseUrl}/${props.template.name}-2.webp${cacheBust}`
 })
 
@@ -236,8 +245,12 @@ const audioUrl = computed(() => {
     ? 'main'
     : (props.branch || 'main')
   const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Add cache-busting timestamp if provided (used after saves)
-  const cacheBust = props.cacheBust ? `?cb=${props.cacheBust}` : ''
+  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
+  const cacheBust = props.commitSha
+    ? `?sha=${props.commitSha.substring(0, 8)}`
+    : props.cacheBust
+      ? `?cb=${props.cacheBust}`
+      : ''
   return `${baseUrl}/${props.template.name}-1.mp3${cacheBust}`
 })
 
