@@ -278,18 +278,18 @@
           >
             <!-- For images: use canvas -->
             <canvas v-if="isImage" ref="beforeCanvas" width="250" height="250" class="w-full h-full"></canvas>
-            <!-- For videos: use original source video file -->
-            <video
-              v-else-if="isVideo"
-              ref="beforeVideo"
-              :src="sourcePreviewUrl"
-              class="w-full h-full object-contain"
-              style="background: black;"
-              muted
-              loop
-              autoplay
-              playsinline
-            />
+            <!-- For videos: use original video with CSS positioning -->
+            <div v-else-if="isVideo" :style="beforeVideoContainerStyle">
+              <video
+                ref="beforeVideo"
+                :src="sourcePreviewUrl"
+                :style="beforeVideoElementStyle"
+                muted
+                loop
+                autoplay
+                playsinline
+              />
+            </div>
           </div>
 
           <!-- Labels -->
@@ -395,6 +395,89 @@ const comparisonPosition = ref(50)
 const comparisonActive = ref(false)
 const beforeCanvas = ref<HTMLCanvasElement>()
 const beforeVideo = ref<HTMLVideoElement>()
+
+// Computed properties for before video positioning
+const beforeVideoContainerStyle = computed(() => {
+  if (!sourceDimensions.value || fitMode.value !== 'crop') {
+    return {}
+  }
+
+  return {
+    width: '250px',
+    height: '250px',
+    position: 'relative',
+    overflow: 'hidden',
+    background: 'black'
+  }
+})
+
+const beforeVideoElementStyle = computed(() => {
+  if (!sourceDimensions.value) {
+    return { width: '250px', height: '250px', objectFit: 'contain' }
+  }
+
+  if (fitMode.value !== 'crop') {
+    return { width: '250px', height: '250px', objectFit: 'contain' }
+  }
+
+  // Original video dimensions
+  const videoW = sourceDimensions.value.width
+  const videoH = sourceDimensions.value.height
+
+  // Preview container dimensions (where crop box is)
+  const previewW = videoPreviewWidth.value
+  const previewH = videoPreviewHeight.value
+
+  // Calculate how video is displayed in preview (object-contain)
+  const previewAspect = previewW / previewH
+  const videoAspect = videoW / videoH
+
+  let videoDisplayW, videoDisplayH, videoOffsetX, videoOffsetY
+
+  if (videoAspect > previewAspect) {
+    // Video is wider - fits to width
+    videoDisplayW = previewW
+    videoDisplayH = previewW / videoAspect
+    videoOffsetX = 0
+    videoOffsetY = (previewH - videoDisplayH) / 2
+  } else {
+    // Video is taller - fits to height
+    videoDisplayH = previewH
+    videoDisplayW = previewH * videoAspect
+    videoOffsetX = (previewW - videoDisplayW) / 2
+    videoOffsetY = 0
+  }
+
+  // Crop box position relative to displayed video (not container)
+  const cropXInVideo = cropBoxX.value - videoOffsetX
+  const cropYInVideo = cropBoxY.value - videoOffsetY
+
+  // Convert crop position from preview coordinates to original video coordinates
+  const scaleToOriginal = videoW / videoDisplayW
+  const cropXOriginal = cropXInVideo * scaleToOriginal
+  const cropYOriginal = cropYInVideo * scaleToOriginal
+  const cropSizeOriginal = cropBoxSize.value * scaleToOriginal
+
+  // Scale factor to make crop area fill 250x250
+  const scaleTo250 = 250 / cropSizeOriginal
+
+  // Video element dimensions
+  const videoElementW = videoW * scaleTo250
+  const videoElementH = videoH * scaleTo250
+
+  // Position to show crop area
+  const left = -cropXOriginal * scaleTo250
+  const top = -cropYOriginal * scaleTo250
+
+  return {
+    width: videoElementW + 'px',
+    height: videoElementH + 'px',
+    position: 'absolute',
+    left: left + 'px',
+    top: top + 'px',
+    objectFit: 'none'
+  }
+})
 
 // FFmpeg instance
 const ffmpeg = ref<FFmpeg | null>(null)
@@ -709,6 +792,7 @@ const clearFile = () => {
   convertedPreviewUrl.value = ''
   error.value = ''
   sourceImage.value = undefined
+
   if (fileInput.value) {
     fileInput.value.value = ''
   }
@@ -924,6 +1008,15 @@ watch([quality, targetSize, videoMaxDuration, videoFps], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
+  }
+})
+
+// Watch for crop box changes to update before canvas for images
+watch([imageCropBoxX, imageCropBoxY, imageCropBoxSize], () => {
+  if (convertedFile.value && isImage.value) {
+    nextTick(() => {
+      drawBeforeCanvas()
+    })
   }
 })
 </script>
