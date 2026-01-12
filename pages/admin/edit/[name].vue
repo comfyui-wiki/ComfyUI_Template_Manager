@@ -1820,10 +1820,12 @@ const handleSubmit = async () => {
       }
     }
 
-    // Prepare new template order if it was changed (only in edit mode)
-    const templateOrder = !isCreateMode.value && templateOrderChanged.value
-      ? categoryTemplates.value.map(t => t.name)
-      : undefined
+    // Prepare new template order if it was changed
+    // In create mode: always send order if category is selected (user may have reordered)
+    // In edit mode: only send if order was actually changed
+    const templateOrder = isCreateMode.value
+      ? (form.value.category && categoryTemplates.value.length > 0 ? categoryTemplates.value.map(t => t.name) : undefined)
+      : (templateOrderChanged.value ? categoryTemplates.value.map(t => t.name) : undefined)
 
     // Determine which API endpoint to call based on mode
     const apiEndpoint = isCreateMode.value

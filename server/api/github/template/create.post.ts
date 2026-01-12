@@ -17,6 +17,7 @@ interface CreateTemplateRequest {
     date?: string
     openSource?: boolean
   }
+  templateOrder?: string[]  // Array of template names in desired order
   files: {
     workflow: {
       content: string // base64
@@ -45,7 +46,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody<CreateTemplateRequest>(event)
-    const { repo, branch, templateName, metadata, files } = body
+    const { repo, branch, templateName, metadata, templateOrder, files } = body
 
     if (!repo || !branch || !templateName) {
       throw createError({
@@ -173,6 +174,31 @@ export default defineEventHandler(async (event) => {
     // Add template to category
     indexData[targetCategoryIndex].templates = indexData[targetCategoryIndex].templates || []
     indexData[targetCategoryIndex].templates.push(newTemplate)
+
+    // If templateOrder is provided, reorder the templates array
+    if (templateOrder && Array.isArray(templateOrder) && templateOrder.length > 0) {
+      console.log('[Create Template] Reordering templates based on provided order:', templateOrder)
+
+      const templates = indexData[targetCategoryIndex].templates
+      const orderedTemplates: any[] = []
+      const templatesMap = new Map(templates.map((t: any) => [t.name, t]))
+
+      // Add templates in the specified order
+      for (const name of templateOrder) {
+        if (templatesMap.has(name)) {
+          orderedTemplates.push(templatesMap.get(name))
+          templatesMap.delete(name)
+        }
+      }
+
+      // Add any remaining templates that weren't in the order (shouldn't happen in normal flow)
+      for (const template of templatesMap.values()) {
+        orderedTemplates.push(template)
+      }
+
+      indexData[targetCategoryIndex].templates = orderedTemplates
+      console.log('[Create Template] Templates reordered successfully')
+    }
 
     // Add updated index.json to tree
     tree.push({
