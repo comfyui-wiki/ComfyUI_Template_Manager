@@ -317,6 +317,29 @@
           </div>
         </div>
 
+        <!-- Size recommendation -->
+        <!-- Video warnings -->
+        <div v-if="isVideo && convertedFile.size > 4 * 1024 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          🚫 Video size exceeds 4MB limit! Please reduce quality setting significantly.
+        </div>
+        <div v-else-if="isVideo && convertedFile.size > 1 * 1024 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          ⚠️ Video size exceeds 1MB (recommended). Consider reducing quality for better performance.
+        </div>
+        <div v-else-if="isVideo" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+          ✓ Video size is optimal (under 1MB).
+        </div>
+
+        <!-- Image warnings -->
+        <div v-if="isImage && convertedFile.size > 200 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          🚫 Image size exceeds 200KB limit! Please reduce quality setting significantly.
+        </div>
+        <div v-else-if="isImage && convertedFile.size > 100 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          ⚠️ Image size exceeds 100KB (recommended). Consider reducing quality for better performance.
+        </div>
+        <div v-else-if="isImage" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+          ✓ Image size is optimal (under 100KB).
+        </div>
+
         <div class="flex gap-2">
           <Button @click="downloadConverted" variant="outline" size="sm" class="flex-1">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
