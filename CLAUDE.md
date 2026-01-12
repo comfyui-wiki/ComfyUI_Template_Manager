@@ -244,6 +244,51 @@ Key settings:
 - User adjusts settings and clicks "Use This Conversion"
 - Passes converted file back to WorkflowFileManager for storage
 
+### 10. Fixed InputAssetConverter Critical Issues
+**Problem 1**: PNG→PNG conversion resulted in **larger file sizes** (35% bigger)
+- Original: 2.33 MB → Converted: 3.16 MB
+- Root cause: PNG is lossless format, canvas re-encoding loses original compression optimizations
+
+**Problem 2**: Large files (>10MB, 4096px) failed to convert with "image not loaded yet" error
+- Root cause: Race condition - Vue reactive variables not updated before handleConvert() called
+- Async nature of Vue reactivity caused originalWidth/originalHeight to be 0
+
+**Problem 3**: Alert popups disrupted workflow and were user-hostile
+
+**Solution**:
+- **PNG Warning System**: Added prominent amber warning box explaining PNG limitations
+  - Explains that PNG→PNG may increase file size
+  - Recommends changing filename extension to .webp or .jpg in workflow JSON
+  - Quality slider disabled for PNG with explanation
+- **Fixed Race Condition**:
+  - handleConvert() now creates its own Image() and loads from sourceFile
+  - No longer relies on potentially-unset reactive variables
+  - Updates originalWidth/Height if not already set
+  - Works reliably for any file size
+- **Replaced Alerts with Inline Messages**:
+  - Red error box shows detailed error info (stays on screen)
+  - No more disruptive alert() popups
+  - User can read error and decide next action
+- **Removed Auto-Convert**:
+  - No longer auto-converts on file load
+  - User sees warnings first, then clicks "Refresh Preview"
+  - Gives user control over conversion process
+- **Improved URL Management**:
+  - Proper cleanup of blob URLs in finally block
+  - Prevents memory leaks with large files
+
+**Files**:
+- `components/InputAssetConverter.vue:155-173` (PNG warning)
+- `components/InputAssetConverter.vue:370-489` (fixed race condition)
+- `components/InputAssetConverter.vue:527-537` (removed auto-convert)
+- `components/InputAssetConverter.vue:47-56` (better UI prompts)
+
+**Key Insights**:
+- **PNG is lossless**: Canvas re-encoding with quality parameter doesn't help, loses original optimizations
+- **Don't trust reactive timing**: Always reload data in critical async functions
+- **User education > forced restrictions**: Show clear warnings but let users decide
+- **No popups**: Inline error messages are friendlier and more accessible
+
 ---
 
 ## Data Flow

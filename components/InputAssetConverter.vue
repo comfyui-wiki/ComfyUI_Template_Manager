@@ -45,9 +45,13 @@
           </div>
         </div>
         <div v-else class="relative border rounded-lg p-2 bg-muted/30 h-48 flex items-center justify-center">
-          <div class="text-center">
+          <div class="text-center px-4">
             <div v-if="isConverting" class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
-            <p class="text-sm text-muted-foreground">{{ isConverting ? 'Converting...' : 'Click "Refresh Preview" to convert' }}</p>
+            <svg v-else class="w-12 h-12 mx-auto mb-2 text-muted-foreground opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <p class="text-sm text-muted-foreground font-medium">{{ isConverting ? 'Converting...' : 'Ready to Convert' }}</p>
+            <p v-if="!isConverting" class="text-xs text-muted-foreground mt-1">Click "Refresh Preview" below</p>
           </div>
         </div>
       </div>
@@ -150,6 +154,17 @@
     <!-- Size Warning Message -->
     <div v-if="getSizeWarning()" class="p-3 rounded-lg" :class="getSizeWarningClass()">
       <div class="text-sm font-medium">{{ getSizeWarning() }}</div>
+    </div>
+
+    <!-- PNG Warning Message -->
+    <div v-if="targetFormat === 'png'" class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+      <div class="text-sm font-medium text-amber-800">⚠️ PNG Compression Limitation</div>
+      <div class="text-xs text-amber-700 mt-1">
+        PNG is a lossless format. Converting PNG to PNG may result in <strong>larger file sizes</strong> due to re-encoding.
+      </div>
+      <div class="text-xs text-amber-600 mt-2">
+        💡 <strong>Recommendation:</strong> For better compression, consider changing the filename extension to <code class="bg-amber-100 px-1 rounded">.webp</code> or <code class="bg-amber-100 px-1 rounded">.jpg</code> in the workflow JSON.
+      </div>
     </div>
 
     <!-- Conversion Error Message -->
@@ -359,19 +374,37 @@ const calculateTargetDimensions = (): { width: number; height: number } => {
 const handleConvert = async () => {
   if (!sourceFile.value) return
 
-  // Check if image dimensions are loaded
-  if (originalWidth.value === 0 || originalHeight.value === 0) {
-    console.warn('[InputAssetConverter] Skipping conversion - image not loaded yet')
-    return
-  }
-
   isConverting.value = true
   conversionError.value = ''
 
   let width = 0
   let height = 0
+  let imgUrl = ''
 
   try {
+    // Load image from source file to get accurate dimensions
+    const img = new Image()
+    imgUrl = URL.createObjectURL(sourceFile.value)
+    img.src = imgUrl
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = () => reject(new Error('Failed to load image'))
+    })
+
+    // Now we have accurate dimensions from the loaded image
+    if (img.width === 0 || img.height === 0) {
+      throw new Error('Image has zero dimensions')
+    }
+
+    // Update original dimensions if not set
+    if (originalWidth.value === 0) {
+      originalWidth.value = img.width
+      originalHeight.value = img.height
+      targetWidth.value = img.width
+      targetHeight.value = img.height
+    }
+
     // Calculate target dimensions
     const dimensions = calculateTargetDimensions()
     width = dimensions.width
@@ -381,18 +414,9 @@ const handleConvert = async () => {
 
     console.log('[InputAssetConverter] Starting conversion:', {
       format: targetFormat.value,
-      originalSize: `${originalWidth.value}x${originalHeight.value}`,
+      originalSize: `${img.width}x${img.height}`,
       targetSize: `${width}x${height}`,
       quality: quality.value
-    })
-
-    // Load image from source file
-    const img = new Image()
-    img.src = URL.createObjectURL(sourceFile.value)
-
-    await new Promise((resolve, reject) => {
-      img.onload = resolve
-      img.onerror = () => reject(new Error('Failed to load image'))
     })
 
     // Create canvas
@@ -450,14 +474,15 @@ const handleConvert = async () => {
       URL.revokeObjectURL(convertedPreviewUrl.value)
     }
     convertedPreviewUrl.value = URL.createObjectURL(blob)
-
-    // Clean up temporary image URL
-    URL.revokeObjectURL(img.src)
   } catch (error) {
     console.error('[InputAssetConverter] Conversion error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     conversionError.value = `${errorMessage} (Format: ${targetFormat.value}, Size: ${width}x${height})`
   } finally {
+    // Clean up temporary image URL
+    if (imgUrl) {
+      URL.revokeObjectURL(imgUrl)
+    }
     isConverting.value = false
   }
 }
@@ -498,7 +523,7 @@ watch(() => props.initialFile, async (file) => {
     const img = new Image()
     img.src = previewUrl.value
 
-    img.onload = async () => {
+    img.onload = () => {
       console.log('[InputAssetConverter] Image loaded:', img.width, 'x', img.height)
 
       originalWidth.value = img.width
@@ -507,8 +532,7 @@ watch(() => props.initialFile, async (file) => {
       targetHeight.value = img.height
       isImageLoading.value = false
 
-      // Auto-run conversion on load
-      await handleConvert()
+      // Don't auto-convert - let user click "Refresh Preview" after reading warnings
     }
 
     img.onerror = () => {
