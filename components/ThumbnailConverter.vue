@@ -190,18 +190,12 @@
       <div v-if="sourceFile" class="space-y-3 p-3 border rounded-lg bg-muted/30">
         <h3 class="text-sm font-semibold">Conversion Settings</h3>
 
-        <!-- Target Size -->
+        <!-- Target Size (Display Only) -->
         <div class="space-y-2">
           <Label>Target Size</Label>
-          <Select v-model="targetSize">
-            <SelectTrigger><SelectValue placeholder="Select size" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="400">400x400 (Images - Recommended)</SelectItem>
-              <SelectItem value="350">350x350 (Videos - Recommended)</SelectItem>
-              <SelectItem value="300">300x300 (Compact)</SelectItem>
-              <SelectItem value="512">512x512 (Large)</SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="px-3 py-2 bg-muted rounded-md text-sm">
+            {{ isVideo ? '350x350 (Video)' : '400x400 (Image)' }}
+          </div>
         </div>
 
         <!-- Fit Mode -->
@@ -369,9 +363,8 @@ const sourcePreviewUrl = ref('')
 const sourceDimensions = ref<{ width: number; height: number } | null>(null)
 const videoDuration = ref<number | null>(null)
 
-const targetSize = ref('400')
 const fitMode = ref('crop')
-const quality = ref(85)
+const quality = ref(95)
 const videoMaxDuration = ref(3)
 const videoFps = ref(15)
 
@@ -485,6 +478,10 @@ const isImage = computed(() => {
 
 const isVideo = computed(() => {
   return sourceFile.value?.type.startsWith('video/')
+})
+
+const targetSize = computed(() => {
+  return isVideo.value ? '350' : '400'
 })
 
 const compressionRatio = computed(() => {
@@ -649,10 +646,8 @@ const loadFile = async (file: File) => {
   convertedPreviewUrl.value = ''
 
   if (file.type.startsWith('image/')) {
-    targetSize.value = '400'
     await loadImageDimensions(file)
   } else if (file.type.startsWith('video/')) {
-    targetSize.value = '350'
     await loadVideoDimensions(file)
   }
 }
@@ -740,6 +735,10 @@ const convertImageToWebP = async () => {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
 
+  // Set high-quality image smoothing for better downscaling
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+
   canvas.width = size
   canvas.height = size
 
@@ -820,7 +819,9 @@ const convertVideoToWebP = async () => {
 
     conversionProgress.value = 'Converting to animated WebP...'
 
-    const qualityValue = Math.round(100 - (quality.value * 0.9))
+    // For libwebp, higher q:v = better quality (0-100 scale)
+    // Use quality value directly (0-100 range)
+    const qualityValue = Math.round(quality.value)
 
     let videoFilter
     if (fitMode.value === 'crop' && sourceDimensions.value) {
@@ -832,9 +833,11 @@ const convertVideoToWebP = async () => {
       const cropYActual = Math.round(cropBoxY.value * scaleY)
       const cropSizeActual = Math.round(cropBoxSize.value * Math.min(scaleX, scaleY))
 
-      videoFilter = `fps=${fps},crop=${cropSizeActual}:${cropSizeActual}:${cropXActual}:${cropYActual},scale=${size}:${size}`
+      // Use lanczos for high-quality scaling
+      videoFilter = `fps=${fps},crop=${cropSizeActual}:${cropSizeActual}:${cropXActual}:${cropYActual},scale=${size}:${size}:flags=lanczos`
     } else {
-      videoFilter = `fps=${fps},scale=${size}:${size}:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=black`
+      // Use lanczos for high-quality scaling
+      videoFilter = `fps=${fps},scale=${size}:${size}:flags=lanczos:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=black`
     }
 
     await ffmpeg.value.exec([
@@ -914,7 +917,7 @@ watch(fitMode, () => {
 })
 
 // Watch for other settings changes
-watch([quality, targetSize, videoMaxDuration, videoFps], () => {
+watch([quality, videoMaxDuration, videoFps], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
