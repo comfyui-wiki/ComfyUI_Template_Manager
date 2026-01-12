@@ -398,10 +398,7 @@ const beforeVideo = ref<HTMLVideoElement>()
 
 // Computed properties for before video positioning
 const beforeVideoContainerStyle = computed(() => {
-  if (!sourceDimensions.value || fitMode.value !== 'crop') {
-    return {}
-  }
-
+  // Always return container style to ensure proper sizing
   return {
     width: '250px',
     height: '250px',
@@ -448,15 +445,29 @@ const beforeVideoElementStyle = computed(() => {
     videoOffsetY = 0
   }
 
+  // Scale factors from preview to original (same as conversion logic)
+  const scaleX = videoW / previewW
+  const scaleY = videoH / previewH
+  const scale = Math.min(scaleX, scaleY)  // Use MIN like in conversion!
+
   // Crop box position relative to displayed video (not container)
   const cropXInVideo = cropBoxX.value - videoOffsetX
   const cropYInVideo = cropBoxY.value - videoOffsetY
 
-  // Convert crop position from preview coordinates to original video coordinates
-  const scaleToOriginal = videoW / videoDisplayW
-  const cropXOriginal = cropXInVideo * scaleToOriginal
-  const cropYOriginal = cropYInVideo * scaleToOriginal
-  const cropSizeOriginal = cropBoxSize.value * scaleToOriginal
+  // Convert to original video coordinates using the SAME scale as conversion
+  const cropXOriginal = cropXInVideo * scaleX
+  const cropYOriginal = cropYInVideo * scaleY
+  const cropSizeOriginal = cropBoxSize.value * scale  // Use Math.min scale!
+
+  console.log('[beforeVideoStyle] Debug:', {
+    videoW, videoH,
+    previewW, previewH,
+    videoDisplayW, videoDisplayH,
+    cropBoxSize: cropBoxSize.value,
+    scaleX, scaleY, scale,
+    cropSizeOriginal,
+    cropXOriginal, cropYOriginal
+  })
 
   // Scale factor to make crop area fill 250x250
   const scaleTo250 = 250 / cropSizeOriginal
@@ -468,6 +479,12 @@ const beforeVideoElementStyle = computed(() => {
   // Position to show crop area
   const left = -cropXOriginal * scaleTo250
   const top = -cropYOriginal * scaleTo250
+
+  console.log('[beforeVideoStyle] Result:', {
+    scaleTo250,
+    videoElementW, videoElementH,
+    left, top
+  })
 
   return {
     width: videoElementW + 'px',
