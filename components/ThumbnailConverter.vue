@@ -256,48 +256,59 @@
         </Button>
       </div>
 
-      <!-- Before/After Comparison Slider -->
+      <!-- Before/After Comparison -->
       <div v-if="convertedFile" class="space-y-2">
-        <Label>Before/After Comparison (hover to compare) - 250x250 actual size</Label>
-        <div
-          class="relative inline-block cursor-crosshair rounded overflow-hidden"
-          style="width: 250px; height: 250px;"
-          @mousemove="updateComparisonPosition"
-          @mouseenter="comparisonActive = true"
-          @mouseleave="handleComparisonLeave"
-        >
-          <!-- After Image (Converted) - Full background -->
-          <div class="absolute inset-0">
-            <img :src="convertedPreviewUrl" alt="After" class="w-full h-full" />
-          </div>
-
-          <!-- Before (Source) - with clipPath on left side -->
-          <div
-            class="absolute inset-0"
-            :style="{ clipPath: `inset(0 ${100 - comparisonPosition}% 0 0)` }"
-          >
-            <!-- For images: use canvas -->
-            <canvas v-if="isImage" ref="beforeCanvas" width="250" height="250" class="w-full h-full"></canvas>
-            <!-- For videos: use original video with CSS positioning -->
-            <div v-else-if="isVideo" :style="beforeVideoContainerStyle">
-              <video
-                ref="beforeVideo"
+        <Label>Before/After Comparison - 250x250 preview</Label>
+        <div class="flex gap-4">
+          <!-- Before (Original) -->
+          <div class="flex-1 space-y-2">
+            <div class="flex items-center justify-between px-2">
+              <div class="text-xs font-medium">Before (Original)</div>
+              <button
+                v-if="beforePreviewOffsetX !== 0 || beforePreviewOffsetY !== 0"
+                @click="beforePreviewOffsetX = 0; beforePreviewOffsetY = 0"
+                class="text-xs text-blue-600 hover:text-blue-800"
+              >
+                Reset
+              </button>
+            </div>
+            <div class="relative rounded overflow-hidden border border-border hover:border-blue-400 transition-colors" style="width: 250px; height: 250px; background: black;">
+              <img
+                v-if="isImage"
                 :src="sourcePreviewUrl"
-                :style="beforeVideoElementStyle"
+                alt="Before"
+                class="w-full h-full select-none"
+                :style="beforePreviewStyle"
+                @mousedown="startDragBeforePreview"
+                draggable="false"
+              />
+              <video
+                v-else-if="isVideo"
+                :src="sourcePreviewUrl"
+                class="w-full h-full select-none"
+                :style="beforePreviewStyle"
+                @mousedown="startDragBeforePreview"
                 muted
                 loop
                 autoplay
                 playsinline
               />
             </div>
+            <div class="text-xs text-muted-foreground text-center">
+              Original: {{ formatFileSize(sourceFile.size) }}<br>
+              <span class="text-[10px] text-gray-500">Drag to adjust position</span>
+            </div>
           </div>
 
-          <!-- Labels -->
-          <div v-if="comparisonActive" class="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded pointer-events-none">
-            Before
-          </div>
-          <div v-if="comparisonActive" class="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white text-xs rounded pointer-events-none">
-            After
+          <!-- After (Converted) -->
+          <div class="flex-1 space-y-2">
+            <div class="text-xs font-medium text-center">After (WebP)</div>
+            <div class="relative rounded overflow-hidden border border-border" style="width: 250px; height: 250px; background: black;">
+              <img :src="convertedPreviewUrl" alt="After" class="w-full h-full object-cover" />
+            </div>
+            <div class="text-xs text-muted-foreground text-center">
+              Converted: {{ formatFileSize(convertedFile.size) }}
+            </div>
           </div>
         </div>
 
@@ -306,7 +317,7 @@
           <div><strong>Name:</strong> {{ convertedFile.name }}</div>
           <div><strong>Size:</strong> {{ formatFileSize(convertedFile.size) }}</div>
           <div><strong>Final Dimensions:</strong> {{ targetSize }}x{{ targetSize }}</div>
-          <div><strong>Preview:</strong> 250x250 (for comparison)</div>
+          <div><strong>Preview:</strong> {{ targetSize }}x{{ targetSize }} (for comparison)</div>
           <div class="font-semibold" :class="{ 'text-green-600': compressionRatio > 0, 'text-red-600': compressionRatio < 0 }">
             {{ compressionRatio > 0 ? '↓' : '↑' }} {{ Math.abs(compressionRatio).toFixed(1) }}% size change
           </div>
@@ -390,111 +401,13 @@ const dragStartY = ref(0)
 const videoPreviewWidth = ref(500)
 const videoPreviewHeight = ref(500)
 
-// Comparison slider state
-const comparisonPosition = ref(50)
-const comparisonActive = ref(false)
-const beforeCanvas = ref<HTMLCanvasElement>()
-const beforeVideo = ref<HTMLVideoElement>()
+// Before preview drag state
+const beforePreviewOffsetX = ref(0)
+const beforePreviewOffsetY = ref(0)
+const isDraggingBeforePreview = ref(false)
+const beforeDragStartX = ref(0)
+const beforeDragStartY = ref(0)
 
-// Computed properties for before video positioning
-const beforeVideoContainerStyle = computed(() => {
-  // Always return container style to ensure proper sizing
-  return {
-    width: '250px',
-    height: '250px',
-    position: 'relative',
-    overflow: 'hidden',
-    background: 'black'
-  }
-})
-
-const beforeVideoElementStyle = computed(() => {
-  if (!sourceDimensions.value) {
-    return { width: '250px', height: '250px', objectFit: 'contain' }
-  }
-
-  if (fitMode.value !== 'crop') {
-    return { width: '250px', height: '250px', objectFit: 'contain' }
-  }
-
-  // Original video dimensions
-  const videoW = sourceDimensions.value.width
-  const videoH = sourceDimensions.value.height
-
-  // Preview container dimensions (where crop box is)
-  const previewW = videoPreviewWidth.value
-  const previewH = videoPreviewHeight.value
-
-  // Calculate how video is displayed in preview (object-contain)
-  const previewAspect = previewW / previewH
-  const videoAspect = videoW / videoH
-
-  let videoDisplayW, videoDisplayH, videoOffsetX, videoOffsetY
-
-  if (videoAspect > previewAspect) {
-    // Video is wider - fits to width
-    videoDisplayW = previewW
-    videoDisplayH = previewW / videoAspect
-    videoOffsetX = 0
-    videoOffsetY = (previewH - videoDisplayH) / 2
-  } else {
-    // Video is taller - fits to height
-    videoDisplayH = previewH
-    videoDisplayW = previewH * videoAspect
-    videoOffsetX = (previewW - videoDisplayW) / 2
-    videoOffsetY = 0
-  }
-
-  // Scale factors from preview to original (same as conversion logic)
-  const scaleX = videoW / previewW
-  const scaleY = videoH / previewH
-  const scale = Math.min(scaleX, scaleY)  // Use MIN like in conversion!
-
-  // Crop box position relative to displayed video (not container)
-  const cropXInVideo = cropBoxX.value - videoOffsetX
-  const cropYInVideo = cropBoxY.value - videoOffsetY
-
-  // Convert to original video coordinates using the SAME scale as conversion
-  const cropXOriginal = cropXInVideo * scaleX
-  const cropYOriginal = cropYInVideo * scaleY
-  const cropSizeOriginal = cropBoxSize.value * scale  // Use Math.min scale!
-
-  console.log('[beforeVideoStyle] Debug:', {
-    videoW, videoH,
-    previewW, previewH,
-    videoDisplayW, videoDisplayH,
-    cropBoxSize: cropBoxSize.value,
-    scaleX, scaleY, scale,
-    cropSizeOriginal,
-    cropXOriginal, cropYOriginal
-  })
-
-  // Scale factor to make crop area fill 250x250
-  const scaleTo250 = 250 / cropSizeOriginal
-
-  // Video element dimensions
-  const videoElementW = videoW * scaleTo250
-  const videoElementH = videoH * scaleTo250
-
-  // Position to show crop area
-  const left = -cropXOriginal * scaleTo250
-  const top = -cropYOriginal * scaleTo250
-
-  console.log('[beforeVideoStyle] Result:', {
-    scaleTo250,
-    videoElementW, videoElementH,
-    left, top
-  })
-
-  return {
-    width: videoElementW + 'px',
-    height: videoElementH + 'px',
-    position: 'absolute',
-    left: left + 'px',
-    top: top + 'px',
-    objectFit: 'none'
-  }
-})
 
 // FFmpeg instance
 const ffmpeg = ref<FFmpeg | null>(null)
@@ -681,26 +594,47 @@ const endDragCropBox = () => {
   isDraggingCropBox.value = false
 }
 
+// Before preview drag handlers
+const startDragBeforePreview = (e: MouseEvent) => {
+  e.preventDefault()
+  isDraggingBeforePreview.value = true
+  beforeDragStartX.value = e.clientX - beforePreviewOffsetX.value
+  beforeDragStartY.value = e.clientY - beforePreviewOffsetY.value
+}
+
+const updateDragBeforePreview = (e: MouseEvent) => {
+  if (!isDraggingBeforePreview.value) return
+
+  const newX = e.clientX - beforeDragStartX.value
+  const newY = e.clientY - beforeDragStartY.value
+
+  // Allow dragging in any direction (no bounds)
+  beforePreviewOffsetX.value = newX
+  beforePreviewOffsetY.value = newY
+}
+
+const endDragBeforePreview = () => {
+  isDraggingBeforePreview.value = false
+}
+
+// Computed style for before preview with drag offset
+const beforePreviewStyle = computed(() => {
+  return {
+    objectFit: 'cover' as const,
+    transform: `translate(${beforePreviewOffsetX.value}px, ${beforePreviewOffsetY.value}px)`,
+    cursor: 'move',
+    userSelect: 'none' as const
+  }
+})
+
 onMounted(() => {
   document.addEventListener('mousemove', updateDragImageCropBox)
   document.addEventListener('mouseup', endDragImageCropBox)
   document.addEventListener('mousemove', updateDragCropBox)
   document.addEventListener('mouseup', endDragCropBox)
+  document.addEventListener('mousemove', updateDragBeforePreview)
+  document.addEventListener('mouseup', endDragBeforePreview)
 })
-
-// Comparison slider handlers - hover mode
-const updateComparisonPosition = (e: MouseEvent) => {
-  const container = e.currentTarget as HTMLElement
-  const rect = container.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100))
-  comparisonPosition.value = percentage
-}
-
-const handleComparisonLeave = () => {
-  comparisonActive.value = false
-  comparisonPosition.value = 50 // Reset to middle
-}
 
 const onFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -735,58 +669,6 @@ const loadImageDimensions = (file: File): Promise<void> => {
   })
 }
 
-// Draw before canvas for comparison
-const drawBeforeCanvas = () => {
-  if (!beforeCanvas.value || !sourceImage.value) return
-
-  const canvas = beforeCanvas.value
-  const ctx = canvas.getContext('2d')!
-  const img = sourceImage.value
-
-  canvas.width = 250
-  canvas.height = 250
-
-  if (fitMode.value === 'crop') {
-    // Calculate actual crop coordinates from preview
-    const scaleX = img.width / imagePreviewWidth.value
-    const scaleY = img.height / imagePreviewHeight.value
-
-    const cropXActual = imageCropBoxX.value * scaleX
-    const cropYActual = imageCropBoxY.value * scaleY
-    const cropSizeActual = imageCropBoxSize.value * Math.min(scaleX, scaleY)
-
-    ctx.drawImage(
-      img,
-      cropXActual,
-      cropYActual,
-      cropSizeActual,
-      cropSizeActual,
-      0,
-      0,
-      250,
-      250
-    )
-  } else {
-    // Pad mode
-    let dWidth = 250
-    let dHeight = 250
-    let dx = 0
-    let dy = 0
-
-    if (img.width > img.height) {
-      dHeight = (img.height * 250) / img.width
-      dy = (250 - dHeight) / 2
-    } else {
-      dWidth = (img.width * 250) / img.height
-      dx = (250 - dWidth) / 2
-    }
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-    ctx.fillRect(0, 0, 250, 250)
-    ctx.drawImage(img, dx, dy, dWidth, dHeight)
-  }
-}
-
 const loadVideoDimensions = (file: File): Promise<void> => {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -809,6 +691,8 @@ const clearFile = () => {
   convertedPreviewUrl.value = ''
   error.value = ''
   sourceImage.value = undefined
+  beforePreviewOffsetX.value = 0
+  beforePreviewOffsetY.value = 0
 
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -821,6 +705,8 @@ const convertToWebP = async () => {
   isConverting.value = true
   error.value = ''
   conversionProgress.value = 'Converting...'
+  beforePreviewOffsetX.value = 0
+  beforePreviewOffsetY.value = 0
 
   try {
     if (isImage.value) {
@@ -903,10 +789,6 @@ const convertImageToWebP = async () => {
   const fileName = sourceFile.value.name.replace(/\.[^/.]+$/, '') + '.webp'
   convertedFile.value = new File([blob], fileName, { type: 'image/webp' })
   convertedPreviewUrl.value = URL.createObjectURL(convertedFile.value)
-
-  // Draw before canvas for comparison
-  await nextTick()
-  drawBeforeCanvas()
 }
 
 const convertVideoToWebP = async () => {
@@ -1017,6 +899,8 @@ watch(fitMode, () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
+    beforePreviewOffsetX.value = 0
+    beforePreviewOffsetY.value = 0
   }
 })
 
@@ -1025,15 +909,8 @@ watch([quality, targetSize, videoMaxDuration, videoFps], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
-  }
-})
-
-// Watch for crop box changes to update before canvas for images
-watch([imageCropBoxX, imageCropBoxY, imageCropBoxSize], () => {
-  if (convertedFile.value && isImage.value) {
-    nextTick(() => {
-      drawBeforeCanvas()
-    })
+    beforePreviewOffsetX.value = 0
+    beforePreviewOffsetY.value = 0
   }
 })
 </script>
