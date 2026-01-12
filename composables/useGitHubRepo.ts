@@ -32,14 +32,15 @@ if (process.client) {
 }
 
 export const useGitHubRepo = () => {
-  const { data: session, status } = useAuth()
-
   // Main repository info
   const mainRepo = {
     owner: 'Comfy-Org',
     name: 'workflow_templates',
     fullName: 'Comfy-Org/workflow_templates'
   }
+
+  // Get auth state
+  const { data: session, status } = useAuth()
 
   // Check if user has write access to main repo
   const checkMainRepoAccess = async () => {
@@ -299,29 +300,53 @@ export const useGitHubRepo = () => {
 
   // Can edit current repository and branch (push to current branch)
   const canEditCurrentRepo = computed(() => {
-    if (!selectedRepo.value || !selectedBranch.value) return false
+    // Get fresh auth state inside computed to ensure we have latest session
+    const { data: currentSession } = useAuth()
+
+    console.log('[canEditCurrentRepo] Computing...', {
+      selectedRepo: selectedRepo.value,
+      selectedBranch: selectedBranch.value,
+      sessionUserLogin: currentSession.value?.user?.login,
+      branchPermission: branchPermission.value,
+      hasMainRepoAccess: hasMainRepoAccess.value
+    })
+
+    if (!selectedRepo.value || !selectedBranch.value) {
+      console.log('[canEditCurrentRepo] Missing repo or branch')
+      return false
+    }
 
     const [owner] = selectedRepo.value.split('/')
+    console.log('[canEditCurrentRepo] Owner:', owner)
 
     // If user owns the repository (their fork), check branch permission
-    if (owner === session.value?.user?.login) {
+    if (owner === currentSession.value?.user?.login) {
+      console.log('[canEditCurrentRepo] User owns the repo')
       // User owns the repo, check if branch is protected
       if (branchPermission.value) {
-        return branchPermission.value.canPush === true
+        const canPush = branchPermission.value.canPush === true
+        console.log('[canEditCurrentRepo] Branch permission exists, canPush:', canPush)
+        return canPush
       }
       // If no permission data yet, assume true for own repo
+      console.log('[canEditCurrentRepo] No permission data yet, assuming true for own repo')
       return true
     }
 
     // For main repo, check if user has access and branch allows push
     if (hasMainRepoAccess.value) {
+      console.log('[canEditCurrentRepo] Has main repo access')
       if (branchPermission.value) {
-        return branchPermission.value.canPush === true
+        const canPush = branchPermission.value.canPush === true
+        console.log('[canEditCurrentRepo] Branch permission exists, canPush:', canPush)
+        return canPush
       }
       // If no permission data yet, use general access
+      console.log('[canEditCurrentRepo] No permission data yet, using general access')
       return true
     }
 
+    console.log('[canEditCurrentRepo] No access, returning false')
     return false
   })
 
