@@ -57,17 +57,38 @@
       </div>
     </div>
 
-    <!-- File Info -->
-    <div class="p-3 bg-muted rounded-lg">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-sm font-medium">Target Format</div>
-        <div class="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded">
-          {{ targetFormat.toUpperCase() }}
-        </div>
-      </div>
+    <!-- Target Format Selection -->
+    <div class="space-y-2">
+      <Label>Target Format</Label>
+      <Select v-model="targetFormat" @update:model-value="handleFormatChange">
+        <SelectTrigger>
+          <SelectValue placeholder="Select format" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="webp">WebP (Best compression, recommended)</SelectItem>
+          <SelectItem value="jpeg">JPEG (Good compression, wide support)</SelectItem>
+          <SelectItem value="png">PNG (Lossless, larger files)</SelectItem>
+        </SelectContent>
+      </Select>
       <div class="text-xs text-muted-foreground">
-        Auto-detected from filename: {{ props.targetFilename || sourceFile?.name }}
+        Original filename: <code class="bg-muted px-1 rounded">{{ originalFilename }}</code>
       </div>
+      <div v-if="formatChanged" class="text-xs">
+        New filename: <code class="bg-primary/10 text-primary px-1 rounded font-semibold">{{ newFilename }}</code>
+      </div>
+    </div>
+
+    <!-- Format Change Warning -->
+    <div v-if="formatChanged" class="p-3 rounded-lg bg-blue-50 border border-blue-200">
+      <div class="text-sm font-medium text-blue-800">📝 Format Change Detected</div>
+      <div class="text-xs text-blue-700 mt-1">
+        <strong>Changes that will happen:</strong>
+      </div>
+      <ul class="text-xs text-blue-700 mt-2 ml-4 space-y-1 list-disc">
+        <li>Workflow JSON will be updated: <code class="bg-blue-100 px-1 rounded">{{ originalFilename }}</code> → <code class="bg-blue-100 px-1 rounded font-semibold">{{ newFilename }}</code></li>
+        <li v-if="isExistingFile">Old file will be deleted: <code class="bg-blue-100 px-1 rounded">{{ originalFilename }}</code></li>
+        <li>New file will be uploaded: <code class="bg-blue-100 px-1 rounded font-semibold">{{ newFilename }}</code></li>
+      </ul>
     </div>
 
     <!-- Resize Options -->
@@ -157,13 +178,13 @@
     </div>
 
     <!-- PNG Warning Message -->
-    <div v-if="targetFormat === 'png'" class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+    <div v-if="targetFormat === 'png' && !formatChanged" class="p-3 rounded-lg bg-amber-50 border border-amber-200">
       <div class="text-sm font-medium text-amber-800">⚠️ PNG Compression Limitation</div>
       <div class="text-xs text-amber-700 mt-1">
         PNG is a lossless format. Converting PNG to PNG may result in <strong>larger file sizes</strong> due to re-encoding.
       </div>
       <div class="text-xs text-amber-600 mt-2">
-        💡 <strong>Recommendation:</strong> For better compression, consider changing the filename extension to <code class="bg-amber-100 px-1 rounded">.webp</code> or <code class="bg-amber-100 px-1 rounded">.jpg</code> in the workflow JSON.
+        💡 <strong>Recommendation:</strong> Change target format to <strong>WebP</strong> or <strong>JPEG</strong> above for better compression.
       </div>
     </div>
 
@@ -213,17 +234,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 interface Props {
   initialFile?: File | null
   targetFilename?: string
+  isExistingFile?: boolean  // Whether this is an existing file (vs newly uploaded)
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  converted: [file: File]
+  converted: [file: File, oldFilename?: string]  // Pass old filename if format changed
 }>()
 
 // State
 const sourceFile = ref<File | null>(null)
 const targetFormat = ref<'webp' | 'jpeg' | 'png'>('webp')
+const originalFormat = ref<'webp' | 'jpeg' | 'png'>('webp')  // Track original format
 const resizeMode = ref<'none' | 'percentage' | 'dimensions' | 'maxDimension'>('none')
 const resizePercentage = ref(100)
 const targetWidth = ref(800)
@@ -275,6 +298,24 @@ const sizeSavings = computed(() => {
   }
 })
 
+// Track format change
+const formatChanged = computed(() => {
+  return targetFormat.value !== originalFormat.value
+})
+
+// Get original filename
+const originalFilename = computed(() => {
+  return props.targetFilename || sourceFile.value?.name || 'unknown'
+})
+
+// Calculate new filename based on selected format
+const newFilename = computed(() => {
+  const original = originalFilename.value
+  const nameWithoutExt = original.replace(/\.(webp|jpg|jpeg|png)$/i, '')
+  const ext = targetFormat.value === 'jpeg' ? 'jpg' : targetFormat.value
+  return `${nameWithoutExt}.${ext}`
+})
+
 // Helpers
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
@@ -321,6 +362,15 @@ const getSavingsColor = () => {
 
 const openImageInNewTab = (url: string) => {
   window.open(url, '_blank')
+}
+
+// Handle format change
+const handleFormatChange = (newFormat: string) => {
+  console.log('[InputAssetConverter] Format changed:', originalFormat.value, '→', newFormat)
+  // Clear previous conversion when format changes
+  convertedPreviewUrl.value = ''
+  convertedFile.value = null
+  convertedFileSizeBytes.value = 0
 }
 
 // Auto-detect format from target filename
@@ -463,11 +513,17 @@ const handleConvert = async () => {
     convertedWidth.value = width
     convertedHeight.value = height
 
-    // Create File object
-    const ext = targetFormat.value === 'jpeg' ? 'jpg' : targetFormat.value
-    const filename = props.targetFilename || `converted.${ext}`
+    // Create File object with new filename (respects format change)
+    const filename = newFilename.value
     const file = new File([blob], filename, { type: mimeType })
     convertedFile.value = file
+
+    console.log('[InputAssetConverter] File created:', {
+      filename,
+      originalFormat: originalFormat.value,
+      targetFormat: targetFormat.value,
+      formatChanged: formatChanged.value
+    })
 
     // Update preview URL
     if (convertedPreviewUrl.value) {
@@ -490,7 +546,9 @@ const handleConvert = async () => {
 // Handle use conversion button
 const handleUseConversion = () => {
   if (convertedFile.value) {
-    emit('converted', convertedFile.value)
+    // If format changed, pass the original filename so parent can delete old file
+    const oldFilename = formatChanged.value ? originalFilename.value : undefined
+    emit('converted', convertedFile.value, oldFilename)
   }
 }
 
@@ -509,7 +567,9 @@ watch(() => props.initialFile, async (file) => {
 
   // Auto-detect format from target filename
   if (props.targetFilename) {
-    targetFormat.value = detectFormatFromFilename(props.targetFilename)
+    const detected = detectFormatFromFilename(props.targetFilename)
+    targetFormat.value = detected
+    originalFormat.value = detected  // Store original format
   }
 
   // Create preview URL for original

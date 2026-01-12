@@ -159,6 +159,7 @@
             @workflow-updated="handleWorkflowUpdated"
             @input-files-updated="handleInputFilesUpdated"
             @open-converter="handleInputFileConversion"
+            @format-changed="handleInputFileFormatChange"
           />
         </div>
 
@@ -605,6 +606,7 @@
         <InputAssetConverter
           :initial-file="converterInitialFile"
           :target-filename="converterTargetInputFilename"
+          :is-existing-file="converterIsExistingFile"
           @converted="handleConvertedInputFile"
         />
       </DialogScrollContent>
@@ -658,6 +660,7 @@ const converterInitialFile = ref<File | null>(null)
 // Input file converter state
 const isInputAssetConverterOpen = ref(false)
 const converterTargetInputFilename = ref<string>('')
+const converterIsExistingFile = ref(false)
 const workflowFileManagerRef = ref<any>(null)
 
 // Drag and drop state for template reordering
@@ -967,9 +970,10 @@ const handleInputFilesUpdated = (files: Map<string, File>) => {
 }
 
 // Handler for opening converter for input files
-const handleInputFileConversion = (file: File, targetFilename: string) => {
+const handleInputFileConversion = (file: File, targetFilename: string, isExisting: boolean) => {
   converterInitialFile.value = file
   converterTargetInputFilename.value = targetFilename
+  converterIsExistingFile.value = isExisting
   isInputAssetConverterOpen.value = true
 }
 
@@ -1120,18 +1124,61 @@ const handleConvertedThumbnail = async (file: File) => {
 }
 
 // Handle converted input file from InputAssetConverter
-const handleConvertedInputFile = (file: File) => {
-  const targetFilename = converterTargetInputFilename.value
+const handleConvertedInputFile = (file: File, oldFilename?: string) => {
+  // Use the converted file's name, not the original target filename
+  // because format may have changed (e.g., subject.png -> subject.jpg)
+  const targetFilename = file.name
 
-  // Pass to WorkflowFileManager
+  console.log('[Edit Page] handleConvertedInputFile:', {
+    fileName: file.name,
+    originalTarget: converterTargetInputFilename.value,
+    oldFilename
+  })
+
+  // Pass to WorkflowFileManager with oldFilename if format changed
   if (workflowFileManagerRef.value) {
-    workflowFileManagerRef.value.handleConvertedFileReceived(file, targetFilename)
+    workflowFileManagerRef.value.handleConvertedFileReceived(file, targetFilename, oldFilename)
   }
 
   // Clear state and close dialog
   converterInitialFile.value = null
   converterTargetInputFilename.value = ''
+  converterIsExistingFile.value = false
   isInputAssetConverterOpen.value = false
+}
+
+// Handle input file format change (update workflow JSON)
+const handleInputFileFormatChange = (oldFilename: string, newFilename: string) => {
+  console.log('[Edit Page] Format changed:', oldFilename, '→', newFilename)
+
+  // Update workflow JSON to replace old filename with new filename
+  try {
+    if (workflowContent.value) {
+      const workflow = JSON.parse(workflowContent.value)
+
+      // Find all nodes and update widget values that match old filename
+      if (workflow.nodes) {
+        for (const node of workflow.nodes) {
+          if (node.widgets_values && Array.isArray(node.widgets_values)) {
+            for (let i = 0; i < node.widgets_values.length; i++) {
+              if (node.widgets_values[i] === oldFilename) {
+                console.log(`[Edit Page] Updating node ${node.id} widget value:`, oldFilename, '→', newFilename)
+                node.widgets_values[i] = newFilename
+              }
+            }
+          }
+        }
+      }
+
+      // Update workflow content
+      workflowContent.value = JSON.stringify(workflow, null, 2)
+      hasWorkflowChanged.value = true
+
+      console.log('[Edit Page] Workflow JSON updated successfully')
+    }
+  } catch (error) {
+    console.error('[Edit Page] Failed to update workflow JSON:', error)
+  }
 }
 
 // Watch dialog state to clear initial file when closed
@@ -1385,12 +1432,24 @@ const handleSubmit = async () => {
     // Check if input files were reuploaded
     if (reuploadedInputFiles.value.size > 0) {
       filesData.inputFiles = []
+
+      // Get format changes from WorkflowFileManager
+      const formatChanges = workflowFileManagerRef.value?.formatChangedFiles || new Map()
+
       for (const [filename, file] of reuploadedInputFiles.value) {
         const fileBase64 = await fileToBase64(file)
-        filesData.inputFiles.push({
+        const inputFileData: any = {
           filename,
           content: fileBase64.split(',')[1] // Remove data URL prefix
-        })
+        }
+
+        // If format changed, include old filename for deletion
+        if (formatChanges.has(filename)) {
+          inputFileData.deleteOldFile = formatChanges.get(filename)
+          console.log('[Submit] Format changed:', formatChanges.get(filename), '→', filename)
+        }
+
+        filesData.inputFiles.push(inputFileData)
       }
     }
 
@@ -1440,6 +1499,11 @@ const handleSubmit = async () => {
       updatedWorkflowContent.value = ''
       reuploadedInputFiles.value.clear()
       thumbnailReuploadStatus.value = null
+
+      // Clear format changes in WorkflowFileManager
+      if (workflowFileManagerRef.value) {
+        workflowFileManagerRef.value.resetFormatChanges()
+      }
 
       // Show brief success message
       alert(`✅ Template updated successfully!\n\nCommit: ${response.commit.sha.substring(0, 7)}\n\nRedirecting to homepage...`)

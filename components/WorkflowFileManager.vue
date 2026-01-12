@@ -47,6 +47,21 @@
         {{ workflowStatus.message }}
       </div>
 
+      <!-- Format Change Notice -->
+      <div v-if="formatChangeNotice"
+           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
+        <div class="font-semibold mb-1">🔄 Input File Format Changed</div>
+        <div class="text-xs">
+          Workflow JSON has been automatically updated:<br>
+          <code class="bg-blue-100 px-1 rounded">{{ formatChangeNotice.oldFilename }}</code>
+          →
+          <code class="bg-blue-100 px-1 rounded font-semibold">{{ formatChangeNotice.newFilename }}</code>
+        </div>
+        <div class="text-xs mt-2 text-blue-600">
+          💡 The old file will be deleted and the new file will be uploaded when you save.
+        </div>
+      </div>
+
       <!-- Hidden file input -->
       <input
         ref="workflowFileInput"
@@ -220,18 +235,21 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   workflowUpdated: [content: string]
   inputFilesUpdated: [files: Map<string, File>]
-  openConverter: [file: File, targetFilename: string]
+  openConverter: [file: File, targetFilename: string, isExisting: boolean]
+  formatChanged: [oldFilename: string, newFilename: string]
 }>()
 
 // Refs
 const workflowFileInput = ref<HTMLInputElement>()
 const inputFileInputRefs = ref<Map<string, HTMLInputElement>>(new Map())
 const workflowStatus = ref<{ success: boolean; message: string } | null>(null)
+const formatChangeNotice = ref<{ oldFilename: string; newFilename: string } | null>(null)
 const inputFileRefs = ref<InputFileRef[]>([])
 const workflowParsed = ref(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const inputFileWarnings = ref<Map<string, string>>(new Map())
 const pendingConversionFiles = ref<Map<string, File>>(new Map())
+const formatChangedFiles = ref<Map<string, string>>(new Map()) // new filename -> old filename
 
 // Node types that require input assets (from Python script)
 const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo']
@@ -467,14 +485,16 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 const handleConvertFile = async (filename: string) => {
   // First check if there's a pending file from recent upload
   let file = pendingConversionFiles.value.get(filename)
+  let isExisting = false
 
   // If no pending file, check if there's a reuploaded file
   if (!file) {
     file = reuploadedInputFiles.value.get(filename)
   }
 
-  // If still no file, fetch from GitHub
+  // If still no file, fetch from GitHub (existing file)
   if (!file) {
+    isExisting = true
     const [owner, repoName] = props.repo.split('/')
     const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${filename}`
 
@@ -491,49 +511,113 @@ const handleConvertFile = async (filename: string) => {
   }
 
   if (file) {
-    emit('openConverter', file, filename)
+    emit('openConverter', file, filename, isExisting)
   }
 }
 
 // Handle converted file from parent
-const handleConvertedFileReceived = (file: File, originalFilename: string) => {
-  // Clear warning and pending file
-  inputFileWarnings.value.delete(originalFilename)
-  pendingConversionFiles.value.delete(originalFilename)
+const handleConvertedFileReceived = (file: File, targetFilename: string, oldFilename?: string) => {
+  console.log('[WorkflowFileManager] Received converted file:', {
+    newFile: file.name,
+    targetFilename,
+    oldFilename
+  })
 
-  // Check size again
-  const fileSizeMB = file.size / (1024 * 1024)
-  const isImage = file.type.startsWith('image/')
-  const isVideo = file.type.startsWith('video/')
+  // If format changed (oldFilename provided), handle the change
+  if (oldFilename && oldFilename !== targetFilename) {
+    console.log('[WorkflowFileManager] Format changed:', oldFilename, '→', targetFilename)
 
-  if ((isImage && fileSizeMB > 2) || (isVideo && fileSizeMB > 4)) {
-    inputFileWarnings.value.set(originalFilename,
-      `⚠️ Converted file is ${fileSizeMB.toFixed(2)}MB. Still larger than recommended.`
-    )
-  }
+    // Clear old file references
+    inputFileWarnings.value.delete(oldFilename)
+    pendingConversionFiles.value.delete(oldFilename)
 
-  // Store the converted file
-  reuploadedInputFiles.value.set(originalFilename, file)
+    // Find and update the file ref to new filename (Vue reactive way)
+    const index = inputFileRefs.value.findIndex(f => f.filename === oldFilename)
+    if (index !== -1) {
+      const oldRef = inputFileRefs.value[index]
+      // Create new object to trigger reactivity
+      const newRef = {
+        ...oldRef,
+        filename: targetFilename,
+        exists: true,
+        size: file.size,
+        previewUrl: isImageFile(file.name) ? URL.createObjectURL(file) : undefined
+      }
 
-  // Update the file ref
-  const fileRef = inputFileRefs.value.find(f => f.filename === originalFilename)
-  if (fileRef) {
-    fileRef.exists = true
-    fileRef.size = file.size
+      // Replace in array to trigger Vue reactivity
+      inputFileRefs.value.splice(index, 1, newRef)
 
-    // Create preview for images
-    if (isImageFile(file.name)) {
-      fileRef.previewUrl = URL.createObjectURL(file)
+      console.log('[WorkflowFileManager] Updated fileRef:', oldFilename, '→', targetFilename)
     }
-  }
 
-  // Emit updated files
-  emit('inputFilesUpdated', reuploadedInputFiles.value)
+    // Remove old file from map if it exists
+    reuploadedInputFiles.value.delete(oldFilename)
+
+    // Store new file
+    reuploadedInputFiles.value.set(targetFilename, file)
+
+    // Track format change (new filename -> old filename)
+    formatChangedFiles.value.set(targetFilename, oldFilename)
+
+    // Show format change notice
+    formatChangeNotice.value = {
+      oldFilename,
+      newFilename: targetFilename
+    }
+
+    // Emit with format change info so parent can update workflow JSON
+    emit('inputFilesUpdated', reuploadedInputFiles.value)
+    emit('formatChanged', oldFilename, targetFilename)
+  } else {
+    // No format change, regular update
+    const actualFilename = targetFilename || file.name
+
+    // Clear warning and pending file
+    inputFileWarnings.value.delete(actualFilename)
+    pendingConversionFiles.value.delete(actualFilename)
+
+    // Check size again
+    const fileSizeMB = file.size / (1024 * 1024)
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+
+    if ((isImage && fileSizeMB > 2) || (isVideo && fileSizeMB > 4)) {
+      inputFileWarnings.value.set(actualFilename,
+        `⚠️ Converted file is ${fileSizeMB.toFixed(2)}MB. Still larger than recommended.`
+      )
+    }
+
+    // Store the converted file
+    reuploadedInputFiles.value.set(actualFilename, file)
+
+    // Update the file ref
+    const fileRef = inputFileRefs.value.find(f => f.filename === actualFilename)
+    if (fileRef) {
+      fileRef.exists = true
+      fileRef.size = file.size
+
+      // Create preview for images
+      if (isImageFile(file.name)) {
+        fileRef.previewUrl = URL.createObjectURL(file)
+      }
+    }
+
+    // Emit updated files
+    emit('inputFilesUpdated', reuploadedInputFiles.value)
+  }
+}
+
+// Reset format changes after save
+const resetFormatChanges = () => {
+  formatChangedFiles.value.clear()
+  formatChangeNotice.value = null
 }
 
 // Expose method for parent to call when converter finishes
 defineExpose({
-  handleConvertedFileReceived
+  handleConvertedFileReceived,
+  formatChangedFiles,
+  resetFormatChanges
 })
 
 // Download input file
@@ -575,6 +659,19 @@ watch(() => props.workflowContent, async (newContent) => {
   if (!newContent) return
 
   const refs = parseWorkflowForInputFiles(newContent)
+
+  // Preserve state of reuploaded files after parsing
+  for (const ref of refs) {
+    if (reuploadedInputFiles.value.has(ref.filename)) {
+      const file = reuploadedInputFiles.value.get(ref.filename)!
+      ref.exists = true
+      ref.size = file.size
+      if (isImageFile(file.name)) {
+        ref.previewUrl = URL.createObjectURL(file)
+      }
+    }
+  }
+
   inputFileRefs.value = refs
   workflowParsed.value = true
   await checkInputFilesExistence()

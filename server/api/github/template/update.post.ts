@@ -29,6 +29,7 @@ interface UpdateTemplateRequest {
     inputFiles?: Array<{
       filename: string
       content: string // base64
+      deleteOldFile?: string  // Old filename to delete if format changed
     }>
   }
 }
@@ -269,6 +270,17 @@ export default defineEventHandler(async (event) => {
     if (files?.inputFiles && files.inputFiles.length > 0) {
       console.log(`[Update Template] Uploading ${files.inputFiles.length} input file(s)`)
       for (const inputFile of files.inputFiles) {
+        // If format changed, delete old file first
+        if (inputFile.deleteOldFile) {
+          console.log(`[Update Template] Deleting old file: ${inputFile.deleteOldFile}`)
+          tree.push({
+            path: `input/${inputFile.deleteOldFile}`,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            sha: null as any // null sha means delete
+          })
+        }
+
         // Create blob for input file content
         const { data: blob } = await octokit.git.createBlob({
           owner,
