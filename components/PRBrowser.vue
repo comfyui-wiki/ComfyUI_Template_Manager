@@ -2,9 +2,9 @@
   <Dialog v-model:open="isOpen">
     <DialogContent class="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
       <DialogHeader>
-        <DialogTitle>Pull Requests</DialogTitle>
+        <DialogTitle>Browse Pull Requests</DialogTitle>
         <DialogDescription>
-          Browse pull requests for {{ repo }}
+          Switch to any PR branch to review and test templates
         </DialogDescription>
       </DialogHeader>
 
@@ -51,8 +51,7 @@
           <div
             v-for="pr in pullRequests"
             :key="pr.number"
-            class="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-            @click="handlePRClick(pr)"
+            class="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
           >
             <div class="flex items-start gap-3">
               <!-- Status Icon -->
@@ -137,6 +136,31 @@
                     {{ pr.base.ref }}
                   </span>
                 </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-3 flex items-center gap-2">
+                  <Button
+                    @click="handleSwitchBranch(pr)"
+                    size="sm"
+                    class="gap-2"
+                  >
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
+                    </svg>
+                    Switch to Branch
+                  </Button>
+                  <Button
+                    @click="handleViewOnGitHub(pr)"
+                    size="sm"
+                    variant="outline"
+                    class="gap-2"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    View on GitHub
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -165,7 +189,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  'select-pr': [pr: any]
+  'switch-branch': [pr: any]
 }>()
 
 const isOpen = ref(props.open || false)
@@ -211,11 +235,16 @@ const loadPullRequests = async () => {
   }
 }
 
-const handlePRClick = (pr: any) => {
+const handleSwitchBranch = (pr: any) => {
+  // Emit event to parent to switch branch
+  emit('switch-branch', pr)
+  // Close dialog after switching
+  isOpen.value = false
+}
+
+const handleViewOnGitHub = (pr: any) => {
   // Open PR in new tab
   window.open(pr.html_url, '_blank')
-  // Also emit event in case parent wants to do something
-  emit('select-pr', pr)
 }
 
 const formatDate = (dateString: string) => {

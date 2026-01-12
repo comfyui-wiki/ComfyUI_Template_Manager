@@ -3,15 +3,6 @@ import { getServerSession } from '#auth'
 
 export default defineEventHandler(async (event) => {
   try {
-    const session = await getServerSession(event)
-
-    if (!session?.accessToken) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized - Please sign in'
-      })
-    }
-
     const query = getQuery(event)
     const { owner, repo, state = 'open', per_page = 20, page = 1 } = query
 
@@ -22,7 +13,11 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const octokit = new Octokit({ auth: session.accessToken })
+    // Try to get session for authenticated requests, but don't require it
+    const session = await getServerSession(event)
+    const octokit = new Octokit({
+      auth: session?.accessToken || process.env.GITHUB_TOKEN
+    })
 
     // Get pull requests
     const { data: pullRequests } = await octokit.pulls.list({

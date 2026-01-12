@@ -43,11 +43,12 @@
           <div class="flex flex-col items-end gap-2">
             <Button
               @click="handleSubmit"
-              :disabled="isSubmitting || !hasAnyChanges || missingFields.length > 0"
+              :disabled="!canEditCurrentRepo || isSubmitting || !hasAnyChanges || missingFields.length > 0"
               size="default"
               :class="{
-                'opacity-50 cursor-not-allowed': !hasAnyChanges || missingFields.length > 0
+                'opacity-50 cursor-not-allowed': !hasAnyChanges || missingFields.length > 0 || !canEditCurrentRepo
               }"
+              :title="!canEditCurrentRepo ? 'Editing is disabled for this branch' : ''"
             >
               <svg v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -117,8 +118,26 @@
       </div>
     </div>
 
+    <!-- Read-Only Mode Banner -->
+    <div v-if="!canEditCurrentRepo" class="fixed top-[110px] left-0 right-0 z-40 border-b bg-amber-50">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm text-amber-900 font-medium">Read-Only Mode - Editing Disabled</p>
+            <p class="text-xs text-amber-800 mt-1">
+              You're viewing this template from <span class="font-mono font-semibold">{{ selectedRepo }}</span> / <span class="font-mono font-semibold">{{ selectedBranch }}</span>.
+              You cannot edit or save changes. To edit templates, please switch to a branch you have write access to.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content with top padding for fixed header + completion bar -->
-    <div class="pt-[140px]">
+    <div :class="canEditCurrentRepo ? 'pt-[140px]' : 'pt-[200px]'">
       <!-- Loading State -->
       <div v-if="loading" class="container mx-auto px-4 py-12 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
@@ -709,7 +728,8 @@ const displayTemplateName = computed(() => {
 
 const {
   selectedRepo,
-  selectedBranch
+  selectedBranch,
+  canEditCurrentRepo
 } = useGitHubRepo()
 
 const loading = ref(true)

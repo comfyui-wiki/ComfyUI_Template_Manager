@@ -11,17 +11,17 @@
               <p class="text-sm text-muted-foreground">Browse and manage workflow templates</p>
             </div>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 flex-wrap">
               <LoginButton />
 
               <Button
                 v-if="status === 'authenticated' && isMounted"
                 @click="navigateTo('/admin/edit/new')"
-                size="lg"
-                :disabled="!canEditCurrentRepo"
-                :title="canEditCurrentRepo ? 'Create a new template' : 'Select a branch with write access to create templates'"
+                size="sm"
+                :disabled="!canEditCurrentRepo || isViewingPR"
+                :title="isViewingPR ? 'Cannot create templates while browsing PR - switch to a branch with write access' : (canEditCurrentRepo ? 'Create a new template' : 'Select a branch with write access to create templates')"
               >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Create Template
@@ -30,9 +30,9 @@
           </div>
 
           <!-- Branch Info and PR Actions -->
-          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center justify-between text-sm">
+          <div v-if="isMounted && selectedRepo && selectedBranch" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
             <!-- Branch Info -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
               <a
                 :href="`https://github.com/${selectedRepo}/tree/${selectedBranch}`"
                 target="_blank"
@@ -93,7 +93,7 @@
             </div>
 
             <!-- PR Action Buttons -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <!-- Update Branch Button (when PR has new commits) -->
               <Button
                 v-if="prNeedsUpdate"
@@ -101,23 +101,23 @@
                 size="sm"
                 variant="default"
                 :disabled="isUpdatingBranch"
-                class="gap-2"
+                class="gap-1.5 text-xs whitespace-nowrap"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {{ isUpdatingBranch ? 'Updating...' : `Update Branch (${prUpdateInfo?.comparison?.aheadBy || 0} new)` }}
+                {{ isUpdatingBranch ? 'Updating...' : `Update (${prUpdateInfo?.comparison?.aheadBy || 0})` }}
               </Button>
 
-              <!-- Browse PRs Button -->
+              <!-- Browse PRs Button (no login required) -->
               <Button
-                v-if="isMounted && status === 'authenticated'"
+                v-if="isMounted"
                 @click="showPRBrowser = true"
                 size="sm"
                 variant="outline"
-                class="gap-2"
+                class="gap-1.5 text-xs whitespace-nowrap"
               >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
                 </svg>
                 Browse PRs
@@ -130,12 +130,12 @@
                 size="sm"
                 variant="outline"
                 :disabled="isCreatingPR"
-                class="gap-2"
+                class="gap-1.5 text-xs whitespace-nowrap"
               >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
                 </svg>
-                {{ isCreatingPR ? 'Creating...' : 'Create Pull Request' }}
+                {{ isCreatingPR ? 'Creating...' : 'Create PR' }}
               </Button>
             </div>
           </div>
@@ -143,8 +143,45 @@
       </div>
     </header>
 
+    <!-- Browsing PR Notice Banner (always show when viewing PR branch) -->
+    <div v-if="isMounted && isViewingPR && !prNoticeDismissed" class="border-b bg-purple-50">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm text-purple-900 font-medium">Browsing PR Branch - Read-Only Mode</p>
+            <p class="text-xs text-purple-800 mt-1">
+              You're viewing a pull request branch <span class="font-mono font-semibold">{{ selectedRepo }}</span> / <span class="font-mono font-semibold">{{ selectedBranch }}</span>.
+              Editing is disabled. To make changes, please switch to a branch you have write access to.
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <Button
+                v-if="status === 'authenticated'"
+                size="sm"
+                variant="outline"
+                class="h-7 text-xs bg-white hover:bg-purple-50"
+                @click="scrollToSidebar"
+              >
+                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12M8 12h12m-12 5h12M4 7h.01M4 12h.01M4 17h.01" />
+                </svg>
+                Switch Branch
+              </Button>
+            </div>
+          </div>
+          <button @click="prNoticeDismissed = true" class="text-purple-600 hover:text-purple-800">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Permission Notice Banner (only show if no write access to repository at all) -->
-    <div v-if="isMounted && status === 'authenticated' && !hasRepoWriteAccess && !noticeDismissed" class="border-b bg-blue-50">
+    <div v-if="isMounted && status === 'authenticated' && !hasRepoWriteAccess && !isViewingPR && !noticeDismissed" class="border-b bg-blue-50">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-start gap-3">
           <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -428,7 +465,7 @@
                 :key="template.name"
                 :template="template"
                 :category="template.categoryTitle"
-                :can-edit="isMounted && canEditCurrentRepo"
+                :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
                 :repo="selectedRepo"
                 :branch="selectedBranch"
                 :cache-bust="cacheBustTimestamp"
@@ -453,7 +490,7 @@
                     :key="template.name"
                     :template="template"
                     :category="category.title"
-                    :can-edit="isMounted && canEditCurrentRepo"
+                    :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
                     :repo="selectedRepo"
                     :branch="selectedBranch"
                     :cache-bust="cacheBustTimestamp"
@@ -469,7 +506,11 @@
     </div>
 
     <!-- PR Browser Dialog -->
-    <PRBrowser v-model:open="showPRBrowser" :repo="selectedRepo" />
+    <PRBrowser
+      v-model:open="showPRBrowser"
+      :repo="'Comfy-Org/workflow_templates'"
+      @switch-branch="handleSwitchToPRBranch"
+    />
   </div>
 </template>
 
@@ -519,6 +560,7 @@ const selectedRunsOn = ref('all') // all, api, opensource
 const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
 const sortBy = ref('default')
 const noticeDismissed = ref(false)
+const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
 
 // PR Status
@@ -529,6 +571,9 @@ const showPRBrowser = ref(false)
 // PR Update Status
 const prUpdateInfo = ref<any>(null)
 const isUpdatingBranch = ref(false)
+
+// Track if we're viewing a PR branch (for browsing PRs)
+const viewingPRBranch = ref<string | null>(null)
 
 // Load templates from selected repository and branch
 const loadTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
@@ -645,6 +690,15 @@ watch(status, async (newStatus) => {
 // Watch for repository or branch changes
 watch([selectedRepo, selectedBranch], ([repo, branch], [oldRepo, oldBranch]) => {
   console.log('[Watch] Branch changed:', { oldRepo, oldBranch, repo, branch })
+
+  // If user manually switches branch (not through PR browser), clear PR browsing mode
+  const currentKey = `${repo}/${branch}`
+  if (viewingPRBranch.value && viewingPRBranch.value !== currentKey) {
+    console.log('[Watch] User manually switched branch, clearing PR browsing mode')
+    viewingPRBranch.value = null
+    prNoticeDismissed.value = false
+  }
+
   if (repo && branch) {
     const [owner, name] = repo.split('/')
     console.log('[Watch] Loading templates for:', owner, name, branch)
@@ -668,6 +722,11 @@ const refreshTemplates = async () => {
 // Computed
 const categories = computed(() => {
   return categoriesWithDiff.value || []
+})
+
+// Check if we're viewing a PR branch (browsing mode, editing disabled)
+const isViewingPR = computed(() => {
+  return viewingPRBranch.value !== null
 })
 
 const categoryTitle = computed(() => {
@@ -1048,6 +1107,37 @@ const handleUpdateBranch = async () => {
     alert(`Error: ${message}\n\nThis might happen if there are conflicts. Please update your branch manually on GitHub.`)
   } finally {
     isUpdatingBranch.value = false
+  }
+}
+
+const handleSwitchToPRBranch = async (pr: any) => {
+  console.log('[Switch Branch] Switching to PR branch:', pr)
+
+  // Determine the repository (might be a fork)
+  const targetRepo = pr.head.repo
+    ? pr.head.repo.full_name
+    : 'Comfy-Org/workflow_templates' // Fallback if no head.repo
+
+  const targetBranch = pr.head.ref
+
+  console.log('[Switch Branch] Target:', { repo: targetRepo, branch: targetBranch })
+
+  // Mark that we're viewing a PR branch (browsing mode)
+  viewingPRBranch.value = `${targetRepo}/${targetBranch}`
+  prNoticeDismissed.value = false // Show the notice again when switching to PR
+
+  // Update selected repo and branch
+  selectedRepo.value = targetRepo
+  selectedBranch.value = targetBranch
+
+  // The watch on [selectedRepo, selectedBranch] will automatically trigger loadTemplates
+  // But we can also explicitly load to ensure it happens
+  const [owner, name] = targetRepo.split('/')
+  await loadTemplates(owner, name, targetBranch)
+
+  // Check PR status after switching
+  if (status.value === 'authenticated') {
+    await checkPRStatus()
   }
 }
 
