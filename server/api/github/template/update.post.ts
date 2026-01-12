@@ -26,6 +26,10 @@ interface UpdateTemplateRequest {
       content: string // base64
       filename: string
     }>
+    inputFiles?: Array<{
+      filename: string
+      content: string // base64
+    }>
   }
 }
 
@@ -258,6 +262,29 @@ export default defineEventHandler(async (event) => {
           type: 'blob' as const,
           sha: blob.sha
         })
+      }
+    }
+
+    // 4. Update input files if provided
+    if (files?.inputFiles && files.inputFiles.length > 0) {
+      console.log(`[Update Template] Uploading ${files.inputFiles.length} input file(s)`)
+      for (const inputFile of files.inputFiles) {
+        // Create blob for input file content
+        const { data: blob } = await octokit.git.createBlob({
+          owner,
+          repo: repoName,
+          content: inputFile.content,
+          encoding: 'base64'
+        })
+
+        tree.push({
+          path: `input/${inputFile.filename}`,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          sha: blob.sha
+        })
+
+        console.log(`[Update Template] Added input file: ${inputFile.filename}`)
       }
     }
 

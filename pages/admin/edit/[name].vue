@@ -148,57 +148,18 @@
 
         <!-- Main Content Area -->
         <div class="flex-1 container mx-auto px-4 py-8">
-        <!-- Workflow File Section - Compact -->
-        <div class="mb-6 p-4 border-2 border-primary/20 rounded-lg bg-card flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-              <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div>
-              <div class="font-semibold text-sm">Workflow File</div>
-              <div class="font-mono text-xs text-muted-foreground">{{ templateName }}.json</div>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              @click="downloadWorkflow"
-            >
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download
-            </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              @click="triggerWorkflowUpload"
-            >
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Re-upload
-            </Button>
-          </div>
-          <input
-            ref="workflowFileInput"
-            type="file"
-            accept=".json"
-            class="hidden"
-            @change="handleWorkflowReupload"
+        <!-- Workflow File Section with Input Files -->
+        <div class="mb-6">
+          <WorkflowFileManager
+            ref="workflowFileManagerRef"
+            :template-name="templateName"
+            :repo="selectedRepo"
+            :branch="selectedBranch"
+            :workflow-content="workflowContent"
+            @workflow-updated="handleWorkflowUpdated"
+            @input-files-updated="handleInputFilesUpdated"
+            @open-converter="handleInputFileConversion"
           />
-        </div>
-
-        <!-- Status Message for workflow -->
-        <div v-if="workflowReuploadStatus"
-             class="mb-6 p-3 rounded-lg text-sm"
-             :class="workflowReuploadStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
-          {{ workflowReuploadStatus.message }}
         </div>
 
         <div class="grid gap-8 lg:grid-cols-3">
@@ -628,7 +589,24 @@
             Convert your image or video file to optimized WebP format for {{ getThumbnailLabel(converterTargetIndex) }}
           </DialogDescription>
         </DialogHeader>
-        <ThumbnailConverter :initial-file="converterInitialFile" @converted="handleConvertedFile" />
+        <ThumbnailConverter :initial-file="converterInitialFile" @converted="handleConvertedThumbnail" />
+      </DialogScrollContent>
+    </Dialog>
+
+    <!-- Input Asset Converter Dialog -->
+    <Dialog v-model:open="isInputAssetConverterOpen">
+      <DialogScrollContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Optimize Input Asset - {{ converterTargetInputFilename }}</DialogTitle>
+          <DialogDescription>
+            Convert and optimize your input file with custom settings
+          </DialogDescription>
+        </DialogHeader>
+        <InputAssetConverter
+          :initial-file="converterInitialFile"
+          :target-filename="converterTargetInputFilename"
+          @converted="handleConvertedInputFile"
+        />
       </DialogScrollContent>
     </Dialog>
   </div>
@@ -646,6 +624,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
+import InputAssetConverter from '~/components/InputAssetConverter.vue'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -660,19 +639,26 @@ const error = ref('')
 const isSubmitting = ref(false)
 const originalTemplate = ref<any>(null)
 const thumbnailFiles = ref<File[]>([])
-const workflowFileInput = ref<HTMLInputElement>()
 const thumbnailFileInputs = ref<any[]>([])
-const workflowReuploadStatus = ref<{ success: boolean; message: string } | null>(null)
 const thumbnailReuploadStatus = ref<{ success: boolean; message: string } | null>(null)
 const reuploadedThumbnails = ref<Map<number, File>>(new Map())
-const workflowContent = ref<any>(null)
+const workflowContent = ref<string>('')
 const thumbnailPreviewUrls = ref<Map<number, string>>(new Map())
 const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }>>(new Map())
+
+// Workflow and input files state
+const updatedWorkflowContent = ref<string>('')
+const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 
 // Thumbnail converter state
 const isConverterDialogOpen = ref(false)
 const converterTargetIndex = ref<number>(1)
 const converterInitialFile = ref<File | null>(null)
+
+// Input file converter state
+const isInputAssetConverterOpen = ref(false)
+const converterTargetInputFilename = ref<string>('')
+const workflowFileManagerRef = ref<any>(null)
 
 // Drag and drop state for template reordering
 const draggedIndex = ref<number | null>(null)
@@ -970,32 +956,21 @@ const calculateFileInfo = async (file: File, index: number) => {
 }
 
 // Download workflow file
-const downloadWorkflow = async () => {
-  try {
-    const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
-    const branch = selectedBranch.value || 'main'
-    const [owner, repoName] = repo.split('/')
+// Handler for workflow updates from WorkflowFileManager
+const handleWorkflowUpdated = (content: string) => {
+  updatedWorkflowContent.value = content
+}
 
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/${templateName}.json`
-    const response = await fetch(url)
+// Handler for input files updates from WorkflowFileManager
+const handleInputFilesUpdated = (files: Map<string, File>) => {
+  reuploadedInputFiles.value = files
+}
 
-    if (!response.ok) {
-      throw new Error('Failed to download workflow file')
-    }
-
-    const blob = await response.blob()
-    const downloadUrl = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.download = `${templateName}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(downloadUrl)
-  } catch (err: any) {
-    console.error('Error downloading workflow:', err)
-    alert(`Failed to download workflow: ${err.message}`)
-  }
+// Handler for opening converter for input files
+const handleInputFileConversion = (file: File, targetFilename: string) => {
+  converterInitialFile.value = file
+  converterTargetInputFilename.value = targetFilename
+  isInputAssetConverterOpen.value = true
 }
 
 // Download thumbnail file
@@ -1044,44 +1019,9 @@ const downloadThumbnail = async (index: number) => {
   }
 }
 
-// Trigger workflow file upload
-const triggerWorkflowUpload = () => {
-  workflowFileInput.value?.click()
-}
-
 // Trigger thumbnail file upload
 const triggerThumbnailUpload = (index: number) => {
   thumbnailFileInputs.value[index - 1]?.click()
-}
-
-// Handle workflow re-upload
-const handleWorkflowReupload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-
-  if (!file) return
-
-  // Validate JSON
-  try {
-    const text = await file.text()
-    JSON.parse(text)
-
-    // Create new File object from validated content
-    const newFile = new File([text], 'workflow.json', { type: 'application/json' })
-
-    workflowReuploadStatus.value = {
-      success: true,
-      message: `✓ New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
-    }
-
-    // Store for submission
-    // Note: We'll handle this in handleSubmit
-  } catch (err: any) {
-    workflowReuploadStatus.value = {
-      success: false,
-      message: `✗ Invalid JSON file: ${err.message}`
-    }
-  }
 }
 
 // Handle thumbnail re-upload
@@ -1149,8 +1089,8 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
   target.value = ''
 }
 
-// Handle converted file from ThumbnailConverter
-const handleConvertedFile = async (file: File) => {
+// Handle converted thumbnail from ThumbnailConverter
+const handleConvertedThumbnail = async (file: File) => {
   const index = converterTargetIndex.value
 
   // Store the converted file
@@ -1179,11 +1119,34 @@ const handleConvertedFile = async (file: File) => {
   }
 }
 
+// Handle converted input file from InputAssetConverter
+const handleConvertedInputFile = (file: File) => {
+  const targetFilename = converterTargetInputFilename.value
+
+  // Pass to WorkflowFileManager
+  if (workflowFileManagerRef.value) {
+    workflowFileManagerRef.value.handleConvertedFileReceived(file, targetFilename)
+  }
+
+  // Clear state and close dialog
+  converterInitialFile.value = null
+  converterTargetInputFilename.value = ''
+  isInputAssetConverterOpen.value = false
+}
+
 // Watch dialog state to clear initial file when closed
 watch(isConverterDialogOpen, (isOpen) => {
   if (!isOpen) {
     // Clear initial file when dialog is closed
     converterInitialFile.value = null
+  }
+})
+
+watch(isInputAssetConverterOpen, (isOpen) => {
+  if (!isOpen) {
+    // Clear initial file when dialog is closed
+    converterInitialFile.value = null
+    converterTargetInputFilename.value = ''
   }
 })
 
@@ -1338,16 +1301,17 @@ const loadWorkflowContent = async (owner: string, repo: string, branch: string) 
 
     if (response.ok) {
       const text = await response.text()
-      workflowContent.value = JSON.parse(text)
+      // Store as string for WorkflowFileManager component
+      workflowContent.value = text
     } else if (response.status === 404) {
       console.warn('Workflow file not found at:', url)
-      workflowContent.value = null
+      workflowContent.value = ''
     } else {
       console.error('Failed to load workflow:', response.status, response.statusText)
     }
   } catch (err) {
     console.error('Error loading workflow:', err)
-    workflowContent.value = null
+    workflowContent.value = ''
   }
 }
 
@@ -1408,11 +1372,25 @@ const handleSubmit = async () => {
     const filesData: any = {}
 
     // Check if workflow was reuploaded
-    if (workflowFileInput.value?.files?.[0]) {
-      const workflowFile = workflowFileInput.value.files[0]
+    if (updatedWorkflowContent.value) {
+      // Create a temporary File object to convert to base64
+      const workflowBlob = new Blob([updatedWorkflowContent.value], { type: 'application/json' })
+      const workflowFile = new File([workflowBlob], 'workflow.json', { type: 'application/json' })
       const workflowBase64 = await fileToBase64(workflowFile)
       filesData.workflow = {
         content: workflowBase64.split(',')[1] // Remove data URL prefix
+      }
+    }
+
+    // Check if input files were reuploaded
+    if (reuploadedInputFiles.value.size > 0) {
+      filesData.inputFiles = []
+      for (const [filename, file] of reuploadedInputFiles.value) {
+        const fileBase64 = await fileToBase64(file)
+        filesData.inputFiles.push({
+          filename,
+          content: fileBase64.split(',')[1] // Remove data URL prefix
+        })
       }
     }
 
@@ -1459,7 +1437,8 @@ const handleSubmit = async () => {
     if (response.success) {
       // Clear reuploaded files status
       reuploadedThumbnails.value.clear()
-      workflowReuploadStatus.value = null
+      updatedWorkflowContent.value = ''
+      reuploadedInputFiles.value.clear()
       thumbnailReuploadStatus.value = null
 
       // Show brief success message

@@ -43,6 +43,12 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 - Download existing workflow.json
 - Re-upload new workflow files
 - Validation of JSON format
+- **Input File Verification**: Automatically parses workflow JSON to detect required input files
+- **Smart Warnings**: Shows which input files are missing from the `input/` folder
+- **Input File Upload**: Upload missing input files directly from the edit page
+- **Node Types Supported**: LoadImage, LoadAudio, LoadVideo
+- **Visual Indicators**: Green checkmarks for uploaded files, amber warnings for missing files
+- **File Preview**: Displays image previews for uploaded input files
 
 ### 5. GitHub Integration
 - OAuth authentication via GitHub
@@ -61,9 +67,11 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
     index.vue                 # Template list/home page
 
 /components
-  ThumbnailConverter.vue      # Image/video to WebP converter
+  ThumbnailConverter.vue      # Image/video to WebP converter (for thumbnails)
+  InputAssetConverter.vue     # Flexible converter for input assets (NEW)
   ThumbnailPreview.vue        # Preview component with variants
   TemplateCardPreview.vue     # Template card preview
+  WorkflowFileManager.vue     # Workflow and input files manager
 
 /server/api
   /github
@@ -161,6 +169,81 @@ Key settings:
 
 **Files**: `pages/admin/edit/[name].vue:870-913`
 
+### 8. Workflow Input File Verification & Management
+**Problem**: Users couldn't see which input files were required by workflows or upload missing files
+**Solution**:
+- Created `WorkflowFileManager.vue` component to handle workflow and input files
+- Parses workflow JSON to extract references from LoadImage/LoadAudio/LoadVideo nodes
+- Checks GitHub repo's `input/` folder for file existence
+- Shows warnings for missing files with amber styling
+- Allows direct upload of missing input files from edit page
+- Displays file info (size, type, node ID) and image previews
+- Backend API updated to handle input file uploads to `input/` folder
+
+**Features**:
+- Automatic workflow parsing on load/reupload
+- Visual status indicators (green checkmark for uploaded, amber warning for missing)
+- File download support for existing input files
+- Upload/reupload functionality per file
+- Image preview for uploaded files
+- Real-time status updates
+- **File size validation**: Warns if images > 2MB or videos > 4MB
+- **Automatic format detection**: Detects non-WebP images and videos
+- **Conversion support**: Offers "Convert" button to optimize files via ThumbnailConverter
+- **Post-conversion size check**: Warns if converted file is still too large
+
+**Files**:
+- Component: `components/WorkflowFileManager.vue` (new)
+- Frontend: `pages/admin/edit/[name].vue:151-161`, `638-640`, `953-959`, `1081-1095`
+- Backend: `server/api/github/template/update.post.ts:29-32`, `268-289`
+
+**Node Types Supported**: LoadImage, LoadAudio, LoadVideo (from Python script)
+
+**Size Limits**:
+- Images: Warning if > 2MB (recommended: < 2MB for server compatibility)
+- Videos: Warning if > 4MB (recommended: < 4MB for server compatibility)
+
+### 9. Input Asset Converter Component
+**Problem**: ThumbnailConverter was designed for thumbnails (always WebP, fixed square sizes) but input assets need different settings
+**Solution**:
+- Created dedicated `InputAssetConverter.vue` component for input files
+- Separate from ThumbnailConverter to avoid confusion and complexity
+- **Auto-detects format from filename** (no manual selection needed)
+- Custom resize options (keep original, percentage, specific dimensions, max dimension)
+- Aspect ratio preservation
+- Quality/compression control (60-100%)
+- **Immediate before/after comparison** (like ThumbnailConverter)
+- **Click to open in new tab** for full-size preview
+- **Always available** - converts both new uploads and existing files
+
+**Features**:
+- **Format Auto-Detection**: Reads target filename extension (.webp/.jpg/.png)
+- **Immediate Preview**: Shows before/after comparison automatically on load
+- **Interactive Preview**: Click images to open in new tab for inspection
+- **Resize Modes**:
+  - Keep original size (compression only)
+  - Resize by percentage (10-100%)
+  - Specific dimensions (with aspect ratio lock option)
+  - Max dimension (scale down if exceeds, maintains aspect ratio)
+- **Quality Control**: 60-100% slider with real-time re-conversion
+- **Before/After Comparison**: Side-by-side 250px height previews
+- **Savings Indicator**: Shows file size reduction % (green if smaller, red if larger)
+- **Smart Warnings**: Color-coded borders (red >2MB, amber >1MB, green <1MB)
+- **High-Quality Scaling**: Uses `imageSmoothingQuality: 'high'` for canvas operations
+
+**Files**:
+- Component: `components/InputAssetConverter.vue` (new)
+- Frontend: `pages/admin/edit/[name].vue:596-611`, `627`, `659`, `970-974`, `1122-1135`
+- Manager: `components/WorkflowFileManager.vue:143-152`, `467-496`
+
+**Usage**:
+- "Convert" button always shown for all input files (uploaded or existing)
+- Fetches existing files from GitHub if needed
+- Opens dedicated dialog with InputAssetConverter
+- Auto-converts on load to show immediate preview
+- User adjusts settings and clicks "Use This Conversion"
+- Passes converted file back to WorkflowFileManager for storage
+
 ---
 
 ## Data Flow
@@ -208,6 +291,66 @@ Key settings:
 9. On save, convert to base64 and upload to GitHub
 ```
 
+### Workflow Input File Verification Flow
+
+```
+1. Page loads workflow content from GitHub
+2. WorkflowFileManager component receives workflow JSON string
+3. Component parses JSON to extract input file references:
+   - Searches for LoadImage, LoadAudio, LoadVideo nodes
+   - Extracts filename from widgets_values[0]
+   - Creates InputFileRef array with node info
+4. For each input file:
+   - Checks if file exists in GitHub repo's input/ folder
+   - Sets exists flag and retrieves file size
+   - Creates preview URL for images
+5. UI displays results:
+   - Green checkmark for uploaded files
+   - Amber warning for missing files
+   - Shows file info (size, node ID, type)
+6. User can upload missing files:
+   - Click upload button for specific file
+   - File stored in reuploadedInputFiles Map
+   - Updates UI with new file info
+7. On save:
+   - Convert all reuploaded input files to base64
+   - Send to backend API
+   - Backend uploads to input/ folder in repo
+```
+
+### Input Asset Conversion Flow
+
+```
+1. User uploads input file (e.g., PNG or MP4)
+2. WorkflowFileManager validates file:
+   - Check if WebP: Yes → Direct upload
+   - Check if non-WebP image/video: Show warning + "Convert" button
+   - Check size: Warn if image > 2MB or video > 4MB
+3. User clicks "Convert" button
+4. Opens InputAssetConverter dialog with pre-loaded file
+5. User configures conversion settings:
+   - Format: WebP (best), JPEG (photos), PNG (transparency)
+   - Resize: None, %, dimensions, max dimension
+   - Quality: 60-100% slider
+   - Aspect ratio: Maintain or custom
+6. User clicks "Convert & Optimize"
+7. Canvas/Image API processes:
+   - Loads original image
+   - Calculates target dimensions
+   - Applies high-quality scaling
+   - Compresses to target format
+8. Shows before/after comparison:
+   - Original size vs converted size
+   - Dimensions and savings %
+   - Color-coded warning (green/amber/red)
+9. Emits converted file to parent
+10. WorkflowFileManager receives file:
+    - Stores in reuploadedInputFiles Map
+    - Updates preview and file info
+    - Clears warnings if size OK
+11. On save: Uploads to GitHub input/ folder
+```
+
 ---
 
 ## API Endpoints
@@ -241,6 +384,10 @@ Key settings:
       content: string      // base64
       filename: string
     }>
+    inputFiles?: Array<{
+      filename: string     // e.g., "3d_hunyuan3d-v2.1_input_image.png"
+      content: string      // base64
+    }>
   }
 }
 ```
@@ -273,6 +420,28 @@ emit: {
 }
 ```
 
+### InputAssetConverter.vue
+
+```typescript
+interface Props {
+  initialFile?: File | null  // Pre-load file
+  targetFilename?: string    // Target filename for converted file
+}
+
+emit: {
+  converted: [file: File]    // Emits converted file (WebP/JPEG/PNG)
+}
+
+// Settings:
+// - targetFormat: 'webp' | 'jpeg' | 'png'
+// - resizeMode: 'none' | 'percentage' | 'dimensions' | 'maxDimension'
+// - resizePercentage: 10-100
+// - targetWidth/targetHeight: custom dimensions
+// - maxDimension: max width/height
+// - maintainAspectRatio: boolean
+// - quality: 60-100
+```
+
 ### ThumbnailPreview.vue
 
 ```typescript
@@ -281,6 +450,27 @@ interface Props {
   images: File[]             // Array of File objects
   className?: string
   hoverZoom?: number
+}
+```
+
+### WorkflowFileManager.vue
+
+```typescript
+interface Props {
+  templateName: string       // Template name (e.g., "image_flux2")
+  repo: string              // GitHub repo (e.g., "Comfy-Org/workflow_templates")
+  branch: string            // Git branch (e.g., "main")
+  workflowContent?: string  // Workflow JSON string
+}
+
+emit: {
+  workflowUpdated: [content: string]           // Emits updated workflow JSON string
+  inputFilesUpdated: [files: Map<string, File>] // Emits map of filename → File
+  openConverter: [file: File, targetFilename: string] // Opens converter for input file
+}
+
+exposed: {
+  handleConvertedFileReceived: (file: File, originalFilename: string) => void
 }
 ```
 
