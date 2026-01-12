@@ -550,6 +550,32 @@
                       placeholder="0.3.26"
                     />
                   </div>
+
+                  <!-- Open Source -->
+                  <div class="space-y-2">
+                    <Label class="text-sm font-medium">Open Source Status</Label>
+                    <p class="text-xs text-muted-foreground mb-2">Does this workflow use only open-source nodes, or does it include API nodes?</p>
+                    <div class="flex items-center space-x-4">
+                      <label class="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          :value="true"
+                          v-model="form.openSource"
+                          class="w-4 h-4 text-primary"
+                        />
+                        <span class="text-sm">Open Source (no API nodes)</span>
+                      </label>
+                      <label class="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          :value="false"
+                          v-model="form.openSource"
+                          class="w-4 h-4 text-primary"
+                        />
+                        <span class="text-sm">Contains API nodes</span>
+                      </label>
+                    </div>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -752,7 +778,8 @@ const form = ref({
   tags: [] as string[],
   models: [] as string[],
   comfyuiVersion: '',
-  date: ''
+  date: '',
+  openSource: true // Default to true (open source)
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
@@ -839,6 +866,7 @@ const hasFormChanges = computed(() => {
     form.value.tutorialUrl !== (originalTemplate.value.tutorialUrl || '') ||
     form.value.comfyuiVersion !== (originalTemplate.value.comfyuiVersion || '') ||
     form.value.date !== (originalTemplate.value.date || '') ||
+    form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
     JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort())
   )
@@ -1637,6 +1665,7 @@ onMounted(async () => {
     form.value.models = foundTemplate.models || []
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
     form.value.date = foundTemplate.date || ''
+    form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
@@ -1820,7 +1849,8 @@ const handleSubmit = async () => {
           models: form.value.models,
           tutorialUrl: form.value.tutorialUrl,
           comfyuiVersion: form.value.comfyuiVersion,
-          date: form.value.date
+          date: form.value.date,
+          openSource: form.value.openSource
         },
         templateOrder,
         files: Object.keys(filesData).length > 0 ? filesData : undefined
@@ -1876,6 +1906,7 @@ const handleSubmit = async () => {
         originalTemplate.value.date = form.value.date
         originalTemplate.value.tags = [...form.value.tags]
         originalTemplate.value.models = [...form.value.models]
+        originalTemplate.value.openSource = form.value.openSource
       }
 
       // Reset template order changes (computed property will auto-update)

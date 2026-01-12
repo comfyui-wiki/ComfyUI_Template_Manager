@@ -15,6 +15,7 @@ interface UpdateTemplateRequest {
     tutorialUrl?: string
     comfyuiVersion?: string
     date?: string
+    openSource?: boolean
   }
   templateOrder?: string[]  // Array of template names in new order
   files?: {
@@ -131,6 +132,7 @@ export default defineEventHandler(async (event) => {
       if (metadata.tutorialUrl) templateData.tutorialUrl = metadata.tutorialUrl
       if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
       if (metadata.date) templateData.date = metadata.date
+      if (metadata.openSource !== undefined) templateData.openSource = metadata.openSource
 
       // Calculate new required thumbnail count
       const newThumbnailVariant = templateData.thumbnailVariant || 'none'

@@ -15,6 +15,7 @@ interface CreateTemplateRequest {
     tutorialUrl?: string
     comfyuiVersion?: string
     date?: string
+    openSource?: boolean
   }
   files: {
     workflow: {
@@ -164,6 +165,9 @@ export default defineEventHandler(async (event) => {
     }
     if (metadata.date) {
       newTemplate.date = metadata.date
+    }
+    if (metadata.openSource !== undefined) {
+      newTemplate.openSource = metadata.openSource
     }
 
     // Add template to category
