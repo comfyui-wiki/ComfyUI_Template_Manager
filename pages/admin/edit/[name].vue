@@ -18,24 +18,86 @@
             </div>
           </div>
 
-          <!-- Save Button (moved to top right) -->
-          <Button
-            @click="handleSubmit"
-            :disabled="isSubmitting"
-            size="default"
-          >
-            <svg v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
-          </Button>
+          <!-- Save Button Section -->
+          <div class="flex flex-col items-end gap-2">
+            <Button
+              @click="handleSubmit"
+              :disabled="isSubmitting || !hasAnyChanges || missingFields.length > 0"
+              size="default"
+              :class="{
+                'opacity-50 cursor-not-allowed': !hasAnyChanges || missingFields.length > 0
+              }"
+            >
+              <svg v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+            </Button>
+
+            <!-- Success Message -->
+            <div v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Saved successfully!</span>
+              <a :href="saveSuccess.commitUrl" target="_blank" class="text-blue-600 hover:underline font-mono">
+                {{ saveSuccess.commitSha.substring(0, 7) }}
+              </a>
+            </div>
+
+            <!-- No Changes Message -->
+            <div v-else-if="!hasAnyChanges && !isSubmitting" class="text-xs text-muted-foreground">
+              No changes to save
+            </div>
+
+            <!-- Missing Fields Warning -->
+            <div v-else-if="missingFields.length > 0" class="text-xs text-red-600">
+              Missing: {{ missingFields.join(', ') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Completion Progress Bar -->
+      <div class="w-full bg-muted/30 px-4 py-2">
+        <div class="container mx-auto">
+          <div class="flex items-center justify-between mb-1">
+            <div class="text-xs font-medium">
+              <span>Completion</span>
+              <span class="ml-2 text-muted-foreground">
+                {{ completionStatus.completed }}/{{ completionStatus.total }} fields
+              </span>
+            </div>
+            <div class="text-xs font-semibold" :class="{
+              'text-green-600': completionStatus.percentage === 100,
+              'text-amber-600': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+              'text-red-600': completionStatus.percentage < 50
+            }">
+              {{ completionStatus.percentage }}%
+            </div>
+          </div>
+          <div class="w-full bg-muted rounded-full h-2">
+            <div
+              class="h-2 rounded-full transition-all duration-300"
+              :class="{
+                'bg-green-500': completionStatus.percentage === 100,
+                'bg-amber-500': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+                'bg-red-500': completionStatus.percentage < 50
+              }"
+              :style="{ width: `${completionStatus.percentage}%` }"
+            ></div>
+          </div>
+          <!-- Missing Fields Hint -->
+          <div v-if="missingFields.length > 0" class="mt-1 text-xs text-red-600">
+            ⚠️ Required: {{ missingFields.join(', ') }}
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Main Content with top padding for fixed header -->
-    <div class="pt-[73px]">
+    <!-- Main Content with top padding for fixed header + completion bar -->
+    <div class="pt-[140px]">
       <!-- Loading State -->
       <div v-if="loading" class="container mx-auto px-4 py-12 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
@@ -178,9 +240,12 @@
                   <!-- Thumbnail Files Management - TOP PRIORITY -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <Label class="text-base font-semibold">Thumbnail Files</Label>
+                      <Label class="text-base font-semibold flex items-center gap-1">
+                        Thumbnail Files
+                        <span class="text-red-500">*</span>
+                      </Label>
                       <span class="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                        {{ requiredThumbnailCount }} file(s)
+                        {{ requiredThumbnailCount }} file(s) required
                       </span>
                     </div>
 
@@ -287,32 +352,51 @@
 
                   <!-- Display Title -->
                   <div class="space-y-2">
-                    <Label for="title">Display Title</Label>
+                    <Label for="title" class="flex items-center gap-1">
+                      Display Title
+                      <span class="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="title"
                       v-model="form.title"
                       placeholder="Text to Image Basic"
                       required
+                      :class="{
+                        'border-red-500 focus:ring-red-500': !form.title?.trim()
+                      }"
                     />
+                    <p v-if="!form.title?.trim()" class="text-xs text-red-600">⚠️ Title is required</p>
                   </div>
 
                   <!-- Description -->
                   <div class="space-y-2">
-                    <Label for="description">Description</Label>
+                    <Label for="description" class="flex items-center gap-1">
+                      Description
+                      <span class="text-red-500">*</span>
+                    </Label>
                     <Textarea
                       id="description"
                       v-model="form.description"
                       placeholder="Generate images from text prompts..."
                       required
                       class="min-h-[80px] resize-y"
+                      :class="{
+                        'border-red-500 focus:ring-red-500': !form.description?.trim()
+                      }"
                     />
+                    <p v-if="!form.description?.trim()" class="text-xs text-red-600">⚠️ Description is required</p>
                   </div>
 
                   <!-- Category -->
                   <div class="space-y-2">
-                    <Label for="category">Category</Label>
+                    <Label for="category" class="flex items-center gap-1">
+                      Category
+                      <span class="text-red-500">*</span>
+                    </Label>
                     <Select v-model="form.category">
-                      <SelectTrigger>
+                      <SelectTrigger :class="{
+                        'border-red-500 focus:ring-red-500': !form.category?.trim()
+                      }">
                         <SelectValue>
                           {{ form.category || 'Select a category' }}
                         </SelectValue>
@@ -327,8 +411,9 @@
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                    <p class="text-xs text-muted-foreground">
-                      Current: {{ form.category || 'Not set' }}
+                    <p v-if="!form.category?.trim()" class="text-xs text-red-600">⚠️ Category is required</p>
+                    <p v-else class="text-xs text-muted-foreground">
+                      Current: {{ form.category }}
                     </p>
                   </div>
 
@@ -653,6 +738,9 @@ const updatedWorkflowContent = ref<string>('')
 const hasWorkflowChanged = ref<boolean>(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 
+// Save success state
+const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
+
 // Thumbnail converter state
 const isConverterDialogOpen = ref(false)
 const converterTargetIndex = ref<number>(1)
@@ -779,6 +867,109 @@ const addCustomModel = () => {
 const removeModel = (model: string) => {
   form.value.models = form.value.models.filter(m => m !== model)
 }
+
+// Computed: Check if form fields have changed
+const hasFormChanges = computed(() => {
+  if (!originalTemplate.value) return false
+
+  return (
+    form.value.title !== (originalTemplate.value.title || '') ||
+    form.value.description !== (originalTemplate.value.description || '') ||
+    form.value.category !== currentCategoryTitle.value ||
+    form.value.thumbnailVariant !== (originalTemplate.value.thumbnailVariant || 'none') ||
+    form.value.tutorialUrl !== (originalTemplate.value.tutorialUrl || '') ||
+    form.value.comfyuiVersion !== (originalTemplate.value.comfyuiVersion || '') ||
+    form.value.date !== (originalTemplate.value.date || '') ||
+    JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
+    JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort())
+  )
+})
+
+// Computed: Check if template order has changed
+const hasOrderChanges = computed(() => {
+  return templatePositionChanges.value.size > 0
+})
+
+// Computed: Check if any changes exist
+const hasAnyChanges = computed(() => {
+  return (
+    hasFormChanges.value ||
+    hasOrderChanges.value ||
+    reuploadedThumbnails.value.size > 0 ||
+    updatedWorkflowContent.value !== '' ||
+    hasWorkflowChanged.value ||
+    reuploadedInputFiles.value.size > 0
+  )
+})
+
+// Computed: Required fields validation
+const missingFields = computed(() => {
+  const missing: string[] = []
+
+  if (!form.value.title?.trim()) missing.push('Title')
+  if (!form.value.description?.trim()) missing.push('Description')
+  if (!form.value.category?.trim()) missing.push('Category')
+
+  // Check if required thumbnails exist
+  const requiredCount = requiredThumbnailCount.value
+  if (thumbnailFiles.value.length < requiredCount) {
+    missing.push(`Thumbnail ${thumbnailFiles.value.length + 1}`)
+  }
+
+  return missing
+})
+
+// Computed: Completion status
+const completionStatus = computed(() => {
+  const totalFields = 6 // Title, Description, Category, Thumbnail(s), Tags, Models
+  let completedFields = 0
+
+  if (form.value.title?.trim()) completedFields++
+  if (form.value.description?.trim()) completedFields++
+  if (form.value.category?.trim()) completedFields++
+
+  // Thumbnails
+  const requiredCount = requiredThumbnailCount.value
+  if (thumbnailFiles.value.length >= requiredCount) completedFields++
+
+  // Tags (optional but counts toward completion)
+  if (form.value.tags.length > 0) completedFields++
+
+  // Models (optional but counts toward completion)
+  if (form.value.models.length > 0) completedFields++
+
+  return {
+    completed: completedFields,
+    total: totalFields,
+    percentage: Math.round((completedFields / totalFields) * 100)
+  }
+})
+
+// Watch for any changes to clear success message
+watch(
+  () => [
+    form.value.title,
+    form.value.description,
+    form.value.category,
+    form.value.thumbnailVariant,
+    form.value.tutorialUrl,
+    form.value.comfyuiVersion,
+    form.value.date,
+    form.value.tags.length,
+    form.value.models.length,
+    reuploadedThumbnails.value.size,
+    updatedWorkflowContent.value,
+    hasWorkflowChanged.value,
+    reuploadedInputFiles.value.size,
+    templatePositionChanges.value.size
+  ],
+  () => {
+    // Clear success message when user makes new changes
+    if (saveSuccess.value) {
+      saveSuccess.value = null
+    }
+  }
+)
 
 // Watch thumbnailVariant changes to adjust thumbnail count
 watch(() => form.value.thumbnailVariant, async (newVariant, oldVariant) => {
@@ -1508,6 +1699,12 @@ const handleSubmit = async () => {
     })
 
     if (response.success) {
+      // Set success state with commit info
+      saveSuccess.value = {
+        commitSha: response.commit.sha,
+        commitUrl: response.commit.url
+      }
+
       // Clear reuploaded files status
       reuploadedThumbnails.value.clear()
       updatedWorkflowContent.value = ''
@@ -1520,22 +1717,30 @@ const handleSubmit = async () => {
         workflowFileManagerRef.value.resetFormatChanges()
       }
 
-      // Show brief success message
-      alert(`✅ Template updated successfully!\n\nCommit: ${response.commit.sha.substring(0, 7)}\n\nRedirecting to homepage...`)
-
-      // Mark that we just saved, so homepage knows to force refresh
-      if (process.client) {
-        sessionStorage.setItem('template_just_saved', 'true')
+      // Update originalTemplate to reflect saved state (to reset change detection)
+      if (originalTemplate.value) {
+        originalTemplate.value.title = form.value.title
+        originalTemplate.value.description = form.value.description
+        originalTemplate.value.thumbnailVariant = form.value.thumbnailVariant
+        originalTemplate.value.tutorialUrl = form.value.tutorialUrl
+        originalTemplate.value.comfyuiVersion = form.value.comfyuiVersion
+        originalTemplate.value.date = form.value.date
+        originalTemplate.value.tags = [...form.value.tags]
+        originalTemplate.value.models = [...form.value.models]
       }
 
-      // Redirect to homepage after brief delay
-      setTimeout(() => {
-        navigateTo('/')
-      }, 500)
+      // Reset template order changes
+      originalCategoryTemplates.value = [...categoryTemplates.value]
+      updateTemplatePositionChanges()
+
+      console.log('[Submit] Save successful:', response.commit.sha.substring(0, 7))
     }
 
   } catch (error: any) {
     console.error('Error saving template:', error)
+
+    // Show error message below save button
+    saveSuccess.value = null
     alert(`❌ Failed to save template:\n\n${error.data?.statusMessage || error.message || 'Unknown error'}`)
   } finally {
     isSubmitting.value = false
