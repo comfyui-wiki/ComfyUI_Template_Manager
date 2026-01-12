@@ -188,11 +188,13 @@
             :repo="selectedRepo"
             :branch="selectedBranch"
             :workflow-content="workflowContent"
+            :model-links-validation="modelLinksValidation"
             @workflow-updated="handleWorkflowUpdated"
             @input-files-updated="handleInputFilesUpdated"
             @open-converter="handleInputFileConversion"
             @format-changed="handleInputFileFormatChange"
             @template-name-extracted="handleTemplateNameExtracted"
+            @open-model-links-editor="openModelLinksEditor"
           />
         </div>
 
@@ -694,6 +696,12 @@
         />
       </DialogScrollContent>
     </Dialog>
+
+    <!-- Model Links Editor Dialog -->
+    <WorkflowModelLinksEditor
+      v-model:open="isModelLinksEditorOpen"
+      :initial-workflow="workflowContent || updatedWorkflowContent"
+    />
   </div>
   <!-- Close min-h-screen container -->
 </template>
@@ -711,6 +719,7 @@ import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
+import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -764,6 +773,15 @@ const converterTargetInputFilename = ref<string>('')
 const converterIsExistingFile = ref(false)
 const workflowFileManagerRef = ref<any>(null)
 const categoryOrderSidebarRef = ref<any>(null)
+
+// Model links editor state
+const isModelLinksEditorOpen = ref(false)
+const modelLinksValidation = ref<{
+  totalModels: number
+  missingLinks: number
+  invalidLinks: number
+  validating: boolean
+} | null>(null)
 
 // Template reordering state
 const categoryTemplates = ref<any[]>([])
@@ -1204,6 +1222,8 @@ const handleWorkflowUpdated = (content: string) => {
     mode: isCreateMode.value ? 'create' : 'edit',
     contentLength: content.length
   })
+  // Validate model links when workflow is updated
+  validateModelLinks()
 }
 
 // Handler for input files updates from WorkflowFileManager
@@ -1228,6 +1248,113 @@ const handleInputFileConversion = (file: File, targetFilename: string, isExistin
   converterTargetInputFilename.value = targetFilename
   converterIsExistingFile.value = isExisting
   isInputAssetConverterOpen.value = true
+}
+
+// Debounce timer for validation
+let validationTimer: NodeJS.Timeout | null = null
+
+// Validate model links in workflow
+const validateModelLinks = async (debounce = false) => {
+  const currentWorkflow = workflowContent.value || updatedWorkflowContent.value
+  if (!currentWorkflow) {
+    modelLinksValidation.value = null
+    return
+  }
+
+  // Clear existing timer if debouncing
+  if (debounce && validationTimer) {
+    clearTimeout(validationTimer)
+  }
+
+  const runValidation = async () => {
+    try {
+      modelLinksValidation.value = { totalModels: 0, missingLinks: 0, invalidLinks: 0, validating: true }
+
+      // Load config
+      const configResponse = await fetch('/workflow-model-config.json')
+      const config = await configResponse.json()
+      const directoryRules = config.directoryRules
+
+      // Parse workflow
+      const workflow = JSON.parse(currentWorkflow)
+
+      // Collect all nodes (main + subgraph)
+      const nodes: any[] = []
+      if (workflow.nodes && Array.isArray(workflow.nodes)) {
+        for (const node of workflow.nodes) {
+          nodes.push({ ...node, _source: 'main' })
+        }
+      }
+      if (workflow.definitions?.subgraphs) {
+        for (const subgraph of workflow.definitions.subgraphs) {
+          if (subgraph.nodes && Array.isArray(subgraph.nodes)) {
+            for (const node of subgraph.nodes) {
+              nodes.push({ ...node, _source: 'subgraph' })
+            }
+          }
+        }
+      }
+
+      // Filter model nodes
+      const modelNodes = nodes.filter(node => {
+        const loaderName = node.properties?.['Node name for S&R']
+        return loaderName && directoryRules[loaderName]
+      })
+
+      let totalModels = 0
+      let missingLinks = 0
+      let invalidLinks = 0
+
+      for (const node of modelNodes) {
+        // Check if node has model_url or model_urls in properties
+        const hasModelUrl = node.properties?.model_url
+        const hasModelUrls = node.properties?.model_urls
+
+        if (hasModelUrl) {
+          totalModels++
+          if (!hasModelUrl || hasModelUrl.trim() === '') {
+            missingLinks++
+          } else if (!hasModelUrl.includes('http')) {
+            invalidLinks++
+          }
+        } else if (hasModelUrls && Array.isArray(hasModelUrls)) {
+          for (const url of hasModelUrls) {
+            totalModels++
+            if (!url || url.trim() === '') {
+              missingLinks++
+            } else if (!url.includes('http')) {
+              invalidLinks++
+            }
+          }
+        } else {
+          // No model_url property, count as missing
+          totalModels++
+          missingLinks++
+        }
+      }
+
+      modelLinksValidation.value = {
+        totalModels,
+        missingLinks,
+        invalidLinks,
+        validating: false
+      }
+    } catch (error) {
+      console.error('[Model Links Validation] Error:', error)
+      modelLinksValidation.value = null
+    }
+  }
+
+  if (debounce) {
+    validationTimer = setTimeout(runValidation, 500)
+  } else {
+    await runValidation()
+  }
+}
+
+// Handler for opening model links editor
+const openModelLinksEditor = () => {
+  isModelLinksEditorOpen.value = true
 }
 
 // Download thumbnail file
@@ -1473,6 +1600,13 @@ watch(isInputAssetConverterOpen, (isOpen) => {
   }
 })
 
+watch(isModelLinksEditorOpen, (isOpen) => {
+  if (!isOpen) {
+    // Re-validate when dialog is closed (user may have updated links)
+    validateModelLinks()
+  }
+})
+
 // Handle template reorder from sidebar
 const handleTemplateReorder = (reorderedTemplates: any[]) => {
   categoryTemplates.value = reorderedTemplates
@@ -1691,6 +1825,11 @@ onMounted(async () => {
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
+
+    // Validate model links after loading workflow
+    if (workflowContent.value) {
+      await validateModelLinks()
+    }
 
     // Load thumbnail for preview
     await loadThumbnails(owner, repoName, branch)

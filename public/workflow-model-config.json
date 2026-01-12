@@ -1,0 +1,42 @@
+{
+  "directoryRules": {
+    "DownloadAndLoadDepthAnythingV2Model": "depthanything",
+    "CheckpointLoaderSimple": "checkpoints",
+    "CheckpointLoader": "checkpoints",
+    "ControlNetLoader": "controlnet",
+    "CLIPLoader": "text_encoders",
+    "CLIPVisionLoader": "clip_vision",
+    "DiffusersLoader": "diffusers",
+    "DualCLIPLoader": "text_encoders",
+    "DiffControlNetLoader": "controlnet",
+    "GLIGENLoader": "gligen",
+    "LTXVAudioVAELoader": "checkpoints",
+    "ImageOnlyCheckpointLoader": "checkpoints",
+    "LoraLoader": "loras",
+    "LoraLoaderModelOnly": "loras",
+    "PhotoMakerLoader": "photomaker",
+    "QuadrupleCLIPLoader": "text_encoders",
+    "StyleModelLoader": "style_models",
+    "TripleCLIPLoader": "text_encoders",
+    "UpscaleModelLoader": "upscale_models",
+    "unCLIPCheckpointLoader": "checkpoints",
+    "UNETLoader": "diffusion_models",
+    "VAELoader": "vae",
+    "ModelPatchLoader": "model_patches",
+    "AudioEncoderLoader": "audio_encoders",
+    "LatentUpscaleModelLoader": "latent_upscale_models"
+  },
+  "noteTemplate": {
+    "header": "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n",
+    "modelLinksHeader": "## Model Links (for Local Users)\n\n",
+    "storageLocationHeader": "\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n",
+    "storageLocationFooter": "```\n",
+    "reportIssueSection": "\n## Report Issue\n\nNote: Please update ComfyUI first ([guide](https://docs.comfy.org/zh-CN/installation/update_comfyui)) and prepare required models. Desktop/Cloud ship stable builds; nightly-supported models may not be included yet, please wait for the next stable release.\n\n- Cannot run / runtime errors: [ComfyUI/issues](https://github.com/comfyanonymous/ComfyUI/issues)\n- UI / frontend issues: [ComfyUI_frontend/issues](https://github.com/Comfy-Org/ComfyUI_frontend/issues)\n- Workflow issues: [workflow_templates/issues](https://github.com/Comfy-Org/workflow_templates/issues)\n"
+  },
+  "validationRules": {
+    "requireHttp": true,
+    "allowedExtensions": [".safetensors", ".sft"],
+    "huggingFaceResolveRequired": true,
+    "urlMustContainModelName": true
+  }
+}
