@@ -913,7 +913,9 @@ const hasFormChanges = computed(() => {
 
 // Computed: Check if template order has changed
 const hasOrderChanges = computed(() => {
-  return templatePositionChanges.value.size > 0
+  // Use both templateOrderChanged flag AND position changes calculation
+  // This ensures we detect changes even if user drags items
+  return templateOrderChanged.value || templatePositionChanges.value.size > 0
 })
 
 // Computed: Check if any changes exist
@@ -1627,6 +1629,8 @@ const handleTemplateReorder = (reorderedTemplates: any[]) => {
   categoryTemplates.value = reorderedTemplates
   templateOrderChanged.value = true
   console.log('[Edit Page] Templates reordered from sidebar')
+  console.log('[Edit Page] New order:', reorderedTemplates.map(t => t.name).join(', '))
+  console.log('[Edit Page] hasOrderChanges:', hasOrderChanges.value)
 }
 
 // Watch for category changes to reload templates
@@ -1685,11 +1689,14 @@ watch([() => form.value.title, () => form.value.description], () => {
 
   // Update the first template in categoryTemplates (which is the new template)
   if (categoryTemplates.value.length > 0 && categoryTemplates.value[0].name === form.value.templateName) {
-    categoryTemplates.value[0] = {
-      ...categoryTemplates.value[0],
+    // Create a new array to trigger reactivity properly
+    const updatedTemplates = [...categoryTemplates.value]
+    updatedTemplates[0] = {
+      ...updatedTemplates[0],
       title: form.value.title || form.value.templateName,
       description: form.value.description || ''
     }
+    categoryTemplates.value = updatedTemplates
   }
 })
 
@@ -2004,7 +2011,18 @@ const handleSubmit = async () => {
     // In edit mode: only send if order was actually changed
     const templateOrder = isCreateMode.value
       ? (form.value.category && categoryTemplates.value.length > 0 ? categoryTemplates.value.map(t => t.name) : undefined)
-      : (templateOrderChanged.value ? categoryTemplates.value.map(t => t.name) : undefined)
+      : (hasOrderChanges.value ? categoryTemplates.value.map(t => t.name) : undefined)
+
+    console.log('[Submit] Template order changes:', {
+      hasOrderChanges: hasOrderChanges.value,
+      templateOrderChanged: templateOrderChanged.value,
+      positionChanges: templatePositionChanges.value.size,
+      willSendOrder: !!templateOrder
+    })
+
+    if (templateOrder) {
+      console.log('[Submit] Sending template order:', templateOrder.join(', '))
+    }
 
     // Determine which API endpoint to call based on mode
     const apiEndpoint = isCreateMode.value
@@ -2104,6 +2122,7 @@ const handleSubmit = async () => {
 
       // Reset template order changes (computed property will auto-update)
       originalCategoryTemplates.value = [...categoryTemplates.value]
+      templateOrderChanged.value = false // Reset the order changed flag
 
       // Reset sidebar component's original templates
       if (categoryOrderSidebarRef.value) {

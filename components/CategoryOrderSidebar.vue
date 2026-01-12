@@ -126,11 +126,21 @@ const originalTemplates = ref<Template[]>([...props.templates])
 // Watch for prop changes to update internal state
 watch(
   () => props.templates,
-  (newTemplates) => {
+  (newTemplates, oldTemplates) => {
     // Only update if it's a new category or initial load
     // Don't update if user is reordering
     if (draggedIndex.value === null) {
-      originalTemplates.value = [...newTemplates]
+      // Check if this is a genuine external update (not from our own emit)
+      // by comparing template names - if the set of templates changed, it's external
+      const oldNames = oldTemplates?.map(t => t.name).join(',') || ''
+      const newNames = newTemplates.map(t => t.name).join(',')
+
+      // Only reset originalTemplates if the set of templates actually changed
+      // (e.g., switched category, added/removed templates)
+      // Don't reset if it's just a reorder (same templates, different order)
+      if (oldNames !== newNames) {
+        originalTemplates.value = [...newTemplates]
+      }
     }
   },
   { deep: true }
@@ -140,6 +150,11 @@ watch(
 watch(
   [() => props.currentTemplateTitle, () => props.currentTemplateThumbnail],
   () => {
+    // Don't update during drag operations
+    if (draggedIndex.value !== null) {
+      return
+    }
+
     const index = props.templates.findIndex(t => t.name === props.currentTemplateName)
     if (index !== -1 && props.currentTemplateTitle) {
       // Update the title in the current template list
@@ -187,6 +202,7 @@ const getTemplateThumbnailUrl = (template: Template): string => {
 const onDragStart = (event: DragEvent, index: number) => {
   draggedIndex.value = index
   event.dataTransfer!.effectAllowed = 'move'
+  console.log('[CategoryOrderSidebar] Drag started:', index)
 }
 
 const onDragOver = (event: DragEvent, index: number) => {
@@ -198,20 +214,24 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
   event.preventDefault()
 
   if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
+    console.log('[CategoryOrderSidebar] Drop ignored - same position or no drag')
     return
   }
+
+  console.log('[CategoryOrderSidebar] Dropping from', draggedIndex.value, 'to', targetIndex)
 
   // Reorder the templates array
   const newTemplates = [...props.templates]
   const [draggedTemplate] = newTemplates.splice(draggedIndex.value, 1)
   newTemplates.splice(targetIndex, 0, draggedTemplate)
 
-  emit('reorder', newTemplates)
+  console.log('[CategoryOrderSidebar] New order:', newTemplates.map(t => t.name).join(', '))
 
-  console.log('[CategoryOrderSidebar] Templates reordered')
+  emit('reorder', newTemplates)
 }
 
 const onDragEnd = () => {
+  console.log('[CategoryOrderSidebar] Drag ended')
   draggedIndex.value = null
 }
 
