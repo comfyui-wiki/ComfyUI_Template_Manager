@@ -13,7 +13,7 @@
             <LoginButton />
 
             <Button
-              v-if="status === 'authenticated'"
+              v-if="status === 'authenticated' && isMounted"
               @click="navigateTo('/admin/edit/new')"
               size="lg"
               :disabled="!canEditCurrentRepo"
@@ -30,7 +30,7 @@
     </header>
 
     <!-- Permission Notice Banner (only show if no write access to repository at all) -->
-    <div v-if="status === 'authenticated' && !hasRepoWriteAccess && !noticeDismissed" class="border-b bg-blue-50">
+    <div v-if="isMounted && status === 'authenticated' && !hasRepoWriteAccess && !noticeDismissed" class="border-b bg-blue-50">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-start gap-3">
           <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +85,7 @@
         <aside class="w-64 flex-shrink-0 hidden lg:block" id="sidebar">
           <div class="sticky top-6 space-y-4">
             <!-- Repository & Branch Switcher (only when logged in) -->
-            <RepoAndBranchSwitcher v-if="status === 'authenticated'" />
+            <RepoAndBranchSwitcher v-if="isMounted && status === 'authenticated'" />
 
             <Card>
               <CardHeader>
@@ -201,7 +201,7 @@
             </Select>
 
             <!-- Diff Status Filter (only show when authenticated and viewing a branch) -->
-            <Select v-if="status === 'authenticated' && selectedBranch" v-model="selectedDiffStatus">
+            <Select v-if="isMounted && status === 'authenticated' && selectedBranch" v-model="selectedDiffStatus">
               <SelectTrigger class="w-[220px]">
                 <SelectValue placeholder="Changes vs Main" />
               </SelectTrigger>
@@ -258,7 +258,7 @@
             <span v-if="selectedCategory !== 'all'">in {{ categoryTitle }}</span>
 
             <!-- Diff Stats -->
-            <div v-if="status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3 ml-auto">
+            <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3 ml-auto">
               <span class="text-xs">
                 <span class="font-mono">{{ selectedRepo }}</span> /
                 <span class="font-mono font-semibold">{{ selectedBranch }}</span>
@@ -314,7 +314,7 @@
                 :key="template.name"
                 :template="template"
                 :category="template.categoryTitle"
-                :can-edit="canEditCurrentRepo"
+                :can-edit="isMounted && canEditCurrentRepo"
                 :repo="selectedRepo"
                 :branch="selectedBranch"
                 :cache-bust="cacheBustTimestamp"
@@ -339,7 +339,7 @@
                     :key="template.name"
                     :template="template"
                     :category="category.title"
-                    :can-edit="canEditCurrentRepo"
+                    :can-edit="isMounted && canEditCurrentRepo"
                     :repo="selectedRepo"
                     :branch="selectedBranch"
                     :cache-bust="cacheBustTimestamp"
@@ -401,6 +401,7 @@ const selectedRunsOn = ref('all') // all, api, opensource
 const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
 const sortBy = ref('default')
 const noticeDismissed = ref(false)
+const isMounted = ref(false) // Track if component is mounted (client-side only)
 
 // Load templates from selected repository and branch
 const loadTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
@@ -431,6 +432,9 @@ const cacheBustTimestamp = ref<number | undefined>(undefined)
 
 // Initial load - initialize GitHub and load templates
 onMounted(async () => {
+  // Mark as mounted to enable client-only rendering
+  isMounted.value = true
+
   // Initialize GitHub repo/branch management (checks permissions and fork status)
   if (status.value === 'authenticated') {
     await initializeGitHub()

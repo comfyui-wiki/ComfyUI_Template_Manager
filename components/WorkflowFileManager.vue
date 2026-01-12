@@ -313,7 +313,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 
 interface InputFileRef {
-  filename: string
+  filename: string // Actual filename from workflow JSON
   nodeId: number
   nodeType: string
   exists: boolean
@@ -415,7 +415,7 @@ const parseWorkflowForInputFiles = (workflowJson: string): InputFileRef[] => {
         if (widgetsValues.length > 0 && widgetsValues[0]) {
           const filename = widgetsValues[0]
           refs.push({
-            filename,
+            filename, // Use actual filename from workflow (backend handles prefixes)
             nodeId: node.id,
             nodeType,
             exists: false, // Will be checked against GitHub
@@ -444,6 +444,7 @@ const checkInputFilesExistence = async () => {
       continue
     }
 
+    // Use filename from workflow JSON (backend already handles prefixes)
     const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${fileRef.filename}`
     try {
       const response = await fetch(url, { method: 'HEAD' })
@@ -939,7 +940,7 @@ const downloadInputFile = async (filename: string) => {
     return
   }
 
-  // Download from GitHub
+  // Download from GitHub (use filename from workflow JSON)
   const [owner, repoName] = props.repo.split('/')
   const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${filename}`
 

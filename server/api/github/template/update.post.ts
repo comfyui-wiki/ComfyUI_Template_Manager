@@ -238,17 +238,125 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 2. Update workflow.json if provided
+    // 2. Check for input file conflicts and prepare filename mapping
+    const filenameMapping = new Map<string, string>() // originalName -> actualName (with prefix if conflict)
+    let currentWorkflowFiles: string[] = []
+
+    // Get current workflow JSON to see which files this template currently uses
+    try {
+      const { data: currentWorkflowFile } = await octokit.repos.getContent({
+        owner,
+        repo: repoName,
+        path: `templates/${templateName}.json`,
+        ref: branch
+      })
+
+      if ('content' in currentWorkflowFile) {
+        const currentWorkflowContent = Buffer.from(currentWorkflowFile.content, 'base64').toString('utf-8')
+        const currentWorkflow = JSON.parse(currentWorkflowContent)
+
+        // Extract all input file references from current workflow
+        if (currentWorkflow.nodes) {
+          for (const node of currentWorkflow.nodes) {
+            if (node.widgets_values && Array.isArray(node.widgets_values)) {
+              for (const value of node.widgets_values) {
+                if (typeof value === 'string' && value.length > 0) {
+                  currentWorkflowFiles.push(value)
+                }
+              }
+            }
+          }
+        }
+        console.log(`[Update Template] Current template uses files:`, currentWorkflowFiles)
+      }
+    } catch (error: any) {
+      console.warn(`[Update Template] Could not load current workflow:`, error.message)
+    }
+
+    // Check each input file for conflicts
+    if (files?.inputFiles && files.inputFiles.length > 0) {
+      console.log(`[Update Template] Checking for input file conflicts...`)
+
+      for (const inputFile of files.inputFiles) {
+        const originalFilename = inputFile.filename
+
+        // If this template already uses this file, no conflict - can reuse the name
+        if (currentWorkflowFiles.includes(originalFilename)) {
+          filenameMapping.set(originalFilename, originalFilename)
+          console.log(`[Update Template] ${originalFilename} belongs to this template, using original name`)
+          continue
+        }
+
+        // Check if file exists in repo
+        try {
+          await octokit.repos.getContent({
+            owner,
+            repo: repoName,
+            path: `input/${originalFilename}`,
+            ref: branch
+          })
+
+          // File exists and doesn't belong to this template - potential conflict
+          const prefixedFilename = `${templateName}_${originalFilename}`
+          filenameMapping.set(originalFilename, prefixedFilename)
+          console.log(`[Update Template] Conflict detected for ${originalFilename}, will use ${prefixedFilename}`)
+        } catch (error: any) {
+          if (error.status === 404) {
+            // File doesn't exist - no conflict, use original name
+            filenameMapping.set(originalFilename, originalFilename)
+            console.log(`[Update Template] No conflict for ${originalFilename}, using original name`)
+          } else {
+            // API error, default to prefixed name for safety
+            const prefixedFilename = `${templateName}_${originalFilename}`
+            filenameMapping.set(originalFilename, prefixedFilename)
+            console.warn(`[Update Template] Error checking ${originalFilename}, using prefixed name for safety`)
+          }
+        }
+      }
+    }
+
+    // 3. Update workflow.json if provided (with input file name updates if needed)
     if (files?.workflow?.content) {
+      let workflowContent = Buffer.from(files.workflow.content, 'base64').toString('utf-8')
+
+      // Update workflow JSON with actual filenames (prefixed if conflict)
+      if (filenameMapping.size > 0) {
+        try {
+          const workflow = JSON.parse(workflowContent)
+
+          // Update node widgets_values to use actual filenames
+          if (workflow.nodes) {
+            for (const node of workflow.nodes) {
+              if (node.widgets_values && Array.isArray(node.widgets_values)) {
+                for (let i = 0; i < node.widgets_values.length; i++) {
+                  const originalName = node.widgets_values[i]
+                  if (filenameMapping.has(originalName)) {
+                    const actualName = filenameMapping.get(originalName)!
+                    if (actualName !== originalName) {
+                      console.log(`[Update Template] Updating workflow reference: ${originalName} → ${actualName}`)
+                    }
+                    node.widgets_values[i] = actualName
+                  }
+                }
+              }
+            }
+          }
+
+          workflowContent = JSON.stringify(workflow, null, 2)
+        } catch (error) {
+          console.error('[Update Template] Failed to update workflow JSON:', error)
+        }
+      }
+
       tree.push({
         path: `templates/${templateName}.json`,
         mode: '100644' as const,
         type: 'blob' as const,
-        content: Buffer.from(files.workflow.content, 'base64').toString('utf-8')
+        content: workflowContent
       })
     }
 
-    // 3. Update thumbnails if provided
+    // 4. Update thumbnails if provided
     if (files?.thumbnails && files.thumbnails.length > 0) {
       for (const thumbnail of files.thumbnails) {
         // Create blob for binary image content
@@ -268,15 +376,23 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 4. Update input files if provided
+    // 5. Update input files if provided (using actual filenames from mapping)
     if (files?.inputFiles && files.inputFiles.length > 0) {
       console.log(`[Update Template] Uploading ${files.inputFiles.length} input file(s)`)
       for (const inputFile of files.inputFiles) {
+        // Get actual filename (prefixed only if there was a conflict)
+        const actualFilename = filenameMapping.get(inputFile.filename) || inputFile.filename
+
         // If format changed, delete old file first
         if (inputFile.deleteOldFile) {
-          console.log(`[Update Template] Deleting old file: ${inputFile.deleteOldFile}`)
+          // Check if old file needs prefix too (based on current workflow files)
+          const oldFileActualName = currentWorkflowFiles.includes(inputFile.deleteOldFile)
+            ? inputFile.deleteOldFile
+            : `${templateName}_${inputFile.deleteOldFile}`
+
+          console.log(`[Update Template] Deleting old file: ${oldFileActualName}`)
           tree.push({
-            path: `input/${inputFile.deleteOldFile}`,
+            path: `input/${oldFileActualName}`,
             mode: '100644' as const,
             type: 'blob' as const,
             sha: null as any // null sha means delete
@@ -292,13 +408,17 @@ export default defineEventHandler(async (event) => {
         })
 
         tree.push({
-          path: `input/${inputFile.filename}`,
+          path: `input/${actualFilename}`,
           mode: '100644' as const,
           type: 'blob' as const,
           sha: blob.sha
         })
 
-        console.log(`[Update Template] Added input file: ${inputFile.filename}`)
+        if (actualFilename !== inputFile.filename) {
+          console.log(`[Update Template] Added input file: ${inputFile.filename} → ${actualFilename} (conflict resolved)`)
+        } else {
+          console.log(`[Update Template] Added input file: ${inputFile.filename}`)
+        }
       }
     }
 
