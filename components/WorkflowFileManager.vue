@@ -48,6 +48,69 @@
         {{ workflowStatus.message }}
       </div>
 
+      <!-- Template Name Editor (Create Mode) -->
+      <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus?.success"
+           class="p-3 rounded-lg text-sm bg-amber-50 border border-amber-200">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-semibold text-amber-800">📝 Template Name</div>
+          <button
+            v-if="!isEditingTemplateName"
+            type="button"
+            @click="startEditTemplateName"
+            class="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
+          >
+            Edit Name
+          </button>
+        </div>
+
+        <div v-if="!isEditingTemplateName" class="flex items-center gap-2">
+          <span class="text-xs text-amber-600">Current name:</span>
+          <code class="px-2 py-1 bg-amber-100 rounded font-mono text-sm font-semibold text-amber-900">
+            {{ extractedTemplateName }}
+          </code>
+        </div>
+
+        <div v-else class="space-y-2">
+          <div>
+            <input
+              v-model="editingTemplateNameValue"
+              type="text"
+              class="w-full px-2 py-1.5 text-sm border rounded font-mono"
+              :class="{
+                'border-red-500 focus:ring-red-500': templateNameError,
+                'border-amber-300 focus:ring-amber-500': !templateNameError
+              }"
+              placeholder="my_template_name"
+              @keydown.enter="saveTemplateName"
+              @keydown.esc="cancelEditTemplateName"
+            />
+            <div v-if="templateNameError" class="text-xs text-red-600 mt-1">
+              {{ templateNameError }}
+            </div>
+            <div v-else class="text-xs text-amber-600 mt-1">
+              Only letters, numbers, dashes, and underscores allowed
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              @click="saveTemplateName"
+              :disabled="!!templateNameError || !editingTemplateNameValue.trim()"
+              class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              @click="cancelEditTemplateName"
+              class="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Create Mode Hint -->
       <div v-else-if="templateName === 'new' && !props.workflowContent"
            class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
@@ -289,12 +352,29 @@ const formatChangedFiles = ref<Map<string, string>>(new Map()) // new filename -
 const editingFilename = ref<string | null>(null)
 const tempFilename = ref<string>('')
 
+// Template name editing state (create mode)
+const extractedTemplateName = ref<string>('')
+const isEditingTemplateName = ref(false)
+const editingTemplateNameValue = ref<string>('')
+
 // Node types that require input assets (from Python script)
 const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo']
 
 // Computed
 const hasWarnings = computed(() => {
   return inputFileRefs.value.some(f => !f.exists)
+})
+
+// Computed: Validate template name
+const templateNameError = computed(() => {
+  const name = editingTemplateNameValue.value.trim()
+  if (!name) {
+    return 'Template name is required'
+  }
+  if (!/^[a-zA-Z0-9_\-]+$/.test(name)) {
+    return 'Only letters, numbers, dashes, and underscores allowed'
+  }
+  return ''
 })
 
 // Helper: Set input file ref
@@ -412,6 +492,34 @@ const triggerWorkflowUpload = () => {
   workflowFileInput.value?.click()
 }
 
+// Template name editing methods (create mode)
+const startEditTemplateName = () => {
+  editingTemplateNameValue.value = extractedTemplateName.value
+  isEditingTemplateName.value = true
+}
+
+const saveTemplateName = () => {
+  const newName = editingTemplateNameValue.value.trim()
+
+  if (!newName || templateNameError.value) {
+    return
+  }
+
+  // Update extracted name
+  extractedTemplateName.value = newName
+  isEditingTemplateName.value = false
+
+  // Emit the new name
+  emit('templateNameExtracted', newName)
+
+  console.log('[WorkflowFileManager] Template name updated:', newName)
+}
+
+const cancelEditTemplateName = () => {
+  isEditingTemplateName.value = false
+  editingTemplateNameValue.value = ''
+}
+
 // Validate template name from filename
 const validateTemplateName = (filename: string): { valid: boolean; name?: string; error?: string } => {
   // Remove .json extension
@@ -457,6 +565,12 @@ const handleWorkflowReupload = async (event: Event) => {
         input.value = ''
         return
       }
+
+      // Store extracted template name for editing
+      extractedTemplateName.value = validation.name!
+      // Reset editing state
+      isEditingTemplateName.value = false
+      editingTemplateNameValue.value = ''
 
       // Emit the extracted template name
       emit('templateNameExtracted', validation.name!)
@@ -512,8 +626,19 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
   const isImage = file.type.startsWith('image/')
   const isVideo = file.type.startsWith('video/')
   const isWebP = file.type === 'image/webp'
+  const isMP4 = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4')
 
   const fileSizeMB = file.size / (1024 * 1024)
+
+  // Check MP4 size limit (8MB)
+  if (isMP4 && fileSizeMB > 8) {
+    inputFileWarnings.value.set(originalFilename,
+      `❌ MP4 file is too large (${fileSizeMB.toFixed(2)}MB). Maximum size for MP4 is 8MB. Please reduce the file size.`
+    )
+    // Reset input
+    input.value = ''
+    return
+  }
 
   // ALWAYS store the file first to mark it as uploaded
   reuploadedInputFiles.value.set(originalFilename, file)
@@ -530,16 +655,16 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     }
   }
 
-  // Check size limits
+  // Check size warnings
   let sizeWarning = ''
   if (isImage && fileSizeMB > 2) {
     sizeWarning = `⚠️ Image size is ${fileSizeMB.toFixed(2)}MB (recommended: < 2MB). This may be too large for the server.`
-  } else if (isVideo && fileSizeMB > 4) {
-    sizeWarning = `⚠️ Video size is ${fileSizeMB.toFixed(2)}MB (recommended: < 4MB). This may be too large for the server.`
+  } else if (isMP4 && fileSizeMB > 4) {
+    sizeWarning = `⚠️ MP4 size is ${fileSizeMB.toFixed(2)}MB (recommended: < 4MB for better performance).`
   }
 
-  // Check if needs conversion (non-WebP images or videos should be converted)
-  const needsConversion = (isImage && !isWebP) || isVideo
+  // Check if needs conversion (non-WebP images or non-MP4 videos should be converted)
+  const needsConversion = (isImage && !isWebP) || (isVideo && !isMP4)
 
   if (needsConversion) {
     // Show info message about auto-opening converter
@@ -564,12 +689,13 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     return
   }
 
-  // WebP file - show success message
+  // WebP or MP4 file - show success message
   if (sizeWarning) {
     inputFileWarnings.value.set(originalFilename, sizeWarning)
   } else {
+    const formatMsg = isWebP ? 'WebP format is optimal!' : isMP4 ? 'MP4 format is accepted!' : 'File format is valid!'
     inputFileWarnings.value.set(originalFilename,
-      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). WebP format is optimal!`
+      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
     )
     // Clear success message after 3 seconds
     setTimeout(() => {

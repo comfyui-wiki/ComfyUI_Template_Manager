@@ -61,7 +61,7 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>Saved successfully!</span>
+              <span>{{ isCreateMode ? 'Template created successfully! Redirecting to homepage...' : 'Saved successfully!' }}</span>
               <a :href="saveSuccess.commitUrl" target="_blank" class="text-blue-600 hover:underline font-mono">
                 {{ saveSuccess.commitSha.substring(0, 7) }}
               </a>
@@ -875,8 +875,16 @@ const missingFields = computed(() => {
   if (!form.value.category?.trim()) missing.push('Category')
 
   // In create mode, workflow file is required (which also provides template name)
-  if (isCreateMode.value && !updatedWorkflowContent.value) {
-    missing.push('Workflow File')
+  if (isCreateMode.value) {
+    if (!updatedWorkflowContent.value) {
+      missing.push('Workflow File')
+    }
+    // Also check if template name is valid
+    if (!form.value.templateName?.trim()) {
+      missing.push('Template Name')
+    } else if (!/^[a-zA-Z0-9_\-]+$/.test(form.value.templateName)) {
+      missing.push('Valid Template Name')
+    }
   }
 
   // Check if required thumbnails exist
@@ -1144,7 +1152,10 @@ const handleWorkflowUpdated = (content: string) => {
   updatedWorkflowContent.value = content
   // Also update workflowContent so format changes can be detected on the new workflow
   workflowContent.value = content
-  console.log('[Edit Page] Workflow manually updated, content synced')
+  console.log('[Edit Page] Workflow manually updated:', {
+    mode: isCreateMode.value ? 'create' : 'edit',
+    contentLength: content.length
+  })
 }
 
 // Handler for input files updates from WorkflowFileManager
@@ -1238,52 +1249,53 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
     return
   }
 
-  // Check if file is WebP
+  // Check file type - thumbnails must be WebP or Audio
   const isWebP = file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp')
+  const isAudio = file.type.startsWith('audio/')
 
-  if (!isWebP) {
-    // File is not WebP - auto-open converter dialog with the file pre-loaded
+  // WebP and audio files can be uploaded directly as thumbnails
+  if (isWebP || isAudio) {
+    // Store the file for this index
+    reuploadedThumbnails.value.set(index, file)
+
+    // Update preview - create new array to trigger reactivity
+    const newFiles = [...thumbnailFiles.value]
+    newFiles[index - 1] = file
+    thumbnailFiles.value = newFiles
+
+    // Calculate file info
+    await calculateFileInfo(file, index)
+
+    // Create preview URL and revoke old one if exists
+    const oldUrl = thumbnailPreviewUrls.value.get(index)
+    if (oldUrl) {
+      URL.revokeObjectURL(oldUrl)
+    }
+    const previewUrl = URL.createObjectURL(file)
+    thumbnailPreviewUrls.value.set(index, previewUrl)
+
     thumbnailReuploadStatus.value = {
-      success: false,
-      message: `ℹ️ File needs to be converted to WebP format. Opening converter...`
+      success: true,
+      message: `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
     }
 
-    // Store the file and open converter dialog for this index
-    converterInitialFile.value = file
-    converterTargetIndex.value = index
-    isConverterDialogOpen.value = true
-
-    // Clear the file input so user can select the same file again if needed
+    // Clear the file input
     target.value = ''
     return
   }
 
-  // File is WebP - proceed with upload
-  // Store the file for this index
-  reuploadedThumbnails.value.set(index, file)
-
-  // Update preview - create new array to trigger reactivity
-  const newFiles = [...thumbnailFiles.value]
-  newFiles[index - 1] = file
-  thumbnailFiles.value = newFiles
-
-  // Calculate file info
-  await calculateFileInfo(file, index)
-
-  // Create preview URL and revoke old one if exists
-  const oldUrl = thumbnailPreviewUrls.value.get(index)
-  if (oldUrl) {
-    URL.revokeObjectURL(oldUrl)
-  }
-  const previewUrl = URL.createObjectURL(file)
-  thumbnailPreviewUrls.value.set(index, previewUrl)
-
+  // For other formats (images/videos not WebP) - auto-open converter to convert to WebP
   thumbnailReuploadStatus.value = {
-    success: true,
-    message: `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
+    success: false,
+    message: `ℹ️ File needs to be converted to WebP format. Opening converter...`
   }
 
-  // Clear the file input
+  // Store the file and open converter dialog for this index
+  converterInitialFile.value = file
+  converterTargetIndex.value = index
+  isConverterDialogOpen.value = true
+
+  // Clear the file input so user can select the same file again if needed
   target.value = ''
 }
 
@@ -1347,28 +1359,48 @@ const handleInputFileFormatChange = (oldFilename: string, newFilename: string) =
 
   // Update workflow JSON to replace old filename with new filename
   try {
-    if (workflowContent.value) {
-      const workflow = JSON.parse(workflowContent.value)
+    // In create mode, use updatedWorkflowContent; in edit mode, use workflowContent
+    const currentContent = isCreateMode.value
+      ? (updatedWorkflowContent.value || workflowContent.value)
+      : workflowContent.value
+
+    if (currentContent) {
+      const workflow = JSON.parse(currentContent)
 
       // Find all nodes and update widget values that match old filename
       if (workflow.nodes) {
+        let updated = false
         for (const node of workflow.nodes) {
           if (node.widgets_values && Array.isArray(node.widgets_values)) {
             for (let i = 0; i < node.widgets_values.length; i++) {
               if (node.widgets_values[i] === oldFilename) {
                 console.log(`[Edit Page] Updating node ${node.id} widget value:`, oldFilename, '→', newFilename)
                 node.widgets_values[i] = newFilename
+                updated = true
               }
             }
           }
         }
+
+        if (updated) {
+          // Update the appropriate content variable based on mode
+          const updatedContent = JSON.stringify(workflow, null, 2)
+
+          if (isCreateMode.value) {
+            // In create mode, update updatedWorkflowContent
+            updatedWorkflowContent.value = updatedContent
+            workflowContent.value = updatedContent
+            console.log('[Edit Page] [Create Mode] Workflow JSON updated successfully')
+          } else {
+            // In edit mode, update workflowContent
+            workflowContent.value = updatedContent
+            hasWorkflowChanged.value = true
+            console.log('[Edit Page] [Edit Mode] Workflow JSON updated successfully, hasWorkflowChanged:', hasWorkflowChanged.value)
+          }
+        } else {
+          console.warn('[Edit Page] No matching filename found in workflow')
+        }
       }
-
-      // Update workflow content
-      workflowContent.value = JSON.stringify(workflow, null, 2)
-      hasWorkflowChanged.value = true
-
-      console.log('[Edit Page] Workflow JSON updated successfully, hasWorkflowChanged:', hasWorkflowChanged.value)
     } else {
       console.warn('[Edit Page] No workflow content to update')
     }
@@ -1796,11 +1828,20 @@ const handleSubmit = async () => {
     })
 
     if (response.success) {
-      // In create mode, redirect to the edit page for the newly created template
+      // In create mode, show success message and redirect to homepage
       if (isCreateMode.value) {
         console.log('[Submit] Template created successfully:', response.templateName)
-        // Use navigateTo with replace to avoid back button issues
-        await navigateTo(`/admin/edit/${response.templateName}`, { replace: true })
+
+        // Set success state with commit info (to show in UI before redirect)
+        saveSuccess.value = {
+          commitSha: response.commit.sha,
+          commitUrl: response.commit.url
+        }
+
+        // Wait 2 seconds to let user see the success message, then redirect to homepage
+        setTimeout(() => {
+          navigateTo('/', { replace: true })
+        }, 2000)
         return
       }
 
