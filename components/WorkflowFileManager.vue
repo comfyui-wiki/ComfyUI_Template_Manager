@@ -404,7 +404,7 @@ const isEditingTemplateName = ref(false)
 const editingTemplateNameValue = ref<string>('')
 
 // Node types that require input assets (from Python script)
-const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo']
+const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo']
 
 // Computed
 const hasWarnings = computed(() => {
@@ -456,10 +456,23 @@ const parseWorkflowForInputFiles = (workflowJson: string): InputFileRef[] => {
 
       const nodeType = node.type
       if (ASSET_NODE_TYPES.includes(nodeType)) {
-        const widgetsValues = node.widgets_values || []
-        // First element is typically the filename
-        if (widgetsValues.length > 0 && widgetsValues[0]) {
-          const filename = widgetsValues[0]
+        const widgetsValues = node.widgets_values
+        let filename: string | null = null
+
+        // Handle different widgets_values formats
+        if (nodeType === 'VHS_LoadVideo') {
+          // VHS_LoadVideo uses object format: { video: "filename.mp4", ... }
+          if (widgetsValues && typeof widgetsValues === 'object' && !Array.isArray(widgetsValues)) {
+            filename = widgetsValues.video
+          }
+        } else {
+          // Standard nodes use array format: ["filename.png"]
+          if (Array.isArray(widgetsValues) && widgetsValues.length > 0) {
+            filename = widgetsValues[0]
+          }
+        }
+
+        if (filename) {
           refs.push({
             filename, // Use actual filename from workflow (backend handles prefixes)
             nodeId: node.id,

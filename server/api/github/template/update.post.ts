@@ -258,10 +258,19 @@ export default defineEventHandler(async (event) => {
         // Extract all input file references from current workflow
         if (currentWorkflow.nodes) {
           for (const node of currentWorkflow.nodes) {
-            if (node.widgets_values && Array.isArray(node.widgets_values)) {
-              for (const value of node.widgets_values) {
-                if (typeof value === 'string' && value.length > 0) {
-                  currentWorkflowFiles.push(value)
+            if (node.widgets_values) {
+              // Handle array format (LoadImage, LoadAudio, LoadVideo)
+              if (Array.isArray(node.widgets_values)) {
+                for (const value of node.widgets_values) {
+                  if (typeof value === 'string' && value.length > 0) {
+                    currentWorkflowFiles.push(value)
+                  }
+                }
+              }
+              // Handle object format (VHS_LoadVideo)
+              else if (typeof node.widgets_values === 'object' && node.type === 'VHS_LoadVideo') {
+                if (node.widgets_values.video && typeof node.widgets_values.video === 'string') {
+                  currentWorkflowFiles.push(node.widgets_values.video)
                 }
               }
             }
@@ -327,15 +336,29 @@ export default defineEventHandler(async (event) => {
           // Update node widgets_values to use actual filenames
           if (workflow.nodes) {
             for (const node of workflow.nodes) {
-              if (node.widgets_values && Array.isArray(node.widgets_values)) {
-                for (let i = 0; i < node.widgets_values.length; i++) {
-                  const originalName = node.widgets_values[i]
-                  if (filenameMapping.has(originalName)) {
+              if (node.widgets_values) {
+                // Handle array format (LoadImage, LoadAudio, LoadVideo)
+                if (Array.isArray(node.widgets_values)) {
+                  for (let i = 0; i < node.widgets_values.length; i++) {
+                    const originalName = node.widgets_values[i]
+                    if (filenameMapping.has(originalName)) {
+                      const actualName = filenameMapping.get(originalName)!
+                      if (actualName !== originalName) {
+                        console.log(`[Update Template] Updating workflow reference: ${originalName} → ${actualName}`)
+                      }
+                      node.widgets_values[i] = actualName
+                    }
+                  }
+                }
+                // Handle object format (VHS_LoadVideo)
+                else if (typeof node.widgets_values === 'object' && node.type === 'VHS_LoadVideo') {
+                  const originalName = node.widgets_values.video
+                  if (originalName && filenameMapping.has(originalName)) {
                     const actualName = filenameMapping.get(originalName)!
                     if (actualName !== originalName) {
-                      console.log(`[Update Template] Updating workflow reference: ${originalName} → ${actualName}`)
+                      console.log(`[Update Template] Updating VHS_LoadVideo reference: ${originalName} → ${actualName}`)
                     }
-                    node.widgets_values[i] = actualName
+                    node.widgets_values.video = actualName
                   }
                 }
               }
