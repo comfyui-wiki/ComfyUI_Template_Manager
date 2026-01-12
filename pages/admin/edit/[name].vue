@@ -142,90 +142,17 @@
       <!-- Edit Form with Sidebar -->
       <div v-else class="flex">
         <!-- Left Sidebar: Template List for Reordering -->
-        <div class="w-80 border-r bg-muted/30 min-h-[calc(100vh-73px)] sticky top-[73px] overflow-y-auto">
-          <div class="p-4">
-            <h2 class="text-sm font-semibold mb-2">Category Order</h2>
-            <p class="text-xs text-muted-foreground mb-4">{{ currentCategoryTitle }}</p>
-
-            <div class="space-y-2">
-              <div
-                v-for="(template, index) in categoryTemplates"
-                :key="template.name"
-                :draggable="true"
-                @dragstart="onDragStart($event, index)"
-                @dragover="onDragOver($event, index)"
-                @drop="onDrop($event, index)"
-                @dragend="onDragEnd"
-                class="p-2 rounded-lg cursor-move transition-all relative"
-                :class="{
-                  'bg-primary text-primary-foreground shadow-lg ring-2 ring-primary ring-offset-2': template.name === templateName,
-                  'bg-background hover:bg-accent hover:shadow': template.name !== templateName,
-                  'opacity-50': draggedIndex === index
-                }"
-              >
-                <div class="flex items-center gap-3">
-                  <!-- Drag Handle -->
-                  <svg class="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-                  </svg>
-
-                  <!-- Thumbnail -->
-                  <div class="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
-                    <img
-                      :src="getTemplateThumbnailUrl(template)"
-                      :alt="template.title || template.name"
-                      class="w-full h-full object-cover"
-                      @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
-                    />
-                  </div>
-
-                  <!-- Template Info -->
-                  <div class="flex-1 min-w-0">
-                    <div class="text-xs font-medium truncate">
-                      {{ template.title || template.name }}
-                    </div>
-                  </div>
-
-                  <!-- Position Change Indicator -->
-                  <div
-                    v-if="templatePositionChanges.has(template.name)"
-                    class="flex items-center gap-1 flex-shrink-0"
-                  >
-                    <div
-                      class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold"
-                      :class="{
-                        'bg-green-500 text-white': templatePositionChanges.get(template.name)!.change > 0,
-                        'bg-red-500 text-white': templatePositionChanges.get(template.name)!.change < 0
-                      }"
-                    >
-                      <!-- Up arrow for moved up (positive change) -->
-                      <svg
-                        v-if="templatePositionChanges.get(template.name)!.change > 0"
-                        class="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" />
-                      </svg>
-                      <!-- Down arrow for moved down (negative change) -->
-                      <svg
-                        v-else
-                        class="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" />
-                      </svg>
-                      <span>{{ Math.abs(templatePositionChanges.get(template.name)!.change) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CategoryOrderSidebar
+          ref="categoryOrderSidebarRef"
+          :templates="categoryTemplates"
+          :current-template-name="templateName"
+          :current-template-title="form.title"
+          :current-template-thumbnail="currentTemplateThumbnailPreview"
+          :category-title="currentCategoryTitle"
+          :repo="selectedRepo"
+          :branch="selectedBranch"
+          @reorder="handleTemplateReorder"
+        />
 
         <!-- Main Content Area -->
         <div class="flex-1 container mx-auto px-4 py-8">
@@ -731,6 +658,7 @@ import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTit
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
+import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -771,9 +699,9 @@ const isInputAssetConverterOpen = ref(false)
 const converterTargetInputFilename = ref<string>('')
 const converterIsExistingFile = ref(false)
 const workflowFileManagerRef = ref<any>(null)
+const categoryOrderSidebarRef = ref<any>(null)
 
-// Drag and drop state for template reordering
-const draggedIndex = ref<number | null>(null)
+// Template reordering state
 const categoryTemplates = ref<any[]>([])
 const originalCategoryTemplates = ref<any[]>([])
 const templateOrderChanged = ref(false)
@@ -795,14 +723,6 @@ const templatePositionChanges = computed(() => {
 
   return changes
 })
-
-// Helper: Get thumbnail URL for a template
-const getTemplateThumbnailUrl = (template: any) => {
-  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
-  const branch = selectedBranch.value || 'main'
-  const mediaSubtype = template.mediaSubtype || 'webp'
-  return `https://raw.githubusercontent.com/${repo}/${branch}/templates/${template.name}-1.${mediaSubtype}`
-}
 
 const form = ref({
   title: '',
@@ -1045,6 +965,18 @@ watch(() => form.value.thumbnailVariant, async (newVariant, oldVariant) => {
 // Computed: Get current category title for display (form.category now stores the title directly)
 const currentCategoryTitle = computed(() => {
   return form.value.category || ''
+})
+
+// Computed: Get current template's thumbnail preview URL
+const currentTemplateThumbnailPreview = computed(() => {
+  // Check if there's a reuploaded thumbnail
+  if (reuploadedThumbnails.value.has(1)) {
+    const file = reuploadedThumbnails.value.get(1)
+    return URL.createObjectURL(file!)
+  }
+
+  // Otherwise use the existing thumbnail preview
+  return thumbnailPreviewUrls.value.get(1) || ''
 })
 
 // Computed: Required thumbnail count based on variant
@@ -1415,42 +1347,49 @@ watch(isInputAssetConverterOpen, (isOpen) => {
   }
 })
 
-// Drag and drop handlers for template reordering
-const onDragStart = (event: DragEvent, index: number) => {
-  draggedIndex.value = index
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-  }
-}
-
-const onDragOver = (event: DragEvent, index: number) => {
-  event.preventDefault()
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
-}
-
-const onDrop = (event: DragEvent, targetIndex: number) => {
-  event.preventDefault()
-
-  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
-    return
-  }
-
-  // Reorder the templates array
-  const newTemplates = [...categoryTemplates.value]
-  const [draggedTemplate] = newTemplates.splice(draggedIndex.value, 1)
-  newTemplates.splice(targetIndex, 0, draggedTemplate)
-
-  categoryTemplates.value = newTemplates
+// Handle template reorder from sidebar
+const handleTemplateReorder = (reorderedTemplates: any[]) => {
+  categoryTemplates.value = reorderedTemplates
   templateOrderChanged.value = true
-
-  console.log('[Template Reorder] Templates reordered')
+  console.log('[Edit Page] Templates reordered from sidebar')
 }
 
-const onDragEnd = () => {
-  draggedIndex.value = null
-}
+// Watch for category changes to reload templates
+watch(() => form.value.category, async (newCategory, oldCategory) => {
+  if (!newCategory || newCategory === oldCategory) return
+
+  try {
+    const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+    const branch = selectedBranch.value || 'main'
+    const [owner, repoName] = repo.split('/')
+
+    // Reload index.json to get new category templates
+    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json`
+    const response = await fetch(indexUrl)
+
+    if (!response.ok) {
+      console.error('[Category Change] Failed to reload index.json')
+      return
+    }
+
+    const indexData = await response.json()
+
+    // Find the new category
+    const newCategoryData = indexData.find((cat: any) => cat.title === newCategory)
+    if (!newCategoryData) {
+      console.error('[Category Change] New category not found:', newCategory)
+      return
+    }
+
+    // Update category templates
+    categoryTemplates.value = newCategoryData.templates || []
+    originalCategoryTemplates.value = [...categoryTemplates.value]
+
+    console.log('[Category Change] Loaded templates for new category:', newCategory, categoryTemplates.value.length)
+  } catch (error) {
+    console.error('[Category Change] Error reloading templates:', error)
+  }
+})
 
 onMounted(async () => {
   try {
@@ -1755,6 +1694,11 @@ const handleSubmit = async () => {
 
       // Reset template order changes (computed property will auto-update)
       originalCategoryTemplates.value = [...categoryTemplates.value]
+
+      // Reset sidebar component's original templates
+      if (categoryOrderSidebarRef.value) {
+        categoryOrderSidebarRef.value.resetOriginalTemplates()
+      }
 
       // Clear flag after cleanup is done
       setTimeout(() => {
