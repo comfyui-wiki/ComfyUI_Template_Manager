@@ -231,7 +231,7 @@
 
                     <!-- Thumbnail Items - Grid Layout -->
                     <div class="grid gap-2" :class="requiredThumbnailCount === 2 ? 'grid-cols-2' : 'grid-cols-1'">
-                      <div v-for="index in requiredThumbnailCount" :key="index" class="border rounded p-2 bg-card hover:border-primary/30 transition-colors">
+                      <div v-for="index in thumbnailDisplayOrder" :key="index" class="border rounded p-2 bg-card hover:border-primary/30 transition-colors">
                         <div class="flex gap-2">
                           <!-- Thumbnail Preview - 64px Small -->
                           <div class="flex-shrink-0">
@@ -734,6 +734,21 @@ const requiredThumbnailCount = computed(() => {
   const count = (form.value.thumbnailVariant === 'hoverDissolve' || form.value.thumbnailVariant === 'compareSlider') ? 2 : 1
   console.log('[requiredThumbnailCount] Variant:', form.value.thumbnailVariant, '→ Count:', count)
   return count
+})
+
+// Computed: Thumbnail display order (for compareSlider, swap order)
+const thumbnailDisplayOrder = computed(() => {
+  const count = requiredThumbnailCount.value
+  if (count === 1) {
+    return [1]
+  }
+  // For compareSlider: swap display order
+  // Left: index 2 (After), Right: index 1 (Before)
+  if (form.value.thumbnailVariant === 'compareSlider') {
+    return [2, 1]
+  }
+  // Default order for other variants
+  return [1, 2]
 })
 
 // Computed: Preview key to force re-render when thumbnails change
