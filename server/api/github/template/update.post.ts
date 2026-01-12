@@ -11,6 +11,7 @@ interface UpdateTemplateRequest {
     category?: string
     thumbnailVariant?: string
     tags?: string[]
+    models?: string[]
     tutorialUrl?: string
     comfyuiVersion?: string
     date?: string
@@ -121,6 +122,7 @@ export default defineEventHandler(async (event) => {
         }
       }
       if (metadata.tags) templateData.tags = metadata.tags
+      if (metadata.models) templateData.models = metadata.models
       if (metadata.tutorialUrl) templateData.tutorialUrl = metadata.tutorialUrl
       if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
       if (metadata.date) templateData.date = metadata.date

@@ -419,12 +419,12 @@
 
                       <!-- Dropdown suggestions -->
                       <div
-                        v-if="isTagsDropdownOpen && (filteredAvailableTags.length > 0 || tagSearchInput.trim())"
+                        v-if="isTagsDropdownOpen"
                         class="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
                       >
                         <!-- Add new tag option -->
                         <div
-                          v-if="tagSearchInput.trim() && !availableTags.includes(tagSearchInput.trim())"
+                          v-if="tagSearchInput.trim()"
                           class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
                           @mousedown.prevent="addCustomTag"
                         >
@@ -442,10 +442,91 @@
                           <span>{{ tag }}</span>
                           <span v-if="form.tags.includes(tag)" class="text-primary text-xs">✓</span>
                         </div>
+
+                        <!-- Empty state -->
+                        <div
+                          v-if="!tagSearchInput.trim() && filteredAvailableTags.length === 0"
+                          class="px-3 py-2 text-sm text-muted-foreground text-center"
+                        >
+                          Type to add tags
+                        </div>
                       </div>
                     </div>
                     <p class="text-xs text-muted-foreground">
                       Type and press Enter to add custom tags, or select from suggestions. Click ✕ to remove.
+                    </p>
+                  </div>
+
+                  <!-- Models Multi-Select -->
+                  <div class="space-y-2">
+                    <Label for="models">Models (optional)</Label>
+
+                    <!-- Selected Models Display -->
+                    <div v-if="form.models.length > 0" class="flex flex-wrap gap-1.5 mb-2 p-2 border rounded-md bg-muted/30">
+                      <span
+                        v-for="model in form.models"
+                        :key="model"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-md"
+                      >
+                        {{ model }}
+                        <button
+                          type="button"
+                          @click="removeModel(model)"
+                          class="hover:text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+
+                    <!-- Model Input with Suggestions -->
+                    <div class="relative">
+                      <Input
+                        id="models"
+                        v-model="modelSearchInput"
+                        placeholder="Type to add new model or select existing..."
+                        @keydown.enter.prevent="addCustomModel"
+                        @focus="isModelsDropdownOpen = true"
+                        @blur="() => setTimeout(() => isModelsDropdownOpen = false, 200)"
+                      />
+
+                      <!-- Dropdown suggestions -->
+                      <div
+                        v-if="isModelsDropdownOpen"
+                        class="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
+                      >
+                        <!-- Add new model option -->
+                        <div
+                          v-if="modelSearchInput.trim()"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
+                          @mousedown.prevent="addCustomModel"
+                        >
+                          <span class="text-muted-foreground">Press Enter to add:</span>
+                          <span class="font-medium ml-1">"{{ modelSearchInput.trim() }}"</span>
+                        </div>
+
+                        <!-- Existing model suggestions -->
+                        <div
+                          v-for="model in filteredAvailableModels"
+                          :key="model"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
+                          @mousedown.prevent="selectModel(model)"
+                        >
+                          <span>{{ model }}</span>
+                          <span v-if="form.models.includes(model)" class="text-primary text-xs">✓</span>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div
+                          v-if="!modelSearchInput.trim() && filteredAvailableModels.length === 0"
+                          class="px-3 py-2 text-sm text-muted-foreground text-center"
+                        >
+                          Type to add models
+                        </div>
+                      </div>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      Type and press Enter to add custom models, or select from suggestions. Click ✕ to remove.
                     </p>
                   </div>
 
@@ -497,7 +578,7 @@
                     :media-type="originalTemplate?.mediaType || 'image'"
                     :media-subtype="originalTemplate?.mediaSubtype || 'webp'"
                     :has-workflow="true"
-                    :model-count="originalTemplate?.models?.length || 0"
+                    :model-count="form.models.length"
                     :comfyui-version="form.comfyuiVersion"
                     :date="form.date"
                   />
@@ -632,20 +713,32 @@ const form = ref({
   thumbnailVariant: 'none',
   tutorialUrl: '',
   tags: [] as string[],
+  models: [] as string[],
   comfyuiVersion: '',
   date: ''
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
 const availableTags = ref<string[]>([])
+const availableModels = ref<string[]>([])
 const tagSearchInput = ref('')
+const modelSearchInput = ref('')
 const isTagsDropdownOpen = ref(false)
+const isModelsDropdownOpen = ref(false)
 
-// Computed: Filter available tags based on search and exclude already selected
+// Computed: Filter available tags based on search
 const filteredAvailableTags = computed(() => {
   const searchLower = tagSearchInput.value.toLowerCase()
   return availableTags.value.filter(tag =>
     tag.toLowerCase().includes(searchLower)
+  )
+})
+
+// Computed: Filter available models based on search
+const filteredAvailableModels = computed(() => {
+  const searchLower = modelSearchInput.value.toLowerCase()
+  return availableModels.value.filter(model =>
+    model.toLowerCase().includes(searchLower)
   )
 })
 
@@ -671,6 +764,30 @@ const addCustomTag = () => {
 // Remove a tag from the selection
 const removeTag = (tag: string) => {
   form.value.tags = form.value.tags.filter(t => t !== tag)
+}
+
+// Select existing model from dropdown
+const selectModel = (model: string) => {
+  if (!form.value.models.includes(model)) {
+    form.value.models.push(model)
+  }
+  modelSearchInput.value = ''
+  isModelsDropdownOpen.value = false
+}
+
+// Add custom model (when pressing Enter)
+const addCustomModel = () => {
+  const model = modelSearchInput.value.trim()
+  if (model && !form.value.models.includes(model)) {
+    form.value.models.push(model)
+  }
+  modelSearchInput.value = ''
+  isModelsDropdownOpen.value = false
+}
+
+// Remove a model from the selection
+const removeModel = (model: string) => {
+  form.value.models = form.value.models.filter(m => m !== model)
 }
 
 // Watch thumbnailVariant changes to adjust thumbnail count
@@ -1134,14 +1251,19 @@ onMounted(async () => {
 
       // Get all unique tags
       const tagsSet = new Set<string>()
+      const modelsSet = new Set<string>()
       for (const category of indexData) {
         for (const template of category.templates || []) {
           if (template.tags && Array.isArray(template.tags)) {
             template.tags.forEach((tag: string) => tagsSet.add(tag))
           }
+          if (template.models && Array.isArray(template.models)) {
+            template.models.forEach((model: string) => modelsSet.add(model))
+          }
         }
       }
       availableTags.value = Array.from(tagsSet).sort()
+      availableModels.value = Array.from(modelsSet).sort()
     }
 
     // Find template and its category
@@ -1190,6 +1312,7 @@ onMounted(async () => {
     form.value.thumbnailVariant = foundTemplate.thumbnailVariant || 'none'
     form.value.tutorialUrl = foundTemplate.tutorialUrl || ''
     form.value.tags = foundTemplate.tags || []
+    form.value.models = foundTemplate.models || []
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
     form.value.date = foundTemplate.date || ''
 
@@ -1323,6 +1446,7 @@ const handleSubmit = async () => {
           category: form.value.category,
           thumbnailVariant: form.value.thumbnailVariant,
           tags: form.value.tags,
+          models: form.value.models,
           tutorialUrl: form.value.tutorialUrl,
           comfyuiVersion: form.value.comfyuiVersion,
           date: form.value.date
