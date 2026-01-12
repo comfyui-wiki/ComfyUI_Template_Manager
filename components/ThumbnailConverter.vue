@@ -355,6 +355,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
+const props = defineProps<{
+  initialFile?: File | null
+}>()
+
 const emit = defineEmits<{
   converted: [file: File]
 }>()
@@ -636,11 +640,8 @@ onMounted(() => {
   document.addEventListener('mouseup', endDragBeforePreview)
 })
 
-const onFileSelect = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-
+// Load file programmatically (for initial file prop)
+const loadFile = async (file: File) => {
   sourceFile.value = file
   sourcePreviewUrl.value = URL.createObjectURL(file)
   error.value = ''
@@ -654,6 +655,14 @@ const onFileSelect = async (event: Event) => {
     targetSize.value = '350'
     await loadVideoDimensions(file)
   }
+}
+
+const onFileSelect = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  await loadFile(file)
 }
 
 const loadImageDimensions = (file: File): Promise<void> => {
@@ -913,4 +922,11 @@ watch([quality, targetSize, videoMaxDuration, videoFps], () => {
     beforePreviewOffsetY.value = 0
   }
 })
+
+// Watch for initialFile prop and auto-load it
+watch(() => props.initialFile, async (file) => {
+  if (file) {
+    await loadFile(file)
+  }
+}, { immediate: true })
 </script>

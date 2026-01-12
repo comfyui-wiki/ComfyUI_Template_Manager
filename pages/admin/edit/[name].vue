@@ -284,18 +284,9 @@
                                 size="sm"
                                 @click="triggerThumbnailUpload(index)"
                                 class="flex-1 h-6 text-[10px] px-2"
+                                title="Upload WebP or convert other formats"
                               >
                                 ⬆ Upload
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                @click="openConverter(index)"
-                                class="flex-1 h-6 text-[10px] px-2"
-                                title="Convert image/video to WebP"
-                              >
-                                🔄 Convert
                               </Button>
                             </div>
                           </div>
@@ -552,7 +543,7 @@
             Convert your image or video file to optimized WebP format for {{ getThumbnailLabel(converterTargetIndex) }}
           </DialogDescription>
         </DialogHeader>
-        <ThumbnailConverter @converted="handleConvertedFile" />
+        <ThumbnailConverter :initial-file="converterInitialFile" @converted="handleConvertedFile" />
       </DialogScrollContent>
     </Dialog>
   </div>
@@ -597,6 +588,7 @@ const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }
 // Thumbnail converter state
 const isConverterDialogOpen = ref(false)
 const converterTargetIndex = ref<number>(1)
+const converterInitialFile = ref<File | null>(null)
 
 // Drag and drop state for template reordering
 const draggedIndex = ref<number | null>(null)
@@ -878,6 +870,22 @@ const downloadWorkflow = async () => {
 // Download thumbnail file
 const downloadThumbnail = async (index: number) => {
   try {
+    // Check if user has uploaded/converted a new file locally (not yet saved)
+    if (reuploadedThumbnails.value.has(index)) {
+      // Download the local converted/uploaded file
+      const file = reuploadedThumbnails.value.get(index)!
+      const downloadUrl = window.URL.createObjectURL(file)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = file.name
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      return
+    }
+
+    // Otherwise, download from GitHub (saved version)
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
     const branch = selectedBranch.value || 'main'
     const [owner, repoName] = repo.split('/')
@@ -961,6 +969,27 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
     return
   }
 
+  // Check if file is WebP
+  const isWebP = file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp')
+
+  if (!isWebP) {
+    // File is not WebP - auto-open converter dialog with the file pre-loaded
+    thumbnailReuploadStatus.value = {
+      success: false,
+      message: `ℹ️ File needs to be converted to WebP format. Opening converter...`
+    }
+
+    // Store the file and open converter dialog for this index
+    converterInitialFile.value = file
+    converterTargetIndex.value = index
+    isConverterDialogOpen.value = true
+
+    // Clear the file input so user can select the same file again if needed
+    target.value = ''
+    return
+  }
+
+  // File is WebP - proceed with upload
   // Store the file for this index
   reuploadedThumbnails.value.set(index, file)
 
@@ -984,12 +1013,9 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
     success: true,
     message: `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
   }
-}
 
-// Open converter dialog for specific thumbnail index
-const openConverter = (index: number) => {
-  converterTargetIndex.value = index
-  isConverterDialogOpen.value = true
+  // Clear the file input
+  target.value = ''
 }
 
 // Handle converted file from ThumbnailConverter
@@ -1011,7 +1037,8 @@ const handleConvertedFile = async (file: File) => {
   const previewUrl = URL.createObjectURL(file)
   thumbnailPreviewUrls.value.set(index, previewUrl)
 
-  // Close dialog
+  // Clear initial file and close dialog
+  converterInitialFile.value = null
   isConverterDialogOpen.value = false
 
   // Show success message
@@ -1020,6 +1047,14 @@ const handleConvertedFile = async (file: File) => {
     message: `✓ ${getThumbnailLabel(index)} converted: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
   }
 }
+
+// Watch dialog state to clear initial file when closed
+watch(isConverterDialogOpen, (isOpen) => {
+  if (!isOpen) {
+    // Clear initial file when dialog is closed
+    converterInitialFile.value = null
+  }
+})
 
 // Drag and drop handlers for template reordering
 const onDragStart = (event: DragEvent, index: number) => {
