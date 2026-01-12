@@ -406,40 +406,44 @@
                       </span>
                     </div>
 
-                    <!-- Tag Selection Combobox -->
-                    <Combobox
-                      v-model="tagSearchInput"
-                      :open="isTagsDropdownOpen"
-                      @update:open="isTagsDropdownOpen = $event"
-                    >
-                      <ComboboxAnchor>
-                        <ComboboxInput
-                          id="tags"
-                          placeholder="Type to add new tag or select existing..."
-                          class="w-full"
-                          @focus="isTagsDropdownOpen = true"
-                          @keydown.enter.prevent="addCustomTag"
-                        />
-                      </ComboboxAnchor>
-                      <ComboboxList class="max-h-48">
-                        <ComboboxEmpty>
-                          <div class="text-xs">
-                            <span class="text-muted-foreground">Press Enter to add:</span>
-                            <span class="font-medium ml-1">"{{ tagSearchInput }}"</span>
-                          </div>
-                        </ComboboxEmpty>
-                        <ComboboxItem
+                    <!-- Tag Input with Suggestions -->
+                    <div class="relative">
+                      <Input
+                        id="tags"
+                        v-model="tagSearchInput"
+                        placeholder="Type to add new tag or select existing..."
+                        @keydown.enter.prevent="addCustomTag"
+                        @focus="isTagsDropdownOpen = true"
+                        @blur="() => setTimeout(() => isTagsDropdownOpen = false, 200)"
+                      />
+
+                      <!-- Dropdown suggestions -->
+                      <div
+                        v-if="isTagsDropdownOpen && (filteredAvailableTags.length > 0 || tagSearchInput.trim())"
+                        class="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
+                      >
+                        <!-- Add new tag option -->
+                        <div
+                          v-if="tagSearchInput.trim() && !availableTags.includes(tagSearchInput.trim())"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
+                          @mousedown.prevent="addCustomTag"
+                        >
+                          <span class="text-muted-foreground">Press Enter to add:</span>
+                          <span class="font-medium ml-1">"{{ tagSearchInput.trim() }}"</span>
+                        </div>
+
+                        <!-- Existing tag suggestions -->
+                        <div
                           v-for="tag in filteredAvailableTags"
                           :key="tag"
-                          :value="tag"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
+                          @mousedown.prevent="selectTag(tag)"
                         >
-                          <div class="flex items-center justify-between w-full">
-                            <span>{{ tag }}</span>
-                            <span v-if="form.tags.includes(tag)" class="text-primary text-xs">✓</span>
-                          </div>
-                        </ComboboxItem>
-                      </ComboboxList>
-                    </Combobox>
+                          <span>{{ tag }}</span>
+                          <span v-if="form.tags.includes(tag)" class="text-primary text-xs">✓</span>
+                        </div>
+                      </div>
+                    </div>
                     <p class="text-xs text-muted-foreground">
                       Type and press Enter to add custom tags, or select from suggestions. Click ✕ to remove.
                     </p>
@@ -558,7 +562,6 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
-import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxEmpty, ComboboxList, ComboboxItem } from '~/components/ui/combobox'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
@@ -646,18 +649,14 @@ const filteredAvailableTags = computed(() => {
   )
 })
 
-// Watch for tag selection from Combobox (when selecting from dropdown)
-watch(tagSearchInput, (value) => {
-  // If value matches an available tag (selected from dropdown), add it
-  if (value && availableTags.value.includes(value)) {
-    if (!form.value.tags.includes(value)) {
-      form.value.tags.push(value)
-    }
-    // Clear input after selection
-    tagSearchInput.value = ''
-    isTagsDropdownOpen.value = false
+// Select existing tag from dropdown
+const selectTag = (tag: string) => {
+  if (!form.value.tags.includes(tag)) {
+    form.value.tags.push(tag)
   }
-})
+  tagSearchInput.value = ''
+  isTagsDropdownOpen.value = false
+}
 
 // Add custom tag (when pressing Enter)
 const addCustomTag = () => {
