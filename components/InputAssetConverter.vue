@@ -1,7 +1,14 @@
 <template>
   <div class="space-y-4">
+    <!-- Loading State -->
+    <div v-if="isImageLoading" class="p-8 border rounded-lg bg-muted/30 text-center">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+      <p class="text-sm text-muted-foreground">Loading image...</p>
+      <p class="text-xs text-muted-foreground mt-1">{{ originalFileSize }}</p>
+    </div>
+
     <!-- Before/After Comparison (like ThumbnailConverter) -->
-    <div v-if="previewUrl && convertedPreviewUrl" class="grid grid-cols-2 gap-3">
+    <div v-else-if="previewUrl" class="grid grid-cols-2 gap-3">
       <!-- Before (Original) -->
       <div class="space-y-2">
         <Label class="text-xs">Before (Original)</Label>
@@ -22,8 +29,8 @@
 
       <!-- After (Converted) -->
       <div class="space-y-2">
-        <Label class="text-xs">After (Converted)</Label>
-        <div class="relative border rounded-lg p-2" :class="getSizeWarningClass()">
+        <Label class="text-xs">After ({{ isConverting ? 'Converting...' : 'Converted' }})</Label>
+        <div v-if="convertedPreviewUrl" class="relative border rounded-lg p-2" :class="getSizeWarningClass()">
           <img
             :src="convertedPreviewUrl"
             alt="Converted"
@@ -35,6 +42,12 @@
             <div class="font-medium">{{ convertedFileSize }}</div>
             <div class="text-muted-foreground">{{ convertedDimensions }}</div>
             <div class="font-semibold" :class="getSavingsColor()">{{ sizeSavings }}</div>
+          </div>
+        </div>
+        <div v-else class="relative border rounded-lg p-2 bg-muted/30 h-48 flex items-center justify-center">
+          <div class="text-center">
+            <div v-if="isConverting" class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
+            <p class="text-sm text-muted-foreground">{{ isConverting ? 'Converting...' : 'Click "Refresh Preview" to convert' }}</p>
           </div>
         </div>
       </div>
@@ -122,9 +135,15 @@
         max="100"
         step="5"
         class="w-full"
+        :disabled="targetFormat === 'png'"
       />
       <p class="text-xs text-muted-foreground">
-        Higher quality = larger file size. Recommended: 85-95 for most images
+        <span v-if="targetFormat === 'png'" class="text-amber-600">
+          ⓘ PNG is lossless - quality adjustment not available. Use WebP or JPEG for compression.
+        </span>
+        <span v-else>
+          Higher quality = larger file size. Recommended: 85-95 for most images
+        </span>
       </p>
     </div>
 
@@ -133,24 +152,33 @@
       <div class="text-sm font-medium">{{ getSizeWarning() }}</div>
     </div>
 
+    <!-- Conversion Error Message -->
+    <div v-if="conversionError" class="p-3 rounded-lg bg-red-50 border border-red-200">
+      <div class="text-sm font-medium text-red-800">❌ Conversion Failed</div>
+      <div class="text-xs text-red-700 mt-1">{{ conversionError }}</div>
+      <div class="text-xs text-red-600 mt-2">
+        Please try uploading a different file or contact support if the issue persists.
+      </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="flex gap-2">
       <Button
         @click="handleConvert"
-        :disabled="isConverting || !sourceFile"
+        :disabled="isConverting || isImageLoading || !sourceFile"
         variant="outline"
         class="flex-1"
       >
-        <svg v-if="isConverting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg v-if="isConverting || isImageLoading" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        {{ isConverting ? 'Converting...' : 'Refresh Preview' }}
+        {{ isImageLoading ? 'Loading Image...' : isConverting ? 'Converting...' : 'Refresh Preview' }}
       </Button>
 
       <Button
         @click="handleUseConversion"
-        :disabled="!convertedFile || isConverting"
+        :disabled="!convertedFile || isConverting || isImageLoading"
         class="flex-1"
         size="lg"
       >
@@ -189,6 +217,8 @@ const maxDimension = ref(1920)
 const maintainAspectRatio = ref(true)
 const quality = ref(90)
 const isConverting = ref(false)
+const isImageLoading = ref(false)
+const conversionError = ref<string>('')
 const previewUrl = ref<string>('')
 const convertedPreviewUrl = ref<string>('')
 const convertedFile = ref<File | null>(null)
@@ -329,27 +359,51 @@ const calculateTargetDimensions = (): { width: number; height: number } => {
 const handleConvert = async () => {
   if (!sourceFile.value) return
 
+  // Check if image dimensions are loaded
+  if (originalWidth.value === 0 || originalHeight.value === 0) {
+    console.warn('[InputAssetConverter] Skipping conversion - image not loaded yet')
+    return
+  }
+
   isConverting.value = true
+  conversionError.value = ''
+
+  let width = 0
+  let height = 0
 
   try {
+    // Calculate target dimensions
+    const dimensions = calculateTargetDimensions()
+    width = dimensions.width
+    height = dimensions.height
+    convertedWidth.value = width
+    convertedHeight.value = height
+
+    console.log('[InputAssetConverter] Starting conversion:', {
+      format: targetFormat.value,
+      originalSize: `${originalWidth.value}x${originalHeight.value}`,
+      targetSize: `${width}x${height}`,
+      quality: quality.value
+    })
+
+    // Load image from source file
     const img = new Image()
-    const url = URL.createObjectURL(sourceFile.value)
+    img.src = URL.createObjectURL(sourceFile.value)
 
     await new Promise((resolve, reject) => {
       img.onload = resolve
-      img.onerror = reject
-      img.src = url
+      img.onerror = () => reject(new Error('Failed to load image'))
     })
-
-    const { width, height } = calculateTargetDimensions()
-    convertedWidth.value = width
-    convertedHeight.value = height
 
     // Create canvas
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      throw new Error('Failed to get canvas context')
+    }
 
     // Enable high quality scaling
     ctx.imageSmoothingEnabled = true
@@ -360,30 +414,49 @@ const handleConvert = async () => {
 
     // Convert to blob
     const mimeType = targetFormat.value === 'jpeg' ? 'image/jpeg' : targetFormat.value === 'png' ? 'image/png' : 'image/webp'
-    const blob = await new Promise<Blob>((resolve) => {
+
+    // PNG doesn't support quality parameter (lossless format)
+    const qualityParam = targetFormat.value === 'png' ? undefined : quality.value / 100
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (blob) => resolve(blob!),
+        (blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('Canvas conversion failed'))
+          }
+        },
         mimeType,
-        quality.value / 100
+        qualityParam
       )
     })
 
-    convertedFileSizeBytes.value = blob.size
+    console.log('[InputAssetConverter] Conversion complete:', blob.size, 'bytes')
 
-    // Create File object with target filename
+    // Update state
+    convertedFileSizeBytes.value = blob.size
+    convertedWidth.value = width
+    convertedHeight.value = height
+
+    // Create File object
     const ext = targetFormat.value === 'jpeg' ? 'jpg' : targetFormat.value
     const filename = props.targetFilename || `converted.${ext}`
-
     const file = new File([blob], filename, { type: mimeType })
     convertedFile.value = file
 
-    // Update preview
+    // Update preview URL
+    if (convertedPreviewUrl.value) {
+      URL.revokeObjectURL(convertedPreviewUrl.value)
+    }
     convertedPreviewUrl.value = URL.createObjectURL(blob)
 
-    URL.revokeObjectURL(url)
+    // Clean up temporary image URL
+    URL.revokeObjectURL(img.src)
   } catch (error) {
-    console.error('Conversion error:', error)
-    alert('Failed to convert file. Please try again.')
+    console.error('[InputAssetConverter] Conversion error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    conversionError.value = `${errorMessage} (Format: ${targetFormat.value}, Size: ${width}x${height})`
   } finally {
     isConverting.value = false
   }
@@ -400,7 +473,14 @@ const handleUseConversion = () => {
 watch(() => props.initialFile, async (file) => {
   if (!file) return
 
+  // Reset state
   sourceFile.value = file
+  originalWidth.value = 0
+  originalHeight.value = 0
+  convertedPreviewUrl.value = ''
+  convertedFile.value = null
+  conversionError.value = ''
+  isImageLoading.value = true
 
   // Auto-detect format from target filename
   if (props.targetFilename) {
@@ -408,29 +488,37 @@ watch(() => props.initialFile, async (file) => {
   }
 
   // Create preview URL for original
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+  }
   previewUrl.value = URL.createObjectURL(file)
 
   // Load image to get dimensions
   if (file.type.startsWith('image/')) {
     const img = new Image()
-    const url = URL.createObjectURL(file)
+    img.src = previewUrl.value
 
     img.onload = async () => {
+      console.log('[InputAssetConverter] Image loaded:', img.width, 'x', img.height)
+
       originalWidth.value = img.width
       originalHeight.value = img.height
       targetWidth.value = img.width
       targetHeight.value = img.height
-      URL.revokeObjectURL(url)
+      isImageLoading.value = false
 
       // Auto-run conversion on load
       await handleConvert()
     }
 
     img.onerror = () => {
-      URL.revokeObjectURL(url)
+      console.error('[InputAssetConverter] Failed to load image')
+      isImageLoading.value = false
+      conversionError.value = 'Failed to load image. The file may be corrupted or in an unsupported format.'
     }
-
-    img.src = url
+  } else {
+    // Not an image file
+    isImageLoading.value = false
   }
 }, { immediate: true })
 
