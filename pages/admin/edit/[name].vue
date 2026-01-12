@@ -1540,7 +1540,8 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
     const [owner, repoName] = repo.split('/')
 
     // Reload index.json to get new category templates
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json`
+    // Add timestamp to bypass GitHub CDN cache
+    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -1574,7 +1575,8 @@ onMounted(async () => {
     const [owner, repoName] = repo.split('/')
 
     // Load template metadata from index.json
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json`
+    // Add timestamp to bypass GitHub CDN cache for newly created templates
+    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -1683,7 +1685,8 @@ onMounted(async () => {
 
 const loadWorkflowContent = async (owner: string, repo: string, branch: string) => {
   try {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}.json`
+    // Add timestamp to bypass GitHub CDN cache for newly created templates
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}.json?t=${Date.now()}`
     console.log('Loading workflow from:', url)
     const response = await fetch(url)
 
@@ -1722,8 +1725,10 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
     })
 
     const files: File[] = []
+    // Add timestamp to bypass GitHub CDN cache for newly uploaded thumbnails
+    const cacheBust = Date.now()
     for (let i = 1; i <= count; i++) {
-      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}-${i}.${mediaSubtype}`
+      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}-${i}.${mediaSubtype}?t=${cacheBust}`
       try {
         const response = await fetch(url)
         if (response.ok) {
