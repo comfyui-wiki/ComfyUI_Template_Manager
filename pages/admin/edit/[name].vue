@@ -13,9 +13,11 @@
             </Button>
             <div class="h-6 w-px bg-border"></div>
             <div>
-              <h1 class="text-xl font-semibold tracking-tight">Edit Template</h1>
+              <h1 class="text-xl font-semibold tracking-tight">
+                {{ isCreateMode ? 'Create Template' : 'Edit Template' }}
+              </h1>
               <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                <span class="font-mono">{{ templateName }}</span>
+                <span class="font-mono">{{ isCreateMode ? 'New Template' : templateName }}</span>
                 <span>•</span>
                 <a
                   :href="`https://github.com/${selectedRepo}/tree/${selectedBranch}`"
@@ -51,7 +53,7 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+              {{ isSubmitting ? (isCreateMode ? 'Creating...' : 'Saving...') : (isCreateMode ? 'Create Template' : 'Save Changes') }}
             </Button>
 
             <!-- Success Message -->
@@ -139,13 +141,16 @@
         </Card>
       </div>
 
-      <!-- Edit Form with Sidebar -->
+      <!-- Edit/Create Form with Sidebar -->
       <div v-else class="flex">
         <!-- Left Sidebar: Template List for Reordering -->
+        <!-- In edit mode: always show -->
+        <!-- In create mode: show when category is selected and templateName is set -->
         <CategoryOrderSidebar
+          v-if="!isCreateMode || (isCreateMode && form.category && form.templateName)"
           ref="categoryOrderSidebarRef"
           :templates="categoryTemplates"
-          :current-template-name="templateName"
+          :current-template-name="isCreateMode ? form.templateName : templateName"
           :current-template-title="form.title"
           :current-template-thumbnail="currentTemplateThumbnailPreview"
           :category-title="currentCategoryTitle"
@@ -155,7 +160,7 @@
         />
 
         <!-- Main Content Area -->
-        <div class="flex-1 container mx-auto px-4 py-8">
+        <div class="flex-1 container mx-auto px-4 py-8" :class="{ 'max-w-6xl': isCreateMode }">
         <!-- Workflow File Section with Input Files -->
         <div class="mb-6">
           <WorkflowFileManager
@@ -168,6 +173,7 @@
             @input-files-updated="handleInputFilesUpdated"
             @open-converter="handleInputFileConversion"
             @format-changed="handleInputFileFormatChange"
+            @template-name-extracted="handleTemplateNameExtracted"
           />
         </div>
 
@@ -178,7 +184,7 @@
               <CardHeader>
                 <CardTitle>Template Details</CardTitle>
                 <CardDescription>
-                  Edit the template information
+                  {{ isCreateMode ? 'Create a new template' : 'Edit the template information' }}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -230,7 +236,7 @@
                             <div class="mb-1">
                               <div class="text-xs font-semibold truncate">{{ getThumbnailLabel(index) }}</div>
                               <div class="text-[10px] font-mono text-muted-foreground truncate">
-                                {{ templateName }}-{{ index }}.{{ originalTemplate?.mediaSubtype || 'webp' }}
+                                {{ displayTemplateName }}-{{ index }}.{{ originalTemplate?.mediaSubtype || 'webp' }}
                               </div>
                             </div>
 
@@ -248,6 +254,7 @@
                                 size="sm"
                                 @click="downloadThumbnail(index)"
                                 class="flex-1 h-6 text-[10px] px-2"
+                                :disabled="isCreateMode && !reuploadedThumbnails.has(index)"
                               >
                                 ⬇ Down
                               </Button>
@@ -663,6 +670,17 @@ import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 const route = useRoute()
 const templateName = route.params.name as string
 
+// Detect if this is create mode (when name is 'new')
+const isCreateMode = computed(() => templateName === 'new')
+
+// Display name for template (used in UI, especially for thumbnails in create mode)
+const displayTemplateName = computed(() => {
+  if (isCreateMode.value) {
+    return form.value.templateName?.trim() || 'template'
+  }
+  return templateName
+})
+
 const {
   selectedRepo,
   selectedBranch
@@ -725,6 +743,7 @@ const templatePositionChanges = computed(() => {
 })
 
 const form = ref({
+  templateName: '', // For create mode
   title: '',
   description: '',
   category: '',
@@ -832,6 +851,11 @@ const hasOrderChanges = computed(() => {
 
 // Computed: Check if any changes exist
 const hasAnyChanges = computed(() => {
+  // In create mode, always return true (all fields are "new")
+  if (isCreateMode.value) {
+    return true
+  }
+
   return (
     hasFormChanges.value ||
     hasOrderChanges.value ||
@@ -850,6 +874,11 @@ const missingFields = computed(() => {
   if (!form.value.description?.trim()) missing.push('Description')
   if (!form.value.category?.trim()) missing.push('Category')
 
+  // In create mode, workflow file is required (which also provides template name)
+  if (isCreateMode.value && !updatedWorkflowContent.value) {
+    missing.push('Workflow File')
+  }
+
   // Check if required thumbnails exist
   const requiredCount = requiredThumbnailCount.value
   if (thumbnailFiles.value.length < requiredCount) {
@@ -861,7 +890,8 @@ const missingFields = computed(() => {
 
 // Computed: Completion status
 const completionStatus = computed(() => {
-  const totalFields = 6 // Title, Description, Category, Thumbnail(s), Tags, Models
+  // In create mode: 7 fields (add Workflow), in edit mode: 6 fields
+  const totalFields = isCreateMode.value ? 7 : 6
   let completedFields = 0
 
   if (form.value.title?.trim()) completedFields++
@@ -871,6 +901,11 @@ const completionStatus = computed(() => {
   // Thumbnails
   const requiredCount = requiredThumbnailCount.value
   if (thumbnailFiles.value.length >= requiredCount) completedFields++
+
+  // Workflow file (required in create mode, auto-extracts template name)
+  if (isCreateMode.value) {
+    if (updatedWorkflowContent.value) completedFields++
+  }
 
   // Tags (optional but counts toward completion)
   if (form.value.tags.length > 0) completedFields++
@@ -1117,6 +1152,17 @@ const handleInputFilesUpdated = (files: Map<string, File>) => {
   reuploadedInputFiles.value = files
 }
 
+// Handler for template name extracted from workflow filename (create mode only)
+const handleTemplateNameExtracted = (name: string) => {
+  form.value.templateName = name
+  console.log('[Edit Page] Template name extracted from filename:', name)
+
+  // If category is already selected, update the sidebar with new template in first position
+  if (form.value.category) {
+    updateCategoryTemplatesForCreate()
+  }
+}
+
 // Handler for opening converter for input files
 const handleInputFileConversion = (file: File, targetFilename: string, isExisting: boolean) => {
   converterInitialFile.value = file
@@ -1355,9 +1401,79 @@ const handleTemplateReorder = (reorderedTemplates: any[]) => {
 }
 
 // Watch for category changes to reload templates
+// Update category templates with new template in first position (create mode)
+const updateCategoryTemplatesForCreate = async () => {
+  if (!isCreateMode.value || !form.value.category || !form.value.templateName) return
+
+  try {
+    const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+    const branch = selectedBranch.value || 'main'
+    const [owner, repoName] = repo.split('/')
+
+    // Reload index.json to get category templates
+    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json`
+    const response = await fetch(indexUrl)
+
+    if (!response.ok) {
+      console.error('[Create Mode] Failed to load index.json')
+      return
+    }
+
+    const indexData = await response.json()
+
+    // Find the category
+    const categoryData = indexData.find((cat: any) => cat.title === form.value.category)
+    if (!categoryData) {
+      console.error('[Create Mode] Category not found:', form.value.category)
+      return
+    }
+
+    // Get existing templates
+    const existingTemplates = categoryData.templates || []
+
+    // Create a temporary template object for the new template
+    const newTemplate = {
+      name: form.value.templateName,
+      title: form.value.title || form.value.templateName,
+      description: form.value.description || '',
+      mediaType: 'image',
+      mediaSubtype: 'webp'
+    }
+
+    // Add new template at the first position
+    categoryTemplates.value = [newTemplate, ...existingTemplates]
+    originalCategoryTemplates.value = [...categoryTemplates.value]
+
+    console.log('[Create Mode] Added new template to first position:', form.value.templateName)
+  } catch (error) {
+    console.error('[Create Mode] Error updating category templates:', error)
+  }
+}
+
+// Watch for title/description changes in create mode to update sidebar preview
+watch([() => form.value.title, () => form.value.description], () => {
+  if (!isCreateMode.value || !form.value.templateName || !form.value.category) return
+
+  // Update the first template in categoryTemplates (which is the new template)
+  if (categoryTemplates.value.length > 0 && categoryTemplates.value[0].name === form.value.templateName) {
+    categoryTemplates.value[0] = {
+      ...categoryTemplates.value[0],
+      title: form.value.title || form.value.templateName,
+      description: form.value.description || ''
+    }
+  }
+})
+
 watch(() => form.value.category, async (newCategory, oldCategory) => {
   if (!newCategory || newCategory === oldCategory) return
 
+  // In create mode, add new template to first position
+  if (isCreateMode.value) {
+    await updateCategoryTemplatesForCreate()
+    return
+  }
+
+  // In edit mode, just reload the category templates
   try {
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
     const branch = selectedBranch.value || 'main'
@@ -1433,7 +1549,14 @@ onMounted(async () => {
       availableModels.value = Array.from(modelsSet).sort()
     }
 
-    // Find template and its category
+    // In create mode, skip loading existing template
+    if (isCreateMode.value) {
+      console.log('[Create Mode] Skipping template data load')
+      loading.value = false
+      return
+    }
+
+    // Find template and its category (edit mode only)
     let foundTemplate = null
     let foundCategoryTitle = ''
     let foundCategoryTemplates: any[] = []
@@ -1575,12 +1698,14 @@ const handleSubmit = async () => {
     // Prepare files data if there are reuploaded files
     const filesData: any = {}
 
-    // Check if workflow was reuploaded or changed by format conversion
-    if (updatedWorkflowContent.value || hasWorkflowChanged.value) {
+    // In create mode, workflow is always required
+    // In edit mode, only include if workflow was reuploaded or changed
+    if (isCreateMode.value || updatedWorkflowContent.value || hasWorkflowChanged.value) {
       // Use updated content if manually reuploaded, otherwise use modified workflowContent
       const contentToSave = updatedWorkflowContent.value || workflowContent.value
 
-      console.log('[Submit] Workflow changed, saving updates:', {
+      console.log('[Submit] Workflow to save:', {
+        isCreateMode: isCreateMode.value,
         manualReupload: !!updatedWorkflowContent.value,
         formatChanged: hasWorkflowChanged.value
       })
@@ -1618,30 +1743,42 @@ const handleSubmit = async () => {
       }
     }
 
-    // Check if thumbnails were reuploaded
+    // Check if thumbnails were reuploaded (or need to be uploaded in create mode)
     if (reuploadedThumbnails.value.size > 0) {
       filesData.thumbnails = []
+      // Use targetTemplateName (which is form.templateName in create mode)
+      const targetTemplateName = isCreateMode.value ? form.value.templateName : templateName
       for (const [index, file] of reuploadedThumbnails.value) {
         const thumbnailBase64 = await fileToBase64(file)
         const ext = file.name.split('.').pop() || 'webp'
         filesData.thumbnails.push({
           index,
           content: thumbnailBase64.split(',')[1], // Remove data URL prefix
-          filename: `${templateName}-${index}.${ext}`
+          filename: `${targetTemplateName}-${index}.${ext}`
         })
       }
     }
 
-    // Prepare new template order if it was changed
-    const templateOrder = templateOrderChanged.value ? categoryTemplates.value.map(t => t.name) : undefined
+    // Prepare new template order if it was changed (only in edit mode)
+    const templateOrder = !isCreateMode.value && templateOrderChanged.value
+      ? categoryTemplates.value.map(t => t.name)
+      : undefined
 
-    // Call API to update template
-    const response = await $fetch('/api/github/template/update', {
+    // Determine which API endpoint to call based on mode
+    const apiEndpoint = isCreateMode.value
+      ? '/api/github/template/create'
+      : '/api/github/template/update'
+
+    // Get the template name (from form in create mode, from route in edit mode)
+    const targetTemplateName = isCreateMode.value ? form.value.templateName : templateName
+
+    // Call appropriate API endpoint
+    const response = await $fetch(apiEndpoint, {
       method: 'POST',
       body: {
         repo,
         branch,
-        templateName,
+        templateName: targetTemplateName,
         metadata: {
           title: form.value.title,
           description: form.value.description,
@@ -1659,7 +1796,15 @@ const handleSubmit = async () => {
     })
 
     if (response.success) {
-      // Set success state with commit info
+      // In create mode, redirect to the edit page for the newly created template
+      if (isCreateMode.value) {
+        console.log('[Submit] Template created successfully:', response.templateName)
+        // Use navigateTo with replace to avoid back button issues
+        await navigateTo(`/admin/edit/${response.templateName}`, { replace: true })
+        return
+      }
+
+      // Edit mode: Set success state with commit info
       saveSuccess.value = {
         commitSha: response.commit.sha,
         commitUrl: response.commit.url

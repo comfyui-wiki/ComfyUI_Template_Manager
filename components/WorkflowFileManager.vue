@@ -11,7 +11,7 @@
           </div>
           <div>
             <div class="font-semibold text-sm">Workflow File</div>
-            <div class="font-mono text-xs text-muted-foreground">{{ templateName }}.json</div>
+            <div class="font-mono text-xs text-muted-foreground">{{ templateName === 'new' ? 'workflow.json' : `${templateName}.json` }}</div>
           </div>
         </div>
         <div class="flex gap-2">
@@ -20,6 +20,7 @@
             variant="outline"
             size="sm"
             @click="downloadWorkflow"
+            :disabled="!props.workflowContent"
           >
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -35,16 +36,27 @@
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Re-upload
+            {{ templateName === 'new' && !props.workflowContent ? 'Upload' : 'Re-upload' }}
           </Button>
         </div>
       </div>
 
       <!-- Status Message for workflow -->
       <div v-if="workflowStatus"
-           class="p-3 rounded-lg text-sm"
+           class="p-3 rounded-lg text-sm whitespace-pre-line"
            :class="workflowStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
         {{ workflowStatus.message }}
+      </div>
+
+      <!-- Create Mode Hint -->
+      <div v-else-if="templateName === 'new' && !props.workflowContent"
+           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
+        <div class="font-semibold mb-1">📋 Required: Upload Workflow File</div>
+        <div class="text-xs">
+          The filename (without .json) will become the template name.<br>
+          <span class="font-semibold">Example:</span> <code class="bg-blue-100 px-1 rounded">my_template.json</code> → Template name: <code class="bg-blue-100 px-1 rounded font-semibold">my_template</code><br>
+          <span class="text-blue-600">💡 Only letters, numbers, dashes, and underscores allowed. No dots except .json extension.</span>
+        </div>
       </div>
 
       <!-- Format Change Notice -->
@@ -260,6 +272,7 @@ const emit = defineEmits<{
   inputFilesUpdated: [files: Map<string, File>]
   openConverter: [file: File, targetFilename: string, isExisting: boolean]
   formatChanged: [oldFilename: string, newFilename: string]
+  templateNameExtracted: [name: string] // Emit template name from filename
 }>()
 
 // Refs
@@ -399,6 +412,28 @@ const triggerWorkflowUpload = () => {
   workflowFileInput.value?.click()
 }
 
+// Validate template name from filename
+const validateTemplateName = (filename: string): { valid: boolean; name?: string; error?: string } => {
+  // Remove .json extension
+  if (!filename.endsWith('.json')) {
+    return { valid: false, error: 'File must have .json extension' }
+  }
+
+  const nameWithoutExt = filename.slice(0, -5) // Remove '.json'
+
+  // Check if there are other dots in the name (not allowed)
+  if (nameWithoutExt.includes('.')) {
+    return { valid: false, error: 'Template name cannot contain dots (except .json extension)' }
+  }
+
+  // Check for valid characters (alphanumeric, dashes, underscores only)
+  if (!/^[a-zA-Z0-9_\-]+$/.test(nameWithoutExt)) {
+    return { valid: false, error: 'Template name must contain only letters, numbers, dashes, and underscores' }
+  }
+
+  return { valid: true, name: nameWithoutExt }
+}
+
 // Handle workflow reupload
 const handleWorkflowReupload = async (event: Event) => {
   const input = event.target as HTMLInputElement
@@ -410,9 +445,31 @@ const handleWorkflowReupload = async (event: Event) => {
     const text = await file.text()
     JSON.parse(text) // Validate JSON
 
-    workflowStatus.value = {
-      success: true,
-      message: `✓ New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
+    // In create mode (when templateName is 'new'), extract and validate filename
+    if (props.templateName === 'new') {
+      const validation = validateTemplateName(file.name)
+
+      if (!validation.valid) {
+        workflowStatus.value = {
+          success: false,
+          message: `✗ Invalid filename: ${validation.error}`
+        }
+        input.value = ''
+        return
+      }
+
+      // Emit the extracted template name
+      emit('templateNameExtracted', validation.name!)
+
+      workflowStatus.value = {
+        success: true,
+        message: `✓ Workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)\n📝 Template name: ${validation.name}`
+      }
+    } else {
+      workflowStatus.value = {
+        success: true,
+        message: `✓ New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
+      }
     }
 
     emit('workflowUpdated', text)

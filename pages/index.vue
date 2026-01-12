@@ -14,7 +14,7 @@
 
             <Button
               v-if="status === 'authenticated'"
-              @click="navigateTo('/admin/new')"
+              @click="navigateTo('/admin/edit/new')"
               size="lg"
               :disabled="!canEditCurrentRepo"
               :title="canEditCurrentRepo ? 'Create a new template' : 'Select a branch with write access to create templates'"
