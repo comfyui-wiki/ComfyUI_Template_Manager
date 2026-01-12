@@ -1,4 +1,7 @@
 {
+  "customNodeRules": [
+    "DownloadAndLoadDepthAnythingV2Model"
+  ],
   "directoryRules": {
     "DownloadAndLoadDepthAnythingV2Model": "depthanything",
     "CheckpointLoaderSimple": "checkpoints",

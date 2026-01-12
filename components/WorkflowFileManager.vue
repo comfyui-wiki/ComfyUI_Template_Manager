@@ -18,19 +18,22 @@
           <!-- Model Links Validation Button -->
           <Button
             type="button"
-            :variant="props.modelLinksValidation && (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0) ? 'destructive' : 'outline'"
+            :variant="getButtonVariant()"
             size="sm"
             @click="emit('openModelLinksEditor')"
             :disabled="!props.workflowContent"
             :title="getValidationButtonTitle()"
+            :class="{
+              'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500': isWarningOnly()
+            }"
           >
             <!-- Loading icon -->
             <svg v-if="props.modelLinksValidation?.validating" class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <!-- Warning icon for missing/invalid links -->
-            <svg v-else-if="props.modelLinksValidation && (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0)" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <!-- Warning icon for missing/invalid links (standard nodes or custom nodes) -->
+            <svg v-else-if="props.modelLinksValidation && (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0 || props.modelLinksValidation.customNodeMissingLinks > 0)" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <!-- Success icon -->
@@ -45,6 +48,9 @@
             <span v-if="props.modelLinksValidation?.validating">Validating...</span>
             <span v-else-if="props.modelLinksValidation && (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0)">
               Models ({{ props.modelLinksValidation.missingLinks + props.modelLinksValidation.invalidLinks }})
+            </span>
+            <span v-else-if="props.modelLinksValidation && props.modelLinksValidation.customNodeMissingLinks > 0">
+              Models ({{ props.modelLinksValidation.customNodeMissingLinks }} ⚠️)
             </span>
             <span v-else-if="props.modelLinksValidation && props.modelLinksValidation.totalModels > 0">
               Models ✓
@@ -369,6 +375,7 @@ interface Props {
     totalModels: number
     missingLinks: number
     invalidLinks: number
+    customNodeMissingLinks: number
     validating: boolean
   } | null
 }
@@ -528,6 +535,32 @@ const checkInputFilesExistence = async () => {
   }
 }
 
+// Check if only custom node warnings (no errors)
+const isWarningOnly = (): boolean => {
+  if (!props.modelLinksValidation) return false
+  const hasStandardNodeIssues = props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0
+  const hasCustomNodeWarnings = props.modelLinksValidation.customNodeMissingLinks > 0
+  return !hasStandardNodeIssues && hasCustomNodeWarnings
+}
+
+// Get button variant based on validation state
+const getButtonVariant = (): string => {
+  if (!props.modelLinksValidation) return 'outline'
+
+  // Standard node errors → red
+  if (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0) {
+    return 'destructive'
+  }
+
+  // Only custom node warnings → use outline (will be styled yellow with class)
+  if (props.modelLinksValidation.customNodeMissingLinks > 0) {
+    return 'outline'
+  }
+
+  // No issues → gray
+  return 'outline'
+}
+
 // Get validation button title
 const getValidationButtonTitle = (): string => {
   if (!props.modelLinksValidation) {
@@ -536,9 +569,18 @@ const getValidationButtonTitle = (): string => {
   if (props.modelLinksValidation.validating) {
     return 'Checking workflow for model requirements...'
   }
-  if (props.modelLinksValidation.missingLinks > 0 || props.modelLinksValidation.invalidLinks > 0) {
+
+  const standardIssues = props.modelLinksValidation.missingLinks + props.modelLinksValidation.invalidLinks
+  const customWarnings = props.modelLinksValidation.customNodeMissingLinks
+
+  if (standardIssues > 0) {
     return `⚠️ ${props.modelLinksValidation.missingLinks} missing, ${props.modelLinksValidation.invalidLinks} invalid - Click to fix`
   }
+
+  if (customWarnings > 0) {
+    return `⚠️ ${customWarnings} custom node(s) need manual links - Click to add`
+  }
+
   if (props.modelLinksValidation.totalModels > 0) {
     return `✓ All ${props.modelLinksValidation.totalModels} model links validated`
   }

@@ -780,6 +780,7 @@ const modelLinksValidation = ref<{
   totalModels: number
   missingLinks: number
   invalidLinks: number
+  customNodeMissingLinks: number
   validating: boolean
 } | null>(null)
 
@@ -1268,12 +1269,13 @@ const validateModelLinks = async (debounce = false) => {
 
   const runValidation = async () => {
     try {
-      modelLinksValidation.value = { totalModels: 0, missingLinks: 0, invalidLinks: 0, validating: true }
+      modelLinksValidation.value = { totalModels: 0, missingLinks: 0, invalidLinks: 0, customNodeMissingLinks: 0, validating: true }
 
       // Load config
       const configResponse = await fetch('/workflow-model-config.json')
       const config = await configResponse.json()
       const directoryRules = config.directoryRules
+      const customNodeRules = config.customNodeRules || []
 
       // Parse workflow
       const workflow = JSON.parse(currentWorkflow)
@@ -1304,8 +1306,20 @@ const validateModelLinks = async (debounce = false) => {
       let totalModels = 0
       let missingLinks = 0
       let invalidLinks = 0
+      let customNodeMissingLinks = 0
 
       for (const node of modelNodes) {
+        // Check if this is a custom node
+        const isCustomNode = customNodeRules.includes(node.type)
+
+        // For custom nodes, just count if links are missing (warning, not error)
+        if (isCustomNode) {
+          totalModels++
+          // Custom nodes don't have embedded model_url, always count as warning
+          customNodeMissingLinks++
+          continue
+        }
+
         // Check if node has model_url or model_urls in properties
         const hasModelUrl = node.properties?.model_url
         const hasModelUrls = node.properties?.model_urls
@@ -1337,6 +1351,7 @@ const validateModelLinks = async (debounce = false) => {
         totalModels,
         missingLinks,
         invalidLinks,
+        customNodeMissingLinks,
         validating: false
       }
     } catch (error) {

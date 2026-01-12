@@ -104,6 +104,9 @@
                 <span v-if="nodeInfo.node._source === 'subgraph'" class="text-xs px-2 py-0.5 bg-purple-100 text-purple-800 rounded">
                   📦 Subgraph
                 </span>
+                <span v-if="nodeInfo.isCustomNode" class="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded" title="Custom node - manual link addition required">
+                  🔧 Custom Node
+                </span>
               </div>
               <div class="flex items-center gap-2">
                 <span v-if="nodeInfo.hasErrors" class="text-xs text-red-600 font-medium">Errors: {{ nodeInfo.errorCount }}</span>
@@ -220,6 +223,19 @@
               >
                 + Add Model
               </Button>
+
+              <!-- Custom Node Info -->
+              <div v-if="nodeInfo.isCustomNode" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+                <div class="flex items-start gap-2">
+                  <svg class="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="text-blue-900">
+                    <div class="font-semibold mb-1">💡 Custom Node Detected</div>
+                    <p>This is a custom node. Please manually add model download links to the generated note below. The workflow will work without embedding links in properties.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -354,6 +370,7 @@ const nodeRefs = ref<any[]>([])
 // Configuration loaded from public directory
 const config = ref<any>(null)
 const directoryRules = computed(() => config.value?.directoryRules || {})
+const customNodeRules = computed(() => config.value?.customNodeRules || [])
 
 watch(() => props.open, (value) => {
   isOpen.value = value || false
@@ -494,6 +511,9 @@ const parseWorkflow = () => {
     const modelFiles = extractModelFiles(node)
     if (modelFiles.length === 0) continue
 
+    // Check if this is a custom node
+    const isCustomNode = customNodeRules.value.includes(node.type)
+
     const existingModels = node.properties?.models || []
     const models = []
 
@@ -529,6 +549,7 @@ const parseWorkflow = () => {
       node,
       modelFiles,
       existingModels: models,
+      isCustomNode, // Mark if this is a custom node
       hasErrors: false,
       hasWarnings: false,
       errorCount: 0,
@@ -601,12 +622,22 @@ const updateNodeStats = (nodeInfo: any) => {
   let errors = 0
   let warnings = 0
 
-  for (const model of nodeInfo.existingModels) {
-    if (model.nameValid === false || model.urlValid === false) {
-      errors++
+  // Custom nodes only show warnings, not errors
+  if (nodeInfo.isCustomNode) {
+    for (const model of nodeInfo.existingModels) {
+      if (!model.url) {
+        warnings++
+      }
     }
-    if (!model.url) {
-      warnings++
+  } else {
+    // Standard nodes show errors for invalid links
+    for (const model of nodeInfo.existingModels) {
+      if (model.nameValid === false || model.urlValid === false) {
+        errors++
+      }
+      if (!model.url) {
+        warnings++
+      }
     }
   }
 
@@ -746,6 +777,29 @@ const generateNote = () => {
     note += '\n'
   }
 
+  // Add custom nodes section (models without URLs)
+  const customNodeModels: Record<string, any[]> = {}
+  for (const nodeInfo of modelNodes.value) {
+    if (nodeInfo.isCustomNode) {
+      for (const model of nodeInfo.existingModels) {
+        const dir = model.directory || 'unknown'
+        if (!customNodeModels[dir]) customNodeModels[dir] = []
+        customNodeModels[dir].push({ ...model, nodeType: nodeInfo.node.type })
+      }
+    }
+  }
+
+  if (Object.keys(customNodeModels).length > 0) {
+    note += `**Custom Nodes** (Please add download links manually)\n\n`
+    for (const dir in customNodeModels) {
+      note += `*${dir}/* (from custom node loaders)\n`
+      for (const model of customNodeModels[dir]) {
+        note += `- ${model.name} (${model.nodeType}): [Add link here]\n`
+      }
+      note += '\n'
+    }
+  }
+
   // Storage location
   note += template.storageLocationHeader
   for (const dir in modelsByDir) {
@@ -778,8 +832,14 @@ const copyNote = async () => {
 const saveWorkflow = () => {
   if (!workflowData.value) return
 
-  // Update all nodes with model data
+  // Update all nodes with model data (skip custom nodes)
   for (const nodeInfo of modelNodes.value) {
+    // Skip custom nodes - they don't need properties.models
+    if (nodeInfo.isCustomNode) {
+      console.log(`[WorkflowModelLinksEditor] Skipping custom node: ${nodeInfo.node.type}`)
+      continue
+    }
+
     const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
     if (!node) continue
 
