@@ -3,27 +3,141 @@
     <!-- Header -->
     <header class="border-b bg-card">
       <div class="container mx-auto px-4 py-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-2xl font-bold">ComfyUI Templates</h1>
-            <p class="text-sm text-muted-foreground">Browse and manage workflow templates</p>
+        <div class="space-y-3">
+          <!-- Title and Actions Row -->
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-2xl font-bold">ComfyUI Templates</h1>
+              <p class="text-sm text-muted-foreground">Browse and manage workflow templates</p>
+            </div>
+
+            <div class="flex items-center gap-4">
+              <LoginButton />
+
+              <Button
+                v-if="status === 'authenticated' && isMounted"
+                @click="navigateTo('/admin/edit/new')"
+                size="lg"
+                :disabled="!canEditCurrentRepo"
+                :title="canEditCurrentRepo ? 'Create a new template' : 'Select a branch with write access to create templates'"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Template
+              </Button>
+            </div>
           </div>
 
-          <div class="flex items-center gap-4">
-            <LoginButton />
+          <!-- Branch Info and PR Actions -->
+          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center justify-between text-sm">
+            <!-- Branch Info -->
+            <div class="flex items-center gap-3">
+              <a
+                :href="`https://github.com/${selectedRepo}/tree/${selectedBranch}`"
+                target="_blank"
+                class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors group"
+              >
+                <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
+                </svg>
+                <span class="font-mono font-medium text-gray-700">{{ selectedRepo }}</span>
+                <span class="text-gray-400">/</span>
+                <span class="font-mono font-semibold text-gray-900">{{ selectedBranch }}</span>
+                <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
 
-            <Button
-              v-if="status === 'authenticated' && isMounted"
-              @click="navigateTo('/admin/edit/new')"
-              size="lg"
-              :disabled="!canEditCurrentRepo"
-              :title="canEditCurrentRepo ? 'Create a new template' : 'Select a branch with write access to create templates'"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Create Template
-            </Button>
+              <!-- PR Status Badge -->
+              <div v-if="prStatus" class="flex items-center gap-2">
+                <!-- Open PR -->
+                <a
+                  v-if="prStatus.status === 'open'"
+                  :href="prStatus.prUrl"
+                  target="_blank"
+                  class="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded-md transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
+                  </svg>
+                  <span class="font-medium text-xs">PR #{{ prStatus.prNumber }} Open</span>
+                </a>
+
+                <!-- Merged PR -->
+                <a
+                  v-if="prStatus.status === 'merged'"
+                  :href="prStatus.prUrl"
+                  target="_blank"
+                  class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-md transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5 3.254V3.25v.005a.75.75 0 110-.005v.004zm.45 1.9a2.25 2.25 0 10-1.95.218v5.256a2.25 2.25 0 101.5 0V7.123A5.735 5.735 0 009.25 9h1.378a2.251 2.251 0 100-1.5H9.25a4.25 4.25 0 01-3.8-2.346zM12.75 9a.75.75 0 100-1.5.75.75 0 000 1.5zm-8.5 4.5a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
+                  </svg>
+                  <span class="font-medium text-xs">PR #{{ prStatus.prNumber }} Merged</span>
+                </a>
+
+                <!-- Closed PR -->
+                <a
+                  v-if="prStatus.status === 'closed' && !prStatus.isMerged"
+                  :href="prStatus.prUrl"
+                  target="_blank"
+                  class="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded-md transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M3.25 1A2.25 2.25 0 001 3.25v9.5A2.25 2.25 0 003.25 15h9.5A2.25 2.25 0 0015 12.75v-9.5A2.25 2.25 0 0012.75 1h-9.5zm9.5 1.5a.75.75 0 01.75.75v9.5a.75.75 0 01-.75.75h-9.5a.75.75 0 01-.75-.75v-9.5a.75.75 0 01.75-.75h9.5z"/>
+                  </svg>
+                  <span class="font-medium text-xs">PR #{{ prStatus.prNumber }} Closed</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- PR Action Buttons -->
+            <div class="flex items-center gap-2">
+              <!-- Update Branch Button (when PR has new commits) -->
+              <Button
+                v-if="prNeedsUpdate"
+                @click="handleUpdateBranch"
+                size="sm"
+                variant="default"
+                :disabled="isUpdatingBranch"
+                class="gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {{ isUpdatingBranch ? 'Updating...' : `Update Branch (${prUpdateInfo?.comparison?.aheadBy || 0} new)` }}
+              </Button>
+
+              <!-- Browse PRs Button -->
+              <Button
+                v-if="isMounted && status === 'authenticated'"
+                @click="showPRBrowser = true"
+                size="sm"
+                variant="outline"
+                class="gap-2"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
+                </svg>
+                Browse PRs
+              </Button>
+
+              <!-- Create PR Button -->
+              <Button
+                v-if="shouldShowCreatePR"
+                @click="handleCreatePR"
+                size="sm"
+                variant="outline"
+                :disabled="isCreatingPR"
+                class="gap-2"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
+                </svg>
+                {{ isCreatingPR ? 'Creating...' : 'Create Pull Request' }}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -353,6 +467,9 @@
         </div>
       </div>
     </div>
+
+    <!-- PR Browser Dialog -->
+    <PRBrowser v-model:open="showPRBrowser" :repo="selectedRepo" />
   </div>
 </template>
 
@@ -365,6 +482,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import LoginButton from '~/components/LoginButton.vue'
 import TemplateCard from '~/components/TemplateCard.vue'
 import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
+import PRBrowser from '~/components/PRBrowser.vue'
 
 const { status } = useAuth()
 
@@ -402,6 +520,15 @@ const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
 const sortBy = ref('default')
 const noticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
+
+// PR Status
+const prStatus = ref<any>(null)
+const isCreatingPR = ref(false)
+const showPRBrowser = ref(false)
+
+// PR Update Status
+const prUpdateInfo = ref<any>(null)
+const isUpdatingBranch = ref(false)
 
 // Load templates from selected repository and branch
 const loadTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
@@ -461,6 +588,11 @@ onMounted(async () => {
 
   await loadTemplates(owner, name, branch, forceRefresh)
 
+  // Check PR status after loading templates
+  if (status.value === 'authenticated') {
+    await checkPRStatus()
+  }
+
   // Listen for page visibility changes (user returns to this page)
   if (process.client) {
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -491,6 +623,10 @@ const handleVisibilityChange = async () => {
         // Update cache-bust timestamp to force fresh images
         cacheBustTimestamp.value = Date.now()
         await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
+        // Also refresh PR status
+        if (status.value === 'authenticated') {
+          await checkPRStatus()
+        }
       }
     }
 
@@ -502,6 +638,7 @@ const handleVisibilityChange = async () => {
 watch(status, async (newStatus) => {
   if (newStatus === 'authenticated') {
     await initializeGitHub()
+    await checkPRStatus()
   }
 })
 
@@ -698,12 +835,235 @@ const dismissNotice = () => {
   noticeDismissed.value = true
 }
 
+// PR Status Management
+const checkPRStatus = async () => {
+  if (status.value !== 'authenticated' || !selectedRepo.value || !selectedBranch.value) {
+    prStatus.value = null
+    prUpdateInfo.value = null
+    return
+  }
+
+  try {
+    const [owner, repo] = selectedRepo.value.split('/')
+    const response = await $fetch('/api/github/pr/check', {
+      query: {
+        owner,
+        repo,
+        branch: selectedBranch.value
+      }
+    })
+    prStatus.value = response
+    console.log('[PR Status]', response)
+
+    // If PR exists and is open, check if it needs update
+    if (response.hasPR && response.status === 'open' && response.prNumber) {
+      await checkPRNeedsUpdate(response.prNumber)
+    } else {
+      prUpdateInfo.value = null
+    }
+  } catch (error) {
+    console.error('[PR Status] Failed to check:', error)
+    prStatus.value = null
+    prUpdateInfo.value = null
+  }
+}
+
+// Check if PR needs update (has new commits)
+const checkPRNeedsUpdate = async (prNumber: number) => {
+  if (!selectedRepo.value || !selectedBranch.value) {
+    prUpdateInfo.value = null
+    return
+  }
+
+  try {
+    const [owner, repo] = selectedRepo.value.split('/')
+    const response = await $fetch('/api/github/pr/needs-update', {
+      query: {
+        owner,
+        repo,
+        branch: selectedBranch.value,
+        pr_number: prNumber
+      }
+    })
+    prUpdateInfo.value = response
+    console.log('[PR Needs Update]', response)
+  } catch (error) {
+    console.error('[PR Needs Update] Failed to check:', error)
+    prUpdateInfo.value = null
+  }
+}
+
+// Computed: should show "Update Branch" button
+const prNeedsUpdate = computed(() => {
+  return prUpdateInfo.value?.needsUpdate && prUpdateInfo.value?.comparison?.aheadBy > 0
+})
+
+// Determine if we should show "Create PR" button
+const shouldShowCreatePR = computed(() => {
+  if (!selectedRepo.value || !selectedBranch.value) return false
+
+  // Don't show if on main branch
+  if (selectedBranch.value === 'main') return false
+
+  // Don't show if PR already exists (open, merged, or closed)
+  if (prStatus.value && prStatus.value.hasPR) return false
+
+  // Only show if user has write access to the current repo/branch
+  if (!canEditCurrentRepo.value) return false
+
+  // Check if there are commits to create PR from
+  if (prStatus.value?.comparison?.aheadBy === 0) return false
+
+  return true
+})
+
+const handleCreatePR = async () => {
+  if (isCreatingPR.value) return
+
+  const { data: session } = useAuth()
+  const username = session.value?.user?.login
+
+  if (!username || !selectedRepo.value || !selectedBranch.value) {
+    alert('Missing required information to create PR')
+    return
+  }
+
+  // Determine the target repository (main repo)
+  const targetRepo = 'Comfy-Org/workflow_templates'
+  const [targetOwner, targetRepoName] = targetRepo.split('/')
+
+  // Determine the head (source branch)
+  const [currentOwner, currentRepoName] = selectedRepo.value.split('/')
+  const head = currentOwner === targetOwner
+    ? selectedBranch.value  // Same repo, just branch name
+    : `${currentOwner}:${selectedBranch.value}` // Fork, need owner:branch format
+
+  isCreatingPR.value = true
+
+  try {
+    // Generate PR title based on diff stats
+    let title = `Update templates from ${selectedBranch.value}`
+    if (diffStats.value.new > 0 || diffStats.value.modified > 0) {
+      const parts = []
+      if (diffStats.value.new > 0) parts.push(`${diffStats.value.new} new`)
+      if (diffStats.value.modified > 0) parts.push(`${diffStats.value.modified} modified`)
+      if (diffStats.value.deleted > 0) parts.push(`${diffStats.value.deleted} deleted`)
+      title = `Update templates: ${parts.join(', ')}`
+    }
+
+    // Generate PR body
+    const body = `## Changes Summary
+
+${diffStats.value.new > 0 ? `- ✨ **${diffStats.value.new}** new template${diffStats.value.new > 1 ? 's' : ''}` : ''}
+${diffStats.value.modified > 0 ? `- ✏️ **${diffStats.value.modified}** modified template${diffStats.value.modified > 1 ? 's' : ''}` : ''}
+${diffStats.value.deleted > 0 ? `- 🗑️ **${diffStats.value.deleted}** deleted template${diffStats.value.deleted > 1 ? 's' : ''}` : ''}
+
+## Details
+
+This PR contains updates to the ComfyUI workflow templates.
+
+---
+
+📝 Created via [ComfyUI Template Manager](${window.location.origin})
+Branch: \`${selectedBranch.value}\`
+Repository: \`${selectedRepo.value}\``
+
+    const response = await $fetch('/api/github/pr/create', {
+      method: 'POST',
+      body: {
+        owner: targetOwner,
+        repo: targetRepoName,
+        head,
+        base: 'main',
+        title,
+        body
+      }
+    })
+
+    if (response.success) {
+      alert(`Pull request created successfully!\n\nPR #${response.pr.number}: ${response.pr.title}`)
+      // Refresh PR status
+      await checkPRStatus()
+      // Open PR in new tab
+      window.open(response.pr.url, '_blank')
+    } else {
+      alert(`Failed to create PR: ${response.message}`)
+    }
+  } catch (error: any) {
+    console.error('[Create PR] Error:', error)
+    const message = error.data?.message || error.message || 'Failed to create pull request'
+    alert(`Error: ${message}`)
+  } finally {
+    isCreatingPR.value = false
+  }
+}
+
+// Handle Update Branch (pull new commits from PR)
+const handleUpdateBranch = async () => {
+  if (isUpdatingBranch.value || !prUpdateInfo.value?.prHeadSha) return
+
+  if (!selectedRepo.value || !selectedBranch.value) {
+    alert('Missing repository or branch information')
+    return
+  }
+
+  const commitCount = prUpdateInfo.value.comparison?.aheadBy || 0
+  const confirmed = confirm(
+    `This will update your local branch with ${commitCount} new commit${commitCount !== 1 ? 's' : ''} from the PR.\n\n` +
+    `Are you sure you want to continue?`
+  )
+
+  if (!confirmed) return
+
+  isUpdatingBranch.value = true
+
+  try {
+    const [owner, repo] = selectedRepo.value.split('/')
+
+    const response = await $fetch('/api/github/branch/update-from-pr', {
+      method: 'POST',
+      body: {
+        owner,
+        repo,
+        branch: selectedBranch.value,
+        targetSha: prUpdateInfo.value.prHeadSha
+      }
+    })
+
+    if (response.success) {
+      alert(`Branch updated successfully!\n\nYour branch is now up to date with the PR.`)
+
+      // Refresh templates and PR status
+      if (selectedRepo.value && selectedBranch.value) {
+        const [owner, name] = selectedRepo.value.split('/')
+        clearCache(owner, name, selectedBranch.value)
+        cacheBustTimestamp.value = Date.now()
+        await loadTemplates(owner, name, selectedBranch.value, true)
+      }
+      await checkPRStatus()
+    }
+  } catch (error: any) {
+    console.error('[Update Branch] Error:', error)
+    const message = error.data?.message || error.message || 'Failed to update branch'
+    alert(`Error: ${message}\n\nThis might happen if there are conflicts. Please update your branch manually on GitHub.`)
+  } finally {
+    isUpdatingBranch.value = false
+  }
+}
+
 // Reset notice when user gains write access to repository
 watch(hasRepoWriteAccess, (hasAccess) => {
   if (hasAccess) {
     noticeDismissed.value = false
   }
 })
+
+// Watch for repo/branch changes to check PR status
+watch([selectedRepo, selectedBranch], async () => {
+  if (isMounted.value && status.value === 'authenticated') {
+    await checkPRStatus()
+  }
+}, { immediate: false })
 
 useHead({
   title: 'ComfyUI Templates - Browse & Manage'
