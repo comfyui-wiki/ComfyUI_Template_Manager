@@ -70,20 +70,15 @@ Edit `.env` with your configuration:
 
 ```env
 # NextAuth Configuration
-NEXTAUTH_SECRET=your-random-secret-here
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-random-secret-here  # Generate with: openssl rand -base64 32
+NEXTAUTH_URL=http://localhost:3000/api/auth
 
 # GitHub OAuth App
 GITHUB_CLIENT_ID=your-github-oauth-client-id
 GITHUB_CLIENT_SECRET=your-github-oauth-client-secret
-
-# GitHub API Token (for repository operations)
-GITHUB_TOKEN=your-github-personal-access-token
-
-# GitHub Repository Settings (for template submissions)
-GITHUB_OWNER=Comfy-Org
-GITHUB_REPO=workflow_templates
 ```
+
+**Note**: `GITHUB_TOKEN` is NOT required. All GitHub operations use the user's OAuth token obtained during sign-in.
 
 ### 4. Run development server
 
@@ -97,22 +92,22 @@ The application will be available at `http://localhost:3000`
 
 To enable GitHub authentication:
 
-1. Go to GitHub Settings → Developer settings → OAuth Apps
-2. Create a new OAuth App with:
-   - Homepage URL: `http://localhost:3000` (or your production URL)
-   - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
-3. Copy the Client ID and generate a Client Secret
-4. Add these to your `.env` file
+1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Configure the OAuth App:
+   - **Application name**: ComfyUI Template Manager (or your preferred name)
+   - **Homepage URL**:
+     - Development: `http://localhost:3000`
+     - Production: `https://your-domain.vercel.app`
+   - **Authorization callback URL**:
+     - Development: `http://localhost:3000/api/auth/callback/github`
+     - Production: `https://your-domain.vercel.app/api/auth/callback/github`
+4. Click "Register application"
+5. Copy the **Client ID**
+6. Click "Generate a new client secret" and copy the **Client Secret**
+7. Add these to your `.env` file (locally) or Vercel environment variables (production)
 
-## GitHub Token Setup
-
-For repository operations (reading templates, creating branches, etc.):
-
-1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
-2. Generate a new token with the following scopes:
-   - `repo` (Full control of private repositories)
-   - `read:user` (Read user profile data)
-3. Add the token to your `.env` file as `GITHUB_TOKEN`
+**Required OAuth Scopes**: The app automatically requests `read:user`, `user:email`, and `public_repo` permissions during sign-in.
 
 ## Available Scripts
 
@@ -206,12 +201,144 @@ npm run test -- --coverage
 
 ## Deployment
 
-See [Deployment Guide](./docs/deployment.md) for detailed deployment instructions for various platforms.
+### Deploy to Vercel (Recommended)
 
-### Quick Deploy to Vercel
+#### Step 1: Prepare Your GitHub OAuth App
+
+Before deploying, create a GitHub OAuth App with your production URL:
+
+1. Go to [GitHub OAuth Apps](https://github.com/settings/developers)
+2. Create a new OAuth App or update existing one
+3. Set **Authorization callback URL** to: `https://your-domain.vercel.app/api/auth/callback/github`
+   - You can use Vercel's auto-generated domain (e.g., `your-project.vercel.app`)
+   - Or configure a custom domain later
+
+#### Step 2: Deploy to Vercel
+
+**Option A: Using Vercel Dashboard (Recommended)**
+
+1. Go to [vercel.com](https://vercel.com) and sign in
+2. Click "Add New Project"
+3. Import your GitHub repository
+4. Configure project settings:
+   - **Framework Preset**: Nuxt.js (auto-detected)
+   - **Build Command**: `npm run build` (auto-detected)
+   - **Output Directory**: `.output/public` (auto-detected)
+   - **Install Command**: `npm install` (auto-detected)
+5. Add environment variables:
+   - `GITHUB_CLIENT_ID` - Your OAuth App Client ID
+   - `GITHUB_CLIENT_SECRET` - Your OAuth App Client Secret
+   - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
+   - `NEXTAUTH_URL` - `https://your-domain.vercel.app/api/auth`
+6. Click "Deploy"
+
+**Option B: Using Vercel CLI**
 
 ```bash
-npm run deploy:vercel
+# Install Vercel CLI
+npm install -g vercel
+
+# Login to Vercel
+vercel login
+
+# Deploy to production
+vercel --prod
+```
+
+#### Step 3: Update Environment Variables
+
+After deployment, update `NEXTAUTH_URL` in Vercel:
+
+1. Go to your project settings in Vercel
+2. Navigate to "Environment Variables"
+3. Update `NEXTAUTH_URL` to your actual domain: `https://your-actual-domain.vercel.app/api/auth`
+4. Redeploy the project
+
+#### Step 4: Update GitHub OAuth App
+
+Update your GitHub OAuth App callback URL to match your deployed domain:
+
+1. Go to [GitHub OAuth Apps](https://github.com/settings/developers)
+2. Edit your OAuth App
+3. Update **Authorization callback URL** to: `https://your-actual-domain.vercel.app/api/auth/callback/github`
+4. Save changes
+
+### Troubleshooting Vercel Deployment
+
+#### Issue: Page Downloads JSON File Instead of Rendering
+
+**Symptoms**: When you visit your deployed site, it downloads a file named `download` or shows JSON instead of the webpage.
+
+**Solution**:
+
+1. Make sure `vercel.json` exists in your project root with correct configuration (already included in this repo)
+2. Verify the file contains:
+   ```json
+   {
+     "version": 2,
+     "builds": [
+       {
+         "src": "nuxt.config.ts",
+         "use": "@vercel/node"
+       }
+     ],
+     "routes": [
+       {
+         "src": "/(.*)",
+         "dest": "/"
+       }
+     ]
+   }
+   ```
+3. Redeploy your project after adding `vercel.json`
+
+#### Issue: Environment Variables Not Working
+
+**Symptoms**: OAuth fails, or you see "Unauthorized" errors.
+
+**Solution**:
+
+1. Double-check all 4 environment variables are set in Vercel dashboard
+2. Make sure `NEXTAUTH_URL` includes `/api/auth` at the end
+3. Verify GitHub OAuth callback URL matches your Vercel domain exactly
+4. Redeploy after changing environment variables
+
+#### Issue: OAuth Redirect Fails
+
+**Symptoms**: After clicking "Sign in with GitHub", you get a redirect error.
+
+**Solution**:
+
+1. Verify GitHub OAuth App callback URL is: `https://your-domain.vercel.app/api/auth/callback/github`
+2. Make sure `NEXTAUTH_URL` in Vercel is: `https://your-domain.vercel.app/api/auth`
+3. Both URLs must match your actual Vercel domain
+4. Use `https://` (not `http://`) for production
+
+#### Issue: Build Fails
+
+**Symptoms**: Deployment fails during build process.
+
+**Solution**:
+
+1. Check build logs in Vercel dashboard
+2. Verify all dependencies are in `package.json`
+3. Make sure Node.js version is 18+ (configured in Vercel project settings)
+4. Try building locally first: `npm run build`
+
+### Other Deployment Platforms
+
+For deployment to other platforms (Netlify, AWS, etc.), see [Deployment Guide](./docs/deployment.md) (if available).
+
+### Local Production Build
+
+Test the production build locally before deploying:
+
+```bash
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 ## Contributing
