@@ -389,8 +389,36 @@ watch(() => props.open, (value) => {
   }
 }, { immediate: true })
 
-watch(isOpen, (value) => {
+watch(isOpen, (value, oldValue) => {
   emit('update:open', value)
+  // When dialog closes, save models to workflow and emit the updated workflow
+  if (oldValue && !value && workflowData.value) {
+    // Save all model data to node properties before emitting
+    for (const nodeInfo of modelNodes.value) {
+      // Skip custom nodes - they don't need properties.models
+      if (nodeInfo.isCustomNode) continue
+
+      const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
+      if (!node) continue
+
+      if (!node.properties) node.properties = {}
+
+      // Filter valid models
+      const validModels = nodeInfo.existingModels.filter((m: any) =>
+        m.name && m.url && m.directory
+      )
+
+      if (validModels.length > 0) {
+        node.properties.models = validModels.map((m: any) => ({
+          name: m.name,
+          url: m.url,
+          directory: m.directory
+        }))
+      }
+    }
+
+    emit('workflow-updated', workflowData.value)
+  }
 })
 
 // Load configuration on mount

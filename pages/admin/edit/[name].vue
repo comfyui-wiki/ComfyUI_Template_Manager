@@ -701,6 +701,7 @@
     <WorkflowModelLinksEditor
       v-model:open="isModelLinksEditorOpen"
       :initial-workflow="workflowContent || updatedWorkflowContent"
+      @workflow-updated="handleModelLinksWorkflowUpdated"
     />
   </div>
   <!-- Close min-h-screen container -->
@@ -1322,7 +1323,21 @@ const validateModelLinks = async (debounce = false) => {
           continue
         }
 
-        // Check if node has model_url or model_urls in properties
+        // Check if node has models array (from Model Links Editor)
+        const hasModels = node.properties?.models
+        if (hasModels && Array.isArray(hasModels) && hasModels.length > 0) {
+          for (const model of hasModels) {
+            totalModels++
+            if (!model.url || model.url.trim() === '') {
+              missingLinks++
+            } else if (!model.url.includes('http')) {
+              invalidLinks++
+            }
+          }
+          continue
+        }
+
+        // Check if node has model_url or model_urls in properties (legacy format)
         const hasModelUrl = node.properties?.model_url
         const hasModelUrls = node.properties?.model_urls
 
@@ -1372,6 +1387,17 @@ const validateModelLinks = async (debounce = false) => {
 // Handler for opening model links editor
 const openModelLinksEditor = () => {
   isModelLinksEditorOpen.value = true
+}
+
+// Handler for workflow updated from model links editor
+const handleModelLinksWorkflowUpdated = (updatedWorkflow: any) => {
+  console.log('[Edit Page] Model links workflow updated')
+  // Update the workflow content with the new version that has model links
+  const workflowJson = JSON.stringify(updatedWorkflow, null, 2)
+  updatedWorkflowContent.value = workflowJson
+
+  // Re-validate immediately with the updated content
+  validateModelLinks()
 }
 
 // Download thumbnail file
