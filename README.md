@@ -265,32 +265,24 @@ Update your GitHub OAuth App callback URL to match your deployed domain:
 
 ### Troubleshooting Vercel Deployment
 
-#### Issue: Page Downloads JSON File Instead of Rendering
+#### Issue: 404 Error or Page Not Found
 
-**Symptoms**: When you visit your deployed site, it downloads a file named `download` or shows JSON instead of the webpage.
+**Symptoms**: When you visit your deployed site, you see a 404 error or "Page Not Found" message.
 
 **Solution**:
 
-1. Make sure `vercel.json` exists in your project root with correct configuration (already included in this repo)
-2. Verify the file contains:
-   ```json
-   {
-     "version": 2,
-     "builds": [
-       {
-         "src": "nuxt.config.ts",
-         "use": "@vercel/node"
-       }
-     ],
-     "routes": [
-       {
-         "src": "/(.*)",
-         "dest": "/"
-       }
-     ]
-   }
-   ```
-3. Redeploy your project after adding `vercel.json`
+1. **Do NOT use `vercel.json`** - Vercel has built-in support for Nuxt 3 and will automatically detect it
+2. If you have a `vercel.json` file, delete it: `rm vercel.json`
+3. Make sure your `nuxt.config.ts` has `ssr: true` (already configured)
+4. Verify environment variables are set correctly in Vercel dashboard
+5. Check build logs in Vercel for any errors
+6. Redeploy after removing `vercel.json`
+
+**Note**: For Nuxt 3, Vercel automatically:
+- Detects the framework
+- Uses the correct build command (`npm run build`)
+- Configures the output directory (`.output`)
+- Sets up serverless functions for SSR
 
 #### Issue: Environment Variables Not Working
 
