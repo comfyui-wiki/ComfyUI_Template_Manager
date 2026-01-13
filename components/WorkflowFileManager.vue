@@ -88,70 +88,164 @@
 
       <!-- Status Message for workflow -->
       <div v-if="workflowStatus"
-           class="p-3 rounded-lg text-sm whitespace-pre-line"
+           class="p-3 rounded-lg text-sm"
            :class="workflowStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
-        {{ workflowStatus.message }}
-      </div>
+        <div class="whitespace-pre-line">{{ workflowStatus.message }}</div>
 
-      <!-- Template Name Editor (Create Mode) -->
-      <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus?.success"
-           class="p-3 rounded-lg text-sm bg-amber-50 border border-amber-200">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-semibold text-amber-800">📝 Template Name</div>
-          <button
-            v-if="!isEditingTemplateName"
-            type="button"
-            @click="startEditTemplateName"
-            class="text-xs px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
-          >
-            Edit Name
-          </button>
-        </div>
-
-        <div v-if="!isEditingTemplateName" class="flex items-center gap-2">
-          <span class="text-xs text-amber-600">Current name:</span>
-          <code class="px-2 py-1 bg-amber-100 rounded font-mono text-sm font-semibold text-amber-900">
-            {{ extractedTemplateName }}
-          </code>
-        </div>
-
-        <div v-else class="space-y-2">
-          <div>
-            <input
-              v-model="editingTemplateNameValue"
-              type="text"
-              class="w-full px-2 py-1.5 text-sm border rounded font-mono"
-              :class="{
-                'border-red-500 focus:ring-red-500': templateNameError,
-                'border-amber-300 focus:ring-amber-500': !templateNameError
-              }"
-              placeholder="my_template_name"
-              @keydown.enter="saveTemplateName"
-              @keydown.esc="cancelEditTemplateName"
-            />
-            <div v-if="templateNameError" class="text-xs text-red-600 mt-1">
-              {{ templateNameError }}
+        <!-- Template Name Editor (Create Mode - Integrated) -->
+        <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus.success" class="mt-3 pt-3 border-t border-green-200">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              <span class="font-semibold">Template Name</span>
             </div>
-            <div v-else class="text-xs text-amber-600 mt-1">
-              Only letters, numbers, dashes, and underscores allowed
+            <button
+              v-if="!isEditingTemplateName"
+              type="button"
+              @click="startEditTemplateName"
+              class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+            >
+              Edit Name
+            </button>
+          </div>
+
+          <div v-if="!isEditingTemplateName" class="flex items-center gap-2">
+            <code class="px-2 py-1 bg-green-100 rounded font-mono text-sm font-semibold text-green-900">
+              {{ extractedTemplateName }}
+            </code>
+          </div>
+
+          <div v-else class="space-y-2">
+            <div>
+              <input
+                v-model="editingTemplateNameValue"
+                type="text"
+                class="w-full px-2 py-1.5 text-sm border rounded font-mono"
+                :class="{
+                  'border-red-500 focus:ring-red-500': templateNameError,
+                  'border-green-300 focus:ring-green-500': !templateNameError
+                }"
+                placeholder="my_template_name"
+                @keydown.enter="saveTemplateName"
+                @keydown.esc="cancelEditTemplateName"
+              />
+              <div v-if="templateNameError" class="text-xs text-red-600 mt-1">
+                {{ templateNameError }}
+              </div>
+              <div v-else class="text-xs text-green-600 mt-1">
+                Only letters, numbers, dashes, and underscores allowed
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                @click="saveTemplateName"
+                :disabled="!!templateNameError || !editingTemplateNameValue.trim()"
+                class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                @click="cancelEditTemplateName"
+                class="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Cancel
+              </button>
             </div>
           </div>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              @click="saveTemplateName"
-              :disabled="!!templateNameError || !editingTemplateNameValue.trim()"
-              class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              @click="cancelEditTemplateName"
-              class="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
-            >
-              Cancel
-            </button>
+        </div>
+      </div>
+
+      <!-- Duplicate Name Warning (Create Mode) -->
+      <div v-if="templateName === 'new' && duplicateNameWarning"
+           class="p-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-300 flex items-start gap-2">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>{{ duplicateNameWarning }}</span>
+      </div>
+
+      <!-- Naming Rule Warning -->
+      <div v-if="namingRuleWarning"
+           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
+        {{ namingRuleWarning }}
+      </div>
+
+      <!-- Naming Rules Notes (Collapsible) -->
+      <div v-if="namingRules" class="border rounded-lg overflow-hidden">
+        <button
+          type="button"
+          @click="showNamingNotes = !showNamingNotes"
+          class="w-full px-3 py-2 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="font-medium text-gray-700">Template Naming Guidelines</span>
+          </div>
+          <svg
+            class="w-4 h-4 text-gray-600 transition-transform"
+            :class="{ 'rotate-180': showNamingNotes }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div v-if="showNamingNotes" class="p-4 bg-white border-t text-sm space-y-3">
+          <!-- Category Prefixes -->
+          <div v-if="namingRules.namingRules">
+            <div class="font-semibold text-gray-800 mb-2">📂 Category Prefixes</div>
+            <div class="space-y-1.5 text-xs">
+              <div v-for="(rule, category) in namingRules.namingRules" :key="category" class="flex items-start gap-2">
+                <code class="px-1.5 py-0.5 bg-gray-100 rounded font-mono text-xs">{{ rule.prefix }}</code>
+                <span class="text-gray-600">{{ rule.description }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Practices -->
+          <div v-if="namingRules.notes?.bestPractices">
+            <div class="font-semibold text-gray-800 mb-2">✨ Best Practices</div>
+            <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+              <li v-for="(practice, index) in namingRules.notes.bestPractices" :key="index">
+                {{ practice }}
+              </li>
+            </ul>
+          </div>
+
+          <!-- General Notes -->
+          <div v-if="namingRules.notes?.general" class="text-xs text-gray-600 pt-2 border-t">
+            {{ namingRules.notes.general }}
+          </div>
+
+          <!-- Examples -->
+          <div v-if="namingRules.notes?.examples" class="pt-2 border-t">
+            <div class="grid grid-cols-2 gap-3">
+              <div v-if="namingRules.notes.examples.good">
+                <div class="font-semibold text-green-700 mb-1.5 text-xs">✓ Good Examples</div>
+                <div class="space-y-1">
+                  <code v-for="(example, index) in namingRules.notes.examples.good" :key="'good-' + index"
+                        class="block px-2 py-1 bg-green-50 text-green-800 rounded font-mono text-xs">
+                    {{ example }}
+                  </code>
+                </div>
+              </div>
+              <div v-if="namingRules.notes.examples.bad">
+                <div class="font-semibold text-red-700 mb-1.5 text-xs">✗ Bad Examples</div>
+                <div class="space-y-1">
+                  <code v-for="(example, index) in namingRules.notes.examples.bad" :key="'bad-' + index"
+                        class="block px-2 py-1 bg-red-50 text-red-800 rounded font-mono text-xs">
+                    {{ example }}
+                  </code>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -371,6 +465,7 @@ interface Props {
   repo: string
   branch: string
   workflowContent?: string
+  category?: string
   modelLinksValidation?: {
     totalModels: number
     missingLinks: number
@@ -401,14 +496,24 @@ const workflowParsed = ref(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const inputFileWarnings = ref<Map<string, string>>(new Map())
 const pendingConversionFiles = ref<Map<string, File>>(new Map())
-const formatChangedFiles = ref<Map<string, string>>(new Map()) // new filename -> old filename
-const editingFilename = ref<string | null>(null)
-const tempFilename = ref<string>('')
+
+// Naming rules
+const namingRules = ref<any>(null)
+const namingRuleWarning = ref<string | null>(null)
+const showNamingNotes = ref(false)
 
 // Template name editing state (create mode)
 const extractedTemplateName = ref<string>('')
 const isEditingTemplateName = ref(false)
 const editingTemplateNameValue = ref<string>('')
+const duplicateNameWarning = ref<string | null>(null)
+
+// Filename editing state
+const editingFilename = ref<string | null>(null)
+const tempFilename = ref<string>('')
+
+// Format change tracking
+const formatChangedFiles = ref<Map<string, string>>(new Map())
 
 // Node types that require input assets (from Python script)
 const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo']
@@ -449,6 +554,124 @@ const formatFileSize = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+}
+
+// Load naming rules from config file
+const loadNamingRules = async () => {
+  try {
+    // Add cache busting to force fresh load
+    const cacheBuster = Date.now()
+    const response = await fetch(`/config/template-naming-rules.json?t=${cacheBuster}`)
+    if (!response.ok) {
+      console.warn('Failed to load naming rules config')
+      return
+    }
+    namingRules.value = await response.json()
+    console.log('[WorkflowFileManager] Naming rules loaded:', namingRules.value)
+  } catch (error) {
+    console.error('Error loading naming rules:', error)
+  }
+}
+
+// Validate template name against category naming rules
+const validateTemplateNameAgainstCategory = () => {
+  if (!namingRules.value || !props.category || props.templateName === 'new') {
+    namingRuleWarning.value = null
+    return
+  }
+
+  const rules = namingRules.value.namingRules
+  const categoryRule = rules[props.category]
+
+  if (!categoryRule) {
+    namingRuleWarning.value = null
+    return
+  }
+
+  const expectedPrefix = categoryRule.prefix
+  const templateName = props.templateName
+
+  if (!templateName.startsWith(expectedPrefix)) {
+    namingRuleWarning.value = `💡 Templates in "${props.category}" category should start with "${expectedPrefix}". Example: ${categoryRule.example}`
+  } else {
+    namingRuleWarning.value = null
+  }
+}
+
+// Check if template name already exists in the library
+const checkDuplicateTemplateName = async (templateName: string): Promise<{ exists: boolean; category?: string }> => {
+  try {
+    const [owner, repoName] = props.repo.split('/')
+    // Always check main branch for duplicates, not the current working branch
+    const checkBranch = 'main'
+    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${checkBranch}/templates/index.json`
+
+    console.log('[Duplicate Check] Fetching templates from:', url)
+    console.log('[Duplicate Check] Checking template name:', templateName)
+    console.log('[Duplicate Check] Current working branch:', props.branch, '| Checking against branch:', checkBranch)
+
+    const response = await fetch(url)
+    if (!response.ok) {
+      console.warn('Failed to fetch templates index for duplicate check')
+      return { exists: false }
+    }
+
+    const data = await response.json()
+
+    // Handle both array format (actual) and object format (legacy)
+    const categories = Array.isArray(data) ? data : (data.categories || [])
+
+    console.log('[Duplicate Check] JSON structure:', Array.isArray(data) ? 'Array' : 'Object')
+    console.log('[Duplicate Check] Found categories:', categories.length)
+
+    // Collect ALL matching templates across ALL categories
+    const matchingCategories: string[] = []
+    let totalTemplateCount = 0
+
+    // Check all categories for existing template
+    for (const category of categories) {
+      const templateCount = category.templates?.length || 0
+      totalTemplateCount += templateCount
+      console.log('[Duplicate Check] Checking category:', category.title, '- Templates:', templateCount)
+
+      if (category.templates && Array.isArray(category.templates)) {
+        // Log first template structure for debugging (only once)
+        if (matchingCategories.length === 0 && category.templates.length > 0) {
+          console.log('[Duplicate Check] Sample template structure:', JSON.stringify(category.templates[0], null, 2))
+        }
+
+        const exists = category.templates.some((t: any) => {
+          // Check both 'name' field and potential filename without .json extension
+          const templateNameMatch = t.name === templateName
+          const filenameMatch = t.file === templateName || t.file === `${templateName}.json`
+
+          if (templateNameMatch || filenameMatch) {
+            console.log('[Duplicate Check] MATCH FOUND in category:', category.title, '| Template:', JSON.stringify(t, null, 2))
+          }
+
+          return templateNameMatch || filenameMatch
+        })
+
+        if (exists) {
+          matchingCategories.push(category.title)
+        }
+      }
+    }
+
+    console.log('[Duplicate Check] Total templates scanned:', totalTemplateCount)
+
+    if (matchingCategories.length > 0) {
+      const categoryList = matchingCategories.join(', ')
+      console.log('[Duplicate Check] ⚠️ FOUND DUPLICATE in', matchingCategories.length, 'category(ies):', categoryList)
+      return { exists: true, category: categoryList }
+    }
+
+    console.log('[Duplicate Check] ✓ No duplicate found')
+    return { exists: false }
+  } catch (error) {
+    console.error('Error checking duplicate template name:', error)
+    return { exists: false }
+  }
 }
 
 // Parse workflow JSON to extract input file references
@@ -617,7 +840,7 @@ const startEditTemplateName = () => {
   isEditingTemplateName.value = true
 }
 
-const saveTemplateName = () => {
+const saveTemplateName = async () => {
   const newName = editingTemplateNameValue.value.trim()
 
   if (!newName || templateNameError.value) {
@@ -627,6 +850,14 @@ const saveTemplateName = () => {
   // Update extracted name
   extractedTemplateName.value = newName
   isEditingTemplateName.value = false
+
+  // Check for duplicate name
+  const duplicateCheck = await checkDuplicateTemplateName(newName)
+  if (duplicateCheck.exists) {
+    duplicateNameWarning.value = `A template with the name "${newName}" already exists in: ${duplicateCheck.category}. Saving will update/overwrite the existing template. Please rename if you want to create a new template.`
+  } else {
+    duplicateNameWarning.value = null
+  }
 
   // Emit the new name
   emit('templateNameExtracted', newName)
@@ -681,6 +912,7 @@ const handleWorkflowReupload = async (event: Event) => {
           success: false,
           message: `✗ Invalid filename: ${validation.error}`
         }
+        duplicateNameWarning.value = null
         input.value = ''
         return
       }
@@ -690,6 +922,14 @@ const handleWorkflowReupload = async (event: Event) => {
       // Reset editing state
       isEditingTemplateName.value = false
       editingTemplateNameValue.value = ''
+
+      // Check for duplicate name
+      const duplicateCheck = await checkDuplicateTemplateName(validation.name!)
+      if (duplicateCheck.exists) {
+        duplicateNameWarning.value = `A template with the name "${validation.name}" already exists in: ${duplicateCheck.category}. Saving will update/overwrite the existing template. Please rename the file if you want to create a new template.`
+      } else {
+        duplicateNameWarning.value = null
+      }
 
       // Emit the extracted template name
       emit('templateNameExtracted', validation.name!)
@@ -703,6 +943,7 @@ const handleWorkflowReupload = async (event: Event) => {
         success: true,
         message: `✓ New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
       }
+      duplicateNameWarning.value = null
     }
 
     emit('workflowUpdated', text)
@@ -717,6 +958,7 @@ const handleWorkflowReupload = async (event: Event) => {
       success: false,
       message: `✗ Invalid JSON file: ${error instanceof Error ? error.message : 'Unknown error'}`
     }
+    duplicateNameWarning.value = null
   }
 
   // Reset input
@@ -1100,4 +1342,15 @@ watch(() => props.workflowContent, async (newContent) => {
   workflowParsed.value = true
   await checkInputFilesExistence()
 }, { immediate: true })
+
+// Watch for category changes to re-validate template name
+watch(() => props.category, () => {
+  validateTemplateNameAgainstCategory()
+})
+
+// Load naming rules on mount
+onMounted(async () => {
+  await loadNamingRules()
+  validateTemplateNameAgainstCategory()
+})
 </script>

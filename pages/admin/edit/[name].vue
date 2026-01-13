@@ -188,6 +188,7 @@
             :repo="selectedRepo"
             :branch="selectedBranch"
             :workflow-content="workflowContent"
+            :category="form.category"
             :model-links-validation="modelLinksValidation"
             @workflow-updated="handleWorkflowUpdated"
             @input-files-updated="handleInputFilesUpdated"

@@ -1,0 +1,41 @@
+{
+  "namingRules": {
+    "Use cases": {
+      "prefix": "template-",
+      "description": "Templates in 'Use cases' category should start with 'template-'",
+      "example": "template-portrait-lighting"
+    },
+    "Utility": {
+      "prefix": "utility-",
+      "description": "Templates in 'Utility' category should start with 'utility-'",
+      "example": "utility-batch-processor"
+    },
+    "Getting Started": {
+      "prefix": "gs-",
+      "description": "Templates in 'Getting Started' category should start with 'gs-'",
+      "example": "gs-first-workflow"
+    }
+  },
+  "notes": {
+    "general": "Template names should be lowercase with hyphens separating words (kebab-case). Avoid using spaces, underscores, or special characters.",
+    "bestPractices": [
+      "Keep names descriptive but concise (under 50 characters)",
+      "Use hyphens (-) instead of underscores (_) or spaces",
+      "Include the main feature or purpose in the name",
+      "Avoid version numbers in the template name (use metadata instead)"
+    ],
+    "examples": {
+      "good": [
+        "template-portrait-light-migration",
+        "utility-batch-image-processor",
+        "gs-text-to-image-basics"
+      ],
+      "bad": [
+        "MyTemplate123",
+        "template_with_underscores",
+        "template with spaces",
+        "ver2.0-template"
+      ]
+    }
+  }
+}
