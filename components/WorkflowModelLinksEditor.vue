@@ -9,6 +9,27 @@
       </DialogHeader>
 
       <div class="flex-1 overflow-y-auto space-y-4">
+        <!-- Notification Toast -->
+        <div
+          v-if="notification"
+          class="p-3 rounded-lg text-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300"
+          :class="{
+            'bg-green-50 text-green-800 border border-green-200': notification.type === 'success',
+            'bg-red-50 text-red-800 border border-red-200': notification.type === 'error',
+            'bg-blue-50 text-blue-800 border border-blue-200': notification.type === 'info'
+          }"
+        >
+          <span>{{ notification.message }}</span>
+          <button
+            @click="notification = null"
+            class="ml-4 text-current opacity-70 hover:opacity-100"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
         <!-- Upload Section -->
         <Card v-if="!workflowData">
           <CardContent class="pt-6">
@@ -368,6 +389,18 @@ const tutorialTitle = ref('Tutorial')
 const generatedNote = ref('')
 const nodeRefs = ref<any[]>([])
 
+// Notification system
+const notification = ref<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+let notificationTimeout: ReturnType<typeof setTimeout> | null = null
+
+const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+  notification.value = { message, type }
+  if (notificationTimeout) clearTimeout(notificationTimeout)
+  notificationTimeout = setTimeout(() => {
+    notification.value = null
+  }, 3000)
+}
+
 // Configuration loaded from public directory
 const config = ref<any>(null)
 const directoryRules = computed(() => config.value?.directoryRules || {})
@@ -478,7 +511,7 @@ const handleFileUpload = async (event: Event) => {
     await parseJSON()
   } catch (error) {
     console.error('Failed to read file:', error)
-    alert('Failed to read file')
+    showNotification('Failed to read file', 'error')
   }
 }
 
@@ -492,7 +525,7 @@ const parseJSON = async () => {
     parseWorkflow()
   } catch (error: any) {
     console.error('Failed to parse JSON:', error)
-    alert(`Failed to parse JSON: ${error.message}`)
+    showNotification(`Failed to parse JSON: ${error.message}`, 'error')
   } finally {
     parsing.value = false
   }
@@ -690,10 +723,10 @@ const convertHuggingFaceUrl = (model: any) => {
   if (url.includes('huggingface.co') && !url.includes('/resolve/')) {
     if (url.includes('/blob/')) {
       model.url = url.replace('/blob/', '/resolve/')
-      alert('Converted Hugging Face blob link to resolve link')
+      showNotification('Converted Hugging Face blob link to resolve link', 'success')
     } else if (url.includes('/tree/')) {
       model.url = url.replace('/tree/', '/resolve/')
-      alert('Converted Hugging Face tree link to resolve link')
+      showNotification('Converted Hugging Face tree link to resolve link', 'success')
     }
   }
 
@@ -851,9 +884,10 @@ const copyNote = async () => {
 
   try {
     await navigator.clipboard.writeText(generatedNote.value)
-    alert('Note copied to clipboard!')
+    showNotification('Note copied to clipboard!', 'success')
   } catch (error) {
     console.error('Failed to copy:', error)
+    showNotification('Failed to copy to clipboard', 'error')
   }
 }
 
@@ -903,7 +937,7 @@ const saveWorkflow = () => {
   URL.revokeObjectURL(url)
 
   emit('workflow-updated', workflowData.value)
-  alert(`Workflow downloaded as ${filename}!`)
+  showNotification(`Workflow downloaded as ${filename}!`, 'success')
 }
 
 // Reset editor
