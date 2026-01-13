@@ -559,9 +559,8 @@ const formatFileSize = (bytes: number): string => {
 // Load naming rules from config file
 const loadNamingRules = async () => {
   try {
-    // Add cache busting to force fresh load
-    const cacheBuster = Date.now()
-    const response = await fetch(`/config/template-naming-rules.json?t=${cacheBuster}`)
+    // Fetch from API endpoint instead of public folder
+    const response = await fetch('/api/config/template-naming-rules.json')
     if (!response.ok) {
       console.warn('Failed to load naming rules config')
       return

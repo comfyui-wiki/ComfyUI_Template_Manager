@@ -1276,8 +1276,8 @@ const validateModelLinks = async (debounce = false) => {
     try {
       modelLinksValidation.value = { totalModels: 0, missingLinks: 0, invalidLinks: 0, customNodeMissingLinks: 0, validating: true }
 
-      // Load config
-      const configResponse = await fetch('/workflow-model-config.json')
+      // Load config from API endpoint
+      const configResponse = await fetch('/api/config/workflow-model-config.json')
       const config = await configResponse.json()
       const directoryRules = config.directoryRules
       const customNodeRules = config.customNodeRules || []

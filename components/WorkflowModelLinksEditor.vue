@@ -458,7 +458,8 @@ watch(isOpen, (value, oldValue) => {
 // Load configuration on mount
 onMounted(async () => {
   try {
-    const response = await fetch('/workflow-model-config.json')
+    // Fetch from API endpoint instead of public folder
+    const response = await fetch('/api/config/workflow-model-config.json')
     config.value = await response.json()
   } catch (error) {
     console.error('[WorkflowModelLinksEditor] Failed to load config:', error)

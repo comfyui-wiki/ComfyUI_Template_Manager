@@ -1,42 +1,58 @@
 {
   "namingRules": {
     "Use cases": {
-      "prefix": "templates-",
-      "description": "Templates in 'Use cases' category should start with 'template-'",
-      "example": "template-portrait-lighting"
+      "prefix": "image_",
+      "description": "Templates in 'Use cases' category should start with 'image_'",
+      "example": "image_portrait_lighting"
     },
     "Utility": {
-      "prefix": "utility-",
-      "description": "Templates in 'Utility' category should start with 'utility-'",
-      "example": "utility-batch-processor"
+      "prefix": "utility_",
+      "description": "Templates in 'Utility' category should start with 'utility_'",
+      "example": "utility_batch_processor"
     },
     "Getting Started": {
-      "prefix": "gs-",
-      "description": "Templates in 'Getting Started' category should start with 'gs-'",
-      "example": "gs-first-workflow"
+      "prefix": "gs_",
+      "description": "Templates in 'Getting Started' category should start with 'gs_'",
+      "example": "gs_first_workflow"
+    },
+    "Video": {
+      "prefix": "video_",
+      "description": "Video templates should start with 'video_'",
+      "example": "video_animation_workflow"
+    },
+    "Image": {
+      "prefix": "image_",
+      "description": "Image templates should start with 'image_'",
+      "example": "image_portrait_generation"
+    },
+    "API": {
+      "prefix": "api_",
+      "description": "API-based templates should start with 'api_'",
+      "example": "api_text_to_image"
     }
   },
   "notes": {
-    "general": "Template names should be lowercase with hyphens separating words (kebab-case). Avoid using spaces, underscores, or special characters.",
+    "general": "Template names should be lowercase with underscores separating words (snake_case). Avoid using spaces, hyphens, or special characters.",
     "bestPractices": [
       "Keep names descriptive but concise (under 50 characters)",
-      "Use hyphens (-) underscores (_) instead of spaces",
+      "Use underscores (_) instead of hyphens (-) or spaces",
       "Include the main feature or purpose in the name",
+      "Add type prefix: video_, image_, or api_",
       "Avoid version numbers in the template name (use metadata instead)"
     ],
     "examples": {
       "good": [
-        "template-portrait-light-migration",
+        "image_portrait_light_migration",
         "utility_batch_image_processor",
-        "utility-batch-image-processor",
-        "gs-text-to-image-basics"
+        "video_animation_generator",
+        "api_text_to_image_basic",
+        "gs_first_workflow"
       ],
       "bad": [
         "MyTemplate123",
-        "template_with_underscores",
+        "template-with-hyphens",
         "template with spaces",
-        "template with spaces-V2.0",
-        "ver2.0-template"
+        "ver2.0_template"
       ]
     }
   }

@@ -68,15 +68,22 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 
 /components
   ThumbnailConverter.vue      # Image/video to WebP converter (for thumbnails)
-  InputAssetConverter.vue     # Flexible converter for input assets (NEW)
+  InputAssetConverter.vue     # Flexible converter for input assets
   ThumbnailPreview.vue        # Preview component with variants
   TemplateCardPreview.vue     # Template card preview
   WorkflowFileManager.vue     # Workflow and input files manager
+  WorkflowModelLinksEditor.vue # Model links editor
 
 /server/api
+  /config
+    [name].ts                 # Config file API endpoint (NEW)
   /github
     /template
       update.post.ts          # Update template endpoint
+
+/config
+  template-naming-rules.json  # Template naming conventions (NEW)
+  workflow-model-config.json  # Workflow model configuration (NEW)
 
 /composables
   useGitHubRepo.ts            # GitHub repo state management
@@ -105,10 +112,25 @@ NEXTAUTH_URL=http://localhost:3000/api/auth
 ### nuxt.config.ts
 
 Key settings:
-- SSR enabled
+- **SSR enabled** (kept enabled for optimal SEO and initial page load, despite minor hydration warnings)
 - Auth: `@sidebase/nuxt-auth` with GitHub provider
 - FFmpeg excluded from Vite optimization
 - Default repo: `Comfy-Org/workflow_templates`
+
+### Configuration Files
+
+All configuration files are stored in `/config/` and served via the API endpoint `/api/config/[name].json`:
+
+**`/config/template-naming-rules.json`**:
+- Template naming conventions (snake_case with type prefixes)
+- Category-specific prefix rules
+- Best practices and examples
+- Used by: `WorkflowFileManager` component
+
+**`/config/workflow-model-config.json`**:
+- Workflow model type definitions
+- URL patterns for model validation
+- Used by: `WorkflowModelLinksEditor` component and edit page
 
 ---
 
@@ -289,6 +311,122 @@ Key settings:
 - **User education > forced restrictions**: Show clear warnings but let users decide
 - **No popups**: Inline error messages are friendlier and more accessible
 
+### 11. Template Naming Rules System
+**Problem**: No standardized naming convention for templates across categories
+**Solution**:
+- Created `/config/template-naming-rules.json` for category-based naming rules
+- Integrated naming guidelines in `WorkflowFileManager` component
+- Added collapsible UI section showing best practices, examples, and warnings
+- Non-blocking soft warnings when names don't match expected patterns
+
+**Naming Convention**:
+- **Format**: `snake_case` (underscores, not hyphens)
+- **Type Prefixes**:
+  - `video_` - Video templates
+  - `image_` - Image templates
+  - `api_` - API-based templates
+  - `utility_` - Utility templates
+  - `gs_` - Getting Started templates
+
+**Examples**:
+- ✅ Good: `image_portrait_light_migration`, `video_animation_generator`, `api_text_to_image_basic`
+- ❌ Bad: `MyTemplate123`, `template-with-hyphens`, `template with spaces`, `ver2.0_template`
+
+**Features**:
+- Category-specific prefix rules (e.g., "Use cases" → `image_` prefix)
+- Collapsible guidelines section with best practices
+- Auto-loads rules from API endpoint on component mount
+- Shows amber warnings for naming violations (non-blocking)
+- Updates in real-time as user types template name
+
+**Files**:
+- Config: `/config/template-naming-rules.json`
+- Component: `components/WorkflowFileManager.vue:559-573` (load rules), `90-132` (UI)
+- API: `/server/api/config/[name].ts` (serves config)
+
+### 12. Duplicate Template Detection
+**Problem**: Users could accidentally overwrite existing templates with same name
+**Solution**:
+- Implemented comprehensive duplicate detection across ALL categories
+- Always checks against `main` branch (not working branch) for accuracy
+- Scans entire template library, not just current category
+- Shows red warning banner with warning icon when duplicate found
+
+**Features**:
+- **Comprehensive Scanning**: Checks all categories in the template library
+- **Main Branch Validation**: Always compares against `main` branch templates
+- **Flexible Matching**: Matches both `name` field and `file` field (with/without .json)
+- **Multi-Category Detection**: Lists all categories where duplicate exists
+- **Visual Feedback**: Red warning box with icon and detailed message
+- **Real-time Check**: Validates on workflow file upload in create mode
+- **Non-Blocking**: User can proceed after seeing warning (informed decision)
+
+**Technical Details**:
+- Fetches `templates/index.json` from `main` branch via raw.githubusercontent.com
+- Handles both array format (current) and object format (legacy)
+- Logs detailed debug info for troubleshooting
+- Returns category list when duplicate found
+
+**Warning Message Example**:
+```
+⚠️ A template with the name "image_flux2" already exists in: Image, Use cases
+Please rename your template or proceed to update the existing one.
+```
+
+**Files**:
+- Component: `components/WorkflowFileManager.vue:598-667` (detection logic), `163-169` (UI)
+- UI Integration: Shown in create mode (`templateName === 'new'`)
+
+### 13. Configuration System Unification
+**Problem**: Configuration files scattered between `/public/config/` and `/config/` causing inconsistency
+**Solution**:
+- Unified all configuration files into project root `/config/` directory
+- Created dedicated API endpoint to serve configuration files
+- Updated all components to fetch from API instead of public folder
+- Improved security by restricting access to allowed config files only
+
+**Architecture**:
+```
+/config/                                    ← Project root configs
+  ├── template-naming-rules.json           ← Template naming conventions
+  └── workflow-model-config.json           ← Workflow model configuration
+
+/server/api/config/[name].ts               ← API endpoint serving configs
+```
+
+**Security Features**:
+- Whitelist-based access (only allowed config files can be fetched)
+- Server-side file reading (no direct file access from client)
+- Cache headers (60s cache for performance)
+- Error handling with proper status codes
+
+**API Endpoint**: `GET /api/config/[name].json`
+- Allowed configs: `template-naming-rules.json`, `workflow-model-config.json`
+- Returns parsed JSON with appropriate cache headers
+- Returns 404 for unauthorized config files
+- Returns 500 with error message on read failure
+
+**Updated Components**:
+1. `WorkflowFileManager.vue` - Template naming rules
+2. `WorkflowModelLinksEditor.vue` - Workflow model config
+3. `pages/admin/edit/[name].vue` - Workflow model config
+
+**Files**:
+- API: `/server/api/config/[name].ts` (new)
+- Config 1: `/config/template-naming-rules.json`
+- Config 2: `/config/workflow-model-config.json`
+- Updates: `WorkflowFileManager.vue:559-573`, `WorkflowModelLinksEditor.vue:462`, `pages/admin/edit/[name].vue:1280`
+
+**Deleted**:
+- `/public/config/` directory (removed entirely)
+
+**Benefits**:
+- Single source of truth for configuration
+- Better security (server-controlled access)
+- Easier maintenance (one config per file type)
+- Cache optimization with proper headers
+- Type-safe with whitelist validation
+
 ---
 
 ## Data Flow
@@ -399,6 +537,62 @@ Key settings:
 ---
 
 ## API Endpoints
+
+### GET `/api/config/[name].json`
+
+**Description**: Serves configuration files from the `/config/` directory
+
+**Parameters**:
+- `name` (path parameter): Config file name (e.g., `template-naming-rules.json`)
+
+**Allowed Configs**:
+- `template-naming-rules.json` - Template naming conventions and best practices
+- `workflow-model-config.json` - Workflow model configuration
+
+**Response**:
+```typescript
+// For template-naming-rules.json
+{
+  namingRules: {
+    [categoryName: string]: {
+      prefix: string
+      description: string
+      example: string
+    }
+  }
+  notes: {
+    general: string
+    bestPractices: string[]
+    examples: {
+      good: string[]
+      bad: string[]
+    }
+  }
+}
+
+// For workflow-model-config.json
+{
+  modelTypes: {
+    [type: string]: {
+      label: string
+      description?: string
+      urlPatterns?: string[]
+    }
+  }
+}
+```
+
+**Headers**:
+- `Cache-Control: public, max-age=60` (60-second cache)
+
+**Error Responses**:
+- `400` - Config name is required
+- `404` - Config not found (not in allowed list)
+- `500` - Failed to read config file
+
+**Files**: `/server/api/config/[name].ts`
+
+---
 
 ### POST `/api/github/template/update`
 
@@ -528,6 +722,7 @@ exposed: {
 3. **File Size**: Large videos may exceed browser memory limits
 4. **Git Operations**: No conflict resolution, assumes linear history
 5. **Image Cropping**: Video cropping uses transform matrix, may need validation
+6. **SSR Hydration Warnings**: Minor Vue SSR hydration mismatch warnings may appear in browser console during development. These are non-critical and don't affect functionality. SSR is kept enabled for optimal SEO and initial page load performance.
 
 ---
 
@@ -734,5 +929,5 @@ For issues, check:
 
 ---
 
-**Last Updated**: 2026-01-12
-**Version**: 1.0.0
+**Last Updated**: 2026-01-13
+**Version**: 1.1.0
