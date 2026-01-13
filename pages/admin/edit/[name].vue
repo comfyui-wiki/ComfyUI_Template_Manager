@@ -81,63 +81,63 @@
         </div>
       </div>
 
-      <!-- Completion Progress Bar -->
-      <div class="w-full bg-muted/30 px-4 py-2">
+      <!-- Completion Progress Bar / Read-Only Notice -->
+      <div class="w-full px-4 py-2" :class="canEditCurrentRepo ? 'bg-muted/30' : 'bg-amber-50 border-t border-amber-200'">
         <div class="container mx-auto">
-          <div class="flex items-center justify-between mb-1">
-            <div class="text-xs font-medium">
-              <span>Completion</span>
-              <span class="ml-2 text-muted-foreground">
-                {{ completionStatus.completed }}/{{ completionStatus.total }} fields
-              </span>
-            </div>
-            <div class="text-xs font-semibold" :class="{
-              'text-green-600': completionStatus.percentage === 100,
-              'text-amber-600': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
-              'text-red-600': completionStatus.percentage < 50
-            }">
-              {{ completionStatus.percentage }}%
+          <!-- Read-Only Mode Notice -->
+          <div v-if="!canEditCurrentRepo" class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <div class="flex-1">
+              <p class="text-xs text-amber-900 font-medium">
+                Read-Only Mode: Viewing <span class="font-mono">{{ selectedRepo }}</span> / <span class="font-mono">{{ selectedBranch }}</span>
+              </p>
+              <p class="text-xs text-amber-700 mt-0.5">
+                You cannot edit or save changes on this branch.
+              </p>
             </div>
           </div>
-          <div class="w-full bg-muted rounded-full h-2">
-            <div
-              class="h-2 rounded-full transition-all duration-300"
-              :class="{
-                'bg-green-500': completionStatus.percentage === 100,
-                'bg-amber-500': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
-                'bg-red-500': completionStatus.percentage < 50
-              }"
-              :style="{ width: `${completionStatus.percentage}%` }"
-            ></div>
-          </div>
-          <!-- Missing Fields Hint -->
-          <div v-if="missingFields.length > 0" class="mt-1 text-xs text-red-600">
-            ⚠️ Required: {{ missingFields.join(', ') }}
+
+          <!-- Completion Progress (Edit Mode) -->
+          <div v-if="canEditCurrentRepo">
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs font-medium">
+                <span>Completion</span>
+                <span class="ml-2 text-muted-foreground">
+                  {{ completionStatus.completed }}/{{ completionStatus.total }} fields
+                </span>
+              </div>
+              <div class="text-xs font-semibold" :class="{
+                'text-green-600': completionStatus.percentage === 100,
+                'text-amber-600': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+                'text-red-600': completionStatus.percentage < 50
+              }">
+                {{ completionStatus.percentage }}%
+              </div>
+            </div>
+            <div class="w-full bg-muted rounded-full h-2">
+              <div
+                class="h-2 rounded-full transition-all duration-300"
+                :class="{
+                  'bg-green-500': completionStatus.percentage === 100,
+                  'bg-amber-500': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+                  'bg-red-500': completionStatus.percentage < 50
+                }"
+                :style="{ width: `${completionStatus.percentage}%` }"
+              ></div>
+            </div>
+            <!-- Missing Fields Hint -->
+            <div v-if="missingFields.length > 0" class="mt-1 text-xs text-red-600">
+              ⚠️ Required: {{ missingFields.join(', ') }}
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Read-Only Mode Banner -->
-    <div v-if="!canEditCurrentRepo" class="fixed top-[110px] left-0 right-0 z-40 border-b bg-amber-50">
-      <div class="container mx-auto px-4 py-3">
-        <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div class="flex-1">
-            <p class="text-sm text-amber-900 font-medium">Read-Only Mode - Editing Disabled</p>
-            <p class="text-xs text-amber-800 mt-1">
-              You're viewing this template from <span class="font-mono font-semibold">{{ selectedRepo }}</span> / <span class="font-mono font-semibold">{{ selectedBranch }}</span>.
-              You cannot edit or save changes. To edit templates, please switch to a branch you have write access to.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Content with top padding for fixed header + completion bar -->
-    <div :class="canEditCurrentRepo ? 'pt-[140px]' : 'pt-[200px]'">
+    <!-- Main Content with top padding for fixed header + status bar -->
+    <div class="pt-[140px]">
       <!-- Loading State -->
       <div v-if="loading" class="container mx-auto px-4 py-12 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
@@ -1772,7 +1772,24 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
   }
 })
 
+// Watch for permission changes (both create and edit modes)
+watch(canEditCurrentRepo, async (hasPermission) => {
+  if (!hasPermission) {
+    const errorType = isCreateMode.value ? 'no_permission_create' : 'no_permission_edit'
+    console.warn(`[Edit Page] Permission lost for ${isCreateMode.value ? 'create' : 'edit'} mode, redirecting to home`)
+    await navigateTo(`/?error=${errorType}`)
+  }
+})
+
 onMounted(async () => {
+  // Check permissions for both create and edit modes
+  if (!canEditCurrentRepo.value) {
+    const errorType = isCreateMode.value ? 'no_permission_create' : 'no_permission_edit'
+    console.warn(`[Edit Page] No permission to ${isCreateMode.value ? 'create' : 'edit'} templates on this branch, redirecting to home`)
+    await navigateTo(`/?error=${errorType}`)
+    return
+  }
+
   try {
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
     const branch = selectedBranch.value || 'main'

@@ -90,10 +90,15 @@
       <div v-if="workflowStatus"
            class="p-3 rounded-lg text-sm"
            :class="workflowStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
-        <div class="whitespace-pre-line">{{ workflowStatus.message }}</div>
+        <div class="flex items-start gap-2">
+          <svg v-if="workflowStatus.success" class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div class="whitespace-pre-line flex-1">{{ workflowStatus.message }}</div>
+        </div>
 
         <!-- Template Name Editor (Create Mode - Integrated) -->
-        <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus.success" class="mt-3 pt-3 border-t border-green-200">
+        <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus.success" class="mt-4 pt-4 border-t border-green-200">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +166,7 @@
 
       <!-- Duplicate Name Warning (Create Mode) -->
       <div v-if="templateName === 'new' && duplicateNameWarning"
-           class="p-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-300 flex items-start gap-2">
+           class="mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-300 flex items-start gap-2">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
@@ -170,25 +175,28 @@
 
       <!-- Naming Rule Warning -->
       <div v-if="namingRuleWarning"
-           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
-        {{ namingRuleWarning }}
+           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="flex-1">{{ namingRuleWarning }}</div>
       </div>
 
       <!-- Naming Rules Notes (Collapsible) -->
-      <div v-if="namingRules" class="border rounded-lg overflow-hidden">
+      <div v-if="namingRules" class="mt-4 border rounded-lg overflow-hidden bg-white">
         <button
           type="button"
           @click="showNamingNotes = !showNamingNotes"
-          class="w-full px-3 py-2 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+          class="w-full px-4 py-2.5 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
         >
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span class="font-medium text-gray-700">Template Naming Guidelines</span>
           </div>
           <svg
-            class="w-4 h-4 text-gray-600 transition-transform"
+            class="w-4 h-4 text-gray-500 transition-transform"
             :class="{ 'rotate-180': showNamingNotes }"
             fill="none"
             stroke="currentColor"
@@ -252,27 +260,34 @@
 
       <!-- Create Mode Hint -->
       <div v-else-if="templateName === 'new' && !props.workflowContent"
-           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
-        <div class="font-semibold mb-1">📋 Required: Upload Workflow File</div>
-        <div class="text-xs">
-          The filename (without .json) will become the template name.<br>
-          <span class="font-semibold">Example:</span> <code class="bg-blue-100 px-1 rounded">my_template.json</code> → Template name: <code class="bg-blue-100 px-1 rounded font-semibold">my_template</code><br>
-          <span class="text-blue-600">💡 Only letters, numbers, dashes, and underscores allowed. No dots except .json extension.</span>
+           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <div class="flex-1">
+          <div class="font-semibold mb-1">Upload Workflow File to Start</div>
+          <div class="text-xs text-blue-600">
+            The filename (without .json) will become the template name. Example: <code class="bg-blue-100 px-1 rounded">my_template.json</code> → <code class="bg-blue-100 px-1 rounded font-semibold">my_template</code>
+          </div>
         </div>
       </div>
 
       <!-- Format Change Notice -->
       <div v-if="formatChangeNotice"
-           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
-        <div class="font-semibold mb-1">🔄 Input File Format Changed</div>
-        <div class="text-xs">
-          Workflow JSON has been automatically updated:<br>
-          <code class="bg-blue-100 px-1 rounded">{{ formatChangeNotice.oldFilename }}</code>
-          →
-          <code class="bg-blue-100 px-1 rounded font-semibold">{{ formatChangeNotice.newFilename }}</code>
-        </div>
-        <div class="text-xs mt-2 text-blue-600">
-          💡 The old file will be deleted and the new file will be uploaded when you save.
+           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <div class="flex-1">
+          <div class="font-semibold mb-1">Input File Format Changed</div>
+          <div class="text-xs">
+            <code class="bg-blue-100 px-1 rounded">{{ formatChangeNotice.oldFilename }}</code>
+            →
+            <code class="bg-blue-100 px-1 rounded font-semibold">{{ formatChangeNotice.newFilename }}</code>
+          </div>
+          <div class="text-xs mt-1.5 text-blue-600">
+            Changes will be applied when you save.
+          </div>
         </div>
       </div>
 
@@ -287,26 +302,24 @@
     </div>
 
     <!-- Input Files Section -->
-    <div v-if="inputFileRefs.length > 0" class="p-4 border-2 rounded-lg" :class="hasWarnings ? 'border-amber-300 bg-amber-50/50' : 'border-border bg-card'">
-      <div class="flex items-center gap-2 mb-3">
-        <svg v-if="hasWarnings" class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <svg v-else class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-        </svg>
-        <h3 class="font-semibold text-sm">Input Files Required by Workflow</h3>
-        <span class="ml-auto text-xs px-2 py-1 rounded" :class="hasWarnings ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'">
+    <div v-if="inputFileRefs.length > 0" class="mt-6 p-4 border-2 rounded-lg" :class="hasWarnings ? 'border-amber-300 bg-amber-50/50' : 'border-border bg-card'">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <svg v-if="hasWarnings" class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <svg v-else class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          <h3 class="font-semibold">Input Files Required by Workflow</h3>
+        </div>
+        <span class="text-xs px-2.5 py-1 rounded font-medium" :class="hasWarnings ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'">
           {{ inputFileRefs.filter(f => f.exists).length }}/{{ inputFileRefs.length }} uploaded
         </span>
       </div>
 
-      <p class="text-xs text-muted-foreground mb-4">
-        These files are referenced in the workflow JSON and must be uploaded to the <code class="bg-muted px-1 py-0.5 rounded font-mono text-xs">input/</code> folder.
-      </p>
-
       <!-- Input File List -->
-      <div class="space-y-2">
+      <div class="space-y-3">
         <div
           v-for="fileRef in inputFileRefs"
           :key="fileRef.filename"
@@ -935,12 +948,12 @@ const handleWorkflowReupload = async (event: Event) => {
 
       workflowStatus.value = {
         success: true,
-        message: `✓ Workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)\n📝 Template name: ${validation.name}`
+        message: `Workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`
       }
     } else {
       workflowStatus.value = {
         success: true,
-        message: `✓ New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
+        message: `New workflow file loaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB). Click "Save Changes" to apply.`
       }
       duplicateNameWarning.value = null
     }

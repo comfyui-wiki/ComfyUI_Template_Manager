@@ -143,6 +143,28 @@
       </div>
     </header>
 
+    <!-- Error Banner -->
+    <div v-if="errorMessage" class="border-b bg-red-50">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm text-red-900 font-medium">{{ errorMessage }}</p>
+          </div>
+          <button
+            @click="errorMessage = null"
+            class="text-red-600 hover:text-red-800 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Browsing PR Notice Banner (always show when viewing PR branch) -->
     <div v-if="isMounted && isViewingPR && !prNoticeDismissed" class="border-b bg-purple-50">
       <div class="container mx-auto px-4 py-3">
@@ -528,6 +550,10 @@ import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
 import PRBrowser from '~/components/PRBrowser.vue'
 
 const { status } = useAuth()
+const route = useRoute()
+
+// Error message from redirects
+const errorMessage = ref<string | null>(null)
 
 // GitHub repo and branch management
 const {
@@ -631,6 +657,25 @@ const fetchLatestCommitSha = async (owner: string, repo: string, branch: string)
 
 // Initial load - initialize GitHub and load templates
 onMounted(async () => {
+  // Check for error messages from redirects
+  if (route.query.error === 'no_permission_create') {
+    errorMessage.value = 'Cannot create templates on this branch. You need write access to create templates.'
+    // Clear error message after 8 seconds
+    setTimeout(() => {
+      errorMessage.value = null
+      // Clean up URL
+      navigateTo('/', { replace: true })
+    }, 8000)
+  } else if (route.query.error === 'no_permission_edit') {
+    errorMessage.value = 'Cannot edit templates on this branch. You need write access to edit templates.'
+    // Clear error message after 8 seconds
+    setTimeout(() => {
+      errorMessage.value = null
+      // Clean up URL
+      navigateTo('/', { replace: true })
+    }, 8000)
+  }
+
   // Mark as mounted to enable client-only rendering
   isMounted.value = true
 
