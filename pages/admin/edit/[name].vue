@@ -701,6 +701,7 @@
     <WorkflowModelLinksEditor
       v-model:open="isModelLinksEditorOpen"
       :initial-workflow="workflowContent || updatedWorkflowContent"
+      :workflow-filename="`${templateName}.json`"
       @workflow-updated="handleModelLinksWorkflowUpdated"
     />
   </div>

@@ -348,6 +348,7 @@ import { Textarea } from '~/components/ui/textarea'
 interface Props {
   open?: boolean
   initialWorkflow?: any
+  workflowFilename?: string
 }
 
 const props = defineProps<Props>()
@@ -893,14 +894,16 @@ const saveWorkflow = () => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'workflow_updated.json'
+  // Use the provided workflow filename, or fallback to generic name
+  const filename = props.workflowFilename || 'workflow_updated.json'
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 
   emit('workflow-updated', workflowData.value)
-  alert('Workflow JSON downloaded successfully!')
+  alert(`Workflow downloaded as ${filename}!`)
 }
 
 // Reset editor
