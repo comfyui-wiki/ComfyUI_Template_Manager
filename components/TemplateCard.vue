@@ -256,7 +256,7 @@ const onImageError = () => {
 }
 
 const openInCloud = () => {
-  const cloudUrl = `https://cloud.comfy.org/?template=templates-${props.template.name}`
+  const cloudUrl = `https://cloud.comfy.org/?template=${props.template.name}`
   window.open(cloudUrl, '_blank')
 }
 
