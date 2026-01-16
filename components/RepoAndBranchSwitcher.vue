@@ -289,8 +289,11 @@ const newBranchName = ref('')
 const showDebugInfo = ref(false) // Collapsed by default
 
 const suggestedBranchName = computed(() => {
-  const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  return `template-update-${timestamp}`
+  const now = new Date()
+  // Format: YYYYMMDD-HHmmss (e.g., 20260117-143052)
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const time = now.toISOString().slice(11, 19).replace(/:/g, '')
+  return `template-update-${date}-${time}`
 })
 
 // Check if currently selected repo is the user's fork
