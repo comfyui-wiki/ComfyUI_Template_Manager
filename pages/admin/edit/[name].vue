@@ -599,6 +599,50 @@
                     </div>
                   </div>
 
+                  <!-- Platform Distribution -->
+                  <div class="space-y-2">
+                    <Label class="text-sm font-medium">Platform Availability (optional)</Label>
+                    <p class="text-xs text-muted-foreground mb-2">
+                      Select which platforms this template should be available on. Leave empty for all platforms.
+                    </p>
+
+                    <div class="space-y-2">
+                      <label class="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          value="cloud"
+                          v-model="form.includeOnDistributions"
+                          class="w-4 h-4 text-primary rounded"
+                        />
+                        <span class="text-sm">Cloud (ComfyUI Cloud)</span>
+                      </label>
+
+                      <label class="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          value="desktop"
+                          v-model="form.includeOnDistributions"
+                          class="w-4 h-4 text-primary rounded"
+                        />
+                        <span class="text-sm">Desktop (Desktop application)</span>
+                      </label>
+
+                      <label class="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          value="local"
+                          v-model="form.includeOnDistributions"
+                          class="w-4 h-4 text-primary rounded"
+                        />
+                        <span class="text-sm">Local (Local installations, includes desktop)</span>
+                      </label>
+                    </div>
+
+                    <p class="text-xs text-muted-foreground mt-2">
+                      <span class="font-medium">Note:</span> If no platforms are selected, the template will be available on all platforms.
+                    </p>
+                  </div>
+
                   <!-- Required Custom Nodes -->
                   <div class="space-y-2">
                     <Label for="requiresCustomNodes">Required Custom Nodes (optional)</Label>
@@ -960,6 +1004,7 @@ const form = ref({
   comfyuiVersion: '',
   date: '',
   openSource: true, // Default to true (open source)
+  includeOnDistributions: [] as string[], // Platform availability: ['cloud', 'desktop', 'local'] or empty for all
   sizeGB: 0, // Size in GB (will be converted to bytes when saving)
   vramGB: 0, // VRAM in GB (will be converted to bytes when saving)
   usage: 0,
@@ -1104,7 +1149,8 @@ const hasFormChanges = computed(() => {
     form.value.searchRank !== (originalTemplate.value.searchRank || 0) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
     JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort()) ||
-    JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort())
+    JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort()) ||
+    JSON.stringify(form.value.includeOnDistributions.sort()) !== JSON.stringify((originalTemplate.value.includeOnDistributions || []).sort())
   )
 })
 
@@ -2089,6 +2135,7 @@ onMounted(async () => {
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
     form.value.date = foundTemplate.date || ''
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
+    form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
     // Convert bytes to GB for display
     form.value.sizeGB = bytesToGB(foundTemplate.size || 0)
     form.value.vramGB = bytesToGB(foundTemplate.vram || 0)
@@ -2301,6 +2348,7 @@ const handleSubmit = async () => {
           comfyuiVersion: form.value.comfyuiVersion,
           date: form.value.date,
           openSource: form.value.openSource,
+          includeOnDistributions: form.value.includeOnDistributions,
           // Convert GB to bytes for storage
           size: gbToBytes(form.value.sizeGB),
           vram: gbToBytes(form.value.vramGB),

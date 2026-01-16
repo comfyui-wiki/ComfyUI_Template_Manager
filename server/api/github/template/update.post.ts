@@ -17,6 +17,7 @@ interface UpdateTemplateRequest {
     comfyuiVersion?: string
     date?: string
     openSource?: boolean
+    includeOnDistributions?: string[]
     size?: number
     vram?: number
     usage?: number
@@ -145,6 +146,13 @@ export default defineEventHandler(async (event) => {
       if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
       if (metadata.date) templateData.date = metadata.date
       if (metadata.openSource !== undefined) templateData.openSource = metadata.openSource
+      if (metadata.includeOnDistributions !== undefined) {
+        if (metadata.includeOnDistributions.length === 0) {
+          delete templateData.includeOnDistributions
+        } else {
+          templateData.includeOnDistributions = metadata.includeOnDistributions
+        }
+      }
       if (metadata.size !== undefined) templateData.size = metadata.size
       if (metadata.vram !== undefined) templateData.vram = metadata.vram
       if (metadata.usage !== undefined) templateData.usage = metadata.usage

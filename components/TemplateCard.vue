@@ -122,12 +122,28 @@
           </div>
         </div>
 
-        <!-- Try on Cloud button -->
-        <Button size="sm" class="w-full text-xs h-9" @click="openInCloud">
+        <!-- Try on Cloud button - check platform availability -->
+        <Button
+          v-if="!template.includeOnDistributions || template.includeOnDistributions.length === 0 || template.includeOnDistributions.includes('cloud')"
+          size="sm"
+          class="w-full text-xs h-9"
+          @click="openInCloud"
+        >
           <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
           </svg>
           Try on Cloud
+        </Button>
+        <Button
+          v-else
+          size="sm"
+          class="w-full text-xs h-9"
+          disabled
+        >
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+          Not available on cloud
         </Button>
 
         <!-- Edit, Download and View buttons (icon only for space) -->
