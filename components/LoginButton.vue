@@ -48,5 +48,12 @@ const signOut = async () => {
 
   // Call the actual auth sign out
   await authSignOut()
+
+  // Force page reload to ensure all state is reset
+  // This prevents any stale fork/branch data from persisting
+  if (process.client) {
+    console.log('[Sign Out] Reloading page to ensure clean state')
+    window.location.href = '/'
+  }
 }
 </script>
