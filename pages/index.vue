@@ -478,52 +478,21 @@
             <p class="text-muted-foreground mb-4">Try adjusting your search or filters</p>
           </div>
 
-          <!-- Templates Grid -->
-          <div v-else>
-            <!-- When specific category selected, show flat grid -->
-            <div v-if="selectedCategory !== 'all'" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-              <TemplateCard
-                v-for="template in filteredTemplates"
-                :key="template.name"
-                :template="template"
-                :category="template.categoryTitle"
-                :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
-                :repo="selectedRepo"
-                :branch="selectedBranch"
-                :cache-bust="cacheBustTimestamp"
-                :commit-sha="latestCommitSha"
-                @edit="editTemplate"
-                @view="viewTemplate"
-              />
-            </div>
-
-            <!-- When all categories, group by category -->
-            <div v-else>
-              <div v-for="category in displayCategories" :key="category.title" class="mb-12">
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 class="text-xl font-semibold">{{ category.title }}</h2>
-                    <p class="text-sm text-muted-foreground">{{ getCategoryTemplates(category).length }} templates</p>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                  <TemplateCard
-                    v-for="template in getCategoryTemplates(category)"
-                    :key="template.name"
-                    :template="template"
-                    :category="category.title"
-                    :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
-                    :repo="selectedRepo"
-                    :branch="selectedBranch"
-                    :cache-bust="cacheBustTimestamp"
-                    :commit-sha="latestCommitSha"
-                    @edit="editTemplate"
-                    @view="viewTemplate"
-                  />
-                </div>
-              </div>
-            </div>
+          <!-- Templates Grid - Always show flat grid for proper sorting -->
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            <TemplateCard
+              v-for="template in filteredTemplates"
+              :key="template.name"
+              :template="template"
+              :category="template.categoryTitle"
+              :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
+              :repo="selectedRepo"
+              :branch="selectedBranch"
+              :cache-bust="cacheBustTimestamp"
+              :commit-sha="latestCommitSha"
+              @edit="editTemplate"
+              @view="viewTemplate"
+            />
           </div>
         </div>
       </div>
@@ -973,16 +942,24 @@ const filteredTemplates = computed(() => {
   return templates
 })
 
-const displayCategories = computed(() => {
-  if (selectedCategory.value !== 'all') {
-    return categories.value.filter((c: any) => c.title === selectedCategory.value)
-  }
+// Note: displayCategories and getCategoryTemplates are no longer used
+// since we now always show a flat grid for proper sorting functionality
+// Keeping these commented out in case we want to restore category grouping in the future
 
-  // Filter categories that have matching templates
-  return categories.value.filter((c: any) => {
-    return getCategoryTemplates(c).length > 0
-  })
-})
+// const displayCategories = computed(() => {
+//   if (selectedCategory.value !== 'all') {
+//     return categories.value.filter((c: any) => c.title === selectedCategory.value)
+//   }
+//
+//   // Filter categories that have matching templates
+//   return categories.value.filter((c: any) => {
+//     return getCategoryTemplates(c).length > 0
+//   })
+// })
+
+// const getCategoryTemplates = (category: any) => {
+//   return filteredTemplates.value.filter(t => t.categoryTitle === category.title)
+// }
 
 // Methods
 const clearFilters = () => {
@@ -991,10 +968,6 @@ const clearFilters = () => {
   selectedRunsOn.value = 'all'
   selectedDiffStatus.value = 'all'
   searchQuery.value = ''
-}
-
-const getCategoryTemplates = (category: any) => {
-  return filteredTemplates.value.filter(t => t.categoryTitle === category.title)
 }
 
 const editTemplate = (template: any) => {

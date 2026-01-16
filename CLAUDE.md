@@ -136,7 +136,48 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 ## Recent Implementations
 
-### 1. Additional Template Metadata Fields (2026-01-16)
+### 1. Flat Template Grid for All Categories (2026-01-16)
+**Problem**: In "All Templates" mode, templates were still grouped by category, preventing proper sorting
+**Solution**:
+- Changed display logic to always show flat grid regardless of category selection
+- Removed category grouping in "All Templates" mode
+- All sorting options (latest, oldest, name, default) now work correctly across all templates
+- Category badge still shown on each template card for context
+
+**Benefits**:
+- ✅ Sorting by date/name works across ALL templates
+- ✅ Better user experience for browsing large template sets
+- ✅ Consistent UI behavior between "All" and specific category views
+- ✅ Category information preserved via badge on each card
+
+**Files**:
+- Frontend: `pages/index.vue` (simplified template display logic)
+
+### 2. GitHub API for Fresh Data (2026-01-16)
+**Problem**: GitHub CDN caching prevented seeing latest data after fork sync
+**Solution**:
+- Added dual-mode data fetching in `/api/github/templates`:
+  - Default: `raw.githubusercontent.com` (fast, CDN cached)
+  - Refresh: `api.github.com` (bypasses CDN, always fresh)
+- Implemented `useApi` query parameter to switch between modes
+- Updated `fetchTemplates` to use API mode when force refreshing
+- Added detailed console logging to show which method is used
+
+**Technical Details**:
+```typescript
+// Default (fast): Uses CDN
+query: { owner, repo, branch, useApi: 'false' }
+
+// Refresh (fresh): Bypasses CDN
+query: { owner, repo, branch, useApi: 'true' }
+```
+
+**Files**:
+- API: `server/api/github/templates.get.ts` (dual-mode support)
+- Composable: `composables/useTemplateDiff.ts` (useApi parameter)
+- Frontend: `pages/index.vue` (refresh button)
+
+### 3. Additional Template Metadata Fields (2026-01-16)
 **Problem**: Templates had limited metadata fields; size/vram values were not user-friendly (stored in bytes)
 **Solution**:
 - Added support for 5 new metadata fields:
