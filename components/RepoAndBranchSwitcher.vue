@@ -30,13 +30,15 @@
           </SelectContent>
         </Select>
 
-        <!-- Fork prompt if no access and no fork -->
-        <div v-if="!hasMainRepoAccess && !hasFork" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+        <!-- Fork prompt if no fork exists -->
+        <div v-if="!hasFork" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
           <p class="text-blue-800 mb-2">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Fork the repository to contribute templates
+            {{ hasMainRepoAccess
+              ? 'Create a fork for experimental changes or independent work'
+              : 'Fork the repository to contribute templates' }}
           </p>
           <div class="flex gap-2">
             <Button @click="handleCreateFork" size="sm" class="flex-1" :disabled="isLoading">
