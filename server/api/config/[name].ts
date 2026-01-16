@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Only allow specific config files
-  const allowedConfigs = ['template-naming-rules.json', 'workflow-model-config.json']
+  const allowedConfigs = ['template-naming-rules.json', 'workflow-model-config.json', 'bundle-mapping-rules.json']
 
   if (!allowedConfigs.includes(name)) {
     throw createError({

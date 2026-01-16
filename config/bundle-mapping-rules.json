@@ -1,0 +1,17 @@
+{
+  "categoryMapping": {
+    "Use cases": "media-api",
+    "Image": "media-image",
+    "Video": "media-video",
+    "Audio": "media-other",
+    "3D": "media-other",
+    "Utility": "media-other",
+    "Getting Started": "media-other"
+  },
+  "defaultBundle": "media-other",
+  "notes": {
+    "description": "Maps template categories to bundle names",
+    "categoryMapping": "Key is the category title from index.json, value is the bundle name in bundles.json",
+    "defaultBundle": "If category is not found in mapping, template will be added to this default bundle"
+  }
+}

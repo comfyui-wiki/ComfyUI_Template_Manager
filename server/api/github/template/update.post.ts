@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
+import { readFile } from 'fs/promises'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -260,6 +261,74 @@ export default defineEventHandler(async (event) => {
         type: 'blob' as const,
         content: JSON.stringify(indexData, null, 2)
       })
+
+      // Update bundles.json to ensure template is included
+      try {
+        console.log('[Update Template] Checking bundles.json...')
+
+        // Get current bundles.json
+        const { data: bundlesFile } = await octokit.repos.getContent({
+          owner,
+          repo: repoName,
+          path: 'bundles.json',
+          ref: branch
+        })
+
+        if ('content' in bundlesFile) {
+          const bundlesContent = Buffer.from(bundlesFile.content, 'base64').toString('utf-8')
+          const bundlesData = JSON.parse(bundlesContent)
+
+          // Check if template exists in any bundle
+          let templateExistsInBundle = false
+          for (const bundleName in bundlesData) {
+            if (Array.isArray(bundlesData[bundleName])) {
+              if (bundlesData[bundleName].includes(templateName)) {
+                templateExistsInBundle = true
+                console.log(`[Update Template] Template "${templateName}" already exists in bundle "${bundleName}"`)
+                break
+              }
+            }
+          }
+
+          // If template doesn't exist in any bundle, add it
+          if (!templateExistsInBundle) {
+            console.log(`[Update Template] Template "${templateName}" not found in bundles.json, adding it...`)
+
+            // Load bundle mapping rules
+            const configPath = new URL('../../../config/bundle-mapping-rules.json', import.meta.url)
+            const bundleMappingRules = JSON.parse(await readFile(configPath, 'utf-8'))
+
+            // Determine which bundle to add the template to
+            const categoryTitle = categoryChanged ? metadata.category : currentCategoryTitle
+            const targetBundle = bundleMappingRules.categoryMapping[categoryTitle] || bundleMappingRules.defaultBundle
+
+            console.log(`[Update Template] Category "${categoryTitle}" maps to bundle "${targetBundle}"`)
+
+            // Ensure bundle exists
+            if (!bundlesData[targetBundle]) {
+              bundlesData[targetBundle] = []
+              console.log(`[Update Template] Created new bundle "${targetBundle}"`)
+            }
+
+            // Add template to bundle (avoid duplicates)
+            if (!bundlesData[targetBundle].includes(templateName)) {
+              bundlesData[targetBundle].push(templateName)
+              console.log(`[Update Template] Added "${templateName}" to bundle "${targetBundle}"`)
+
+              // Add updated bundles.json to tree
+              tree.push({
+                path: 'bundles.json',
+                mode: '100644' as const,
+                type: 'blob' as const,
+                content: JSON.stringify(bundlesData, null, 2)
+              })
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('[Update Template] Failed to update bundles.json:', error.message)
+        // Don't fail the entire operation if bundles.json update fails
+      }
     }
 
     // 2. Check for input file conflicts and prepare filename mapping
