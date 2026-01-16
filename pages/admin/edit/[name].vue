@@ -145,29 +145,29 @@
         />
 
         <!-- Main Content Area -->
-        <div class="flex-1 container mx-auto px-4 py-8" :class="{ 'max-w-6xl': isCreateMode }">
-        <!-- Workflow File Section with Input Files -->
-        <div class="mb-6">
-          <WorkflowFileManager
-            ref="workflowFileManagerRef"
-            :template-name="templateName"
-            :repo="selectedRepo"
-            :branch="selectedBranch"
-            :workflow-content="workflowContent"
-            :category="form.category"
-            :model-links-validation="modelLinksValidation"
-            @workflow-updated="handleWorkflowUpdated"
-            @input-files-updated="handleInputFilesUpdated"
-            @open-converter="handleInputFileConversion"
-            @format-changed="handleInputFileFormatChange"
-            @template-name-extracted="handleTemplateNameExtracted"
-            @open-model-links-editor="openModelLinksEditor"
-          />
-        </div>
+        <div class="flex-1 container mx-auto px-4 py-8 max-w-[1600px]">
+          <div class="grid gap-8 lg:grid-cols-3">
+            <!-- Left/Middle Column: Workflow + Form -->
+            <div class="lg:col-span-2 space-y-6">
+              <!-- Workflow File Section with Input Files -->
+              <WorkflowFileManager
+                ref="workflowFileManagerRef"
+                :template-name="templateName"
+                :repo="selectedRepo"
+                :branch="selectedBranch"
+                :workflow-content="workflowContent"
+                :category="form.category"
+                :model-links-validation="modelLinksValidation"
+                @workflow-updated="handleWorkflowUpdated"
+                @input-files-updated="handleInputFilesUpdated"
+                @open-converter="handleInputFileConversion"
+                @format-changed="handleInputFileFormatChange"
+                @template-name-extracted="handleTemplateNameExtracted"
+                @open-model-links-editor="openModelLinksEditor"
+              />
 
-        <div class="grid gap-8 lg:grid-cols-3">
-          <!-- Form Section -->
-          <div class="lg:col-span-2">
+              <!-- Template Details Form -->
+              <div>
             <Card>
               <CardHeader>
                 <CardTitle>Template Details</CardTitle>
@@ -755,11 +755,12 @@
                 </form>
               </CardContent>
             </Card>
-          </div>
+              </div>
+            </div>
 
-          <!-- Preview Section -->
-          <div class="lg:col-span-1">
-            <div class="sticky top-20 space-y-4">
+            <!-- Right Column: Preview (sticky) -->
+            <div class="lg:col-span-1">
+              <div class="sticky top-24 space-y-4">
               <!-- Template Preview -->
               <Card>
                 <CardHeader>
@@ -786,9 +787,9 @@
                   />
                 </CardContent>
               </Card>
+              </div>
             </div>
           </div>
-        </div>
         </div>
         <!-- Close main content area -->
       </div>
