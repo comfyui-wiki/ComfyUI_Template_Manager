@@ -1,12 +1,15 @@
 /**
  * Fetch templates index.json from a specific repository and branch
  * GET /api/github/templates
- * Query: { owner, repo, branch }
+ * Query: { owner, repo, branch, useApi }
+ *
+ * - useApi=false (default): Uses raw.githubusercontent.com (fast, CDN cached)
+ * - useApi=true: Uses GitHub API (bypasses CDN, always fresh data)
  */
 import { getServerSession } from '#auth'
 
 export default defineEventHandler(async (event) => {
-  const { owner, repo, branch = 'main' } = getQuery(event)
+  const { owner, repo, branch = 'main', useApi = 'false' } = getQuery(event)
 
   if (!owner || !repo) {
     throw createError({
@@ -19,7 +22,8 @@ export default defineEventHandler(async (event) => {
   const session = await getServerSession(event)
 
   const headers: Record<string, string> = {
-    'User-Agent': 'ComfyUI-Template-CMS'
+    'User-Agent': 'ComfyUI-Template-CMS',
+    'Accept': 'application/vnd.github.v3+json'
   }
 
   // Add authorization if user is authenticated
@@ -27,17 +31,43 @@ export default defineEventHandler(async (event) => {
     headers['Authorization'] = `Bearer ${session.accessToken}`
   }
 
+  const shouldUseApi = useApi === 'true'
+
   try {
-    // Fetch index.json from the specified branch
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index.json`
+    let data: any
 
-    const response = await fetch(url, { headers })
+    if (shouldUseApi) {
+      // Use GitHub API - bypasses CDN, always returns fresh data
+      console.log(`[templates API] 🔄 Using GitHub API (fresh data): ${owner}/${repo}/${branch}`)
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/templates/index.json?ref=${branch}`
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch templates: ${response.status}`)
+      const response = await fetch(apiUrl, { headers })
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`)
+      }
+
+      const apiData = await response.json()
+
+      // Decode base64 content
+      const content = Buffer.from(apiData.content, 'base64').toString('utf-8')
+      data = JSON.parse(content)
+
+      console.log(`[templates API] ✅ Fresh data fetched via API (SHA: ${apiData.sha.substring(0, 7)})`)
+    } else {
+      // Use raw.githubusercontent.com - fast but may be CDN cached
+      console.log(`[templates API] ⚡ Using raw CDN (fast): ${owner}/${repo}/${branch}`)
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index.json`
+
+      const response = await fetch(rawUrl, { headers })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch templates: ${response.status}`)
+      }
+
+      data = await response.json()
+      console.log(`[templates API] ✅ Data fetched via CDN`)
     }
-
-    const data = await response.json()
 
     return {
       success: true,
@@ -45,11 +75,12 @@ export default defineEventHandler(async (event) => {
       source: {
         owner,
         repo,
-        branch
+        branch,
+        method: shouldUseApi ? 'api' : 'cdn'
       }
     }
   } catch (error: any) {
-    console.error('Failed to fetch templates:', error)
+    console.error('[templates API] ❌ Failed to fetch templates:', error)
     throw createError({
       statusCode: 500,
       message: error.message || 'Failed to fetch templates'

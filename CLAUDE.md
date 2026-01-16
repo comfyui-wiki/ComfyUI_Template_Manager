@@ -136,7 +136,47 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 ## Recent Implementations
 
-### 1. Merged Upload/Convert Workflow
+### 1. Additional Template Metadata Fields (2026-01-16)
+**Problem**: Templates had limited metadata fields; size/vram values were not user-friendly (stored in bytes)
+**Solution**:
+- Added support for 5 new metadata fields:
+  - `requiresCustomNodes`: Array of required custom node packages
+  - `size`: Model size in bytes (displayed as GB)
+  - `vram`: VRAM requirement in bytes (displayed as GB)
+  - `usage`: Usage count tracking
+  - `searchRank`: Search visibility ranking
+- Implemented automatic GB ↔ bytes conversion:
+  - `bytesToGB()`: Converts bytes to GB with 1 decimal precision
+  - `gbToBytes()`: Converts GB to bytes for storage
+- Added custom nodes multi-select with autocomplete
+- Updated both frontend form and backend API
+
+**Files**:
+- Frontend: `pages/admin/edit/[name].vue` (UI fields, conversion utilities, form data)
+- Backend: `server/api/github/template/update.post.ts` (metadata save logic)
+
+### 2. Fork Status Detection Fix (2026-01-16)
+**Problem**: Fork sync warning showed even when viewing main repository
+**Solution**:
+- Added `isCurrentRepoFork` computed property to check if selected repo is user's fork
+- Updated fork warning conditions to only show when current repo IS the fork
+- Added cache busting for fork status checks after sync
+- Implemented 2-second delay after sync before rechecking status
+- Added manual refresh button for fork status
+- Added no-cache headers to fork comparison API endpoint
+
+**Technical Details**:
+- Fork warnings now check: `isCurrentRepoFork && forkCompareStatus?.isBehind`
+- Sync flow: Sync → Wait 2s → Check status with cache busting
+- Manual refresh available via small refresh icon next to "up to date" message
+- API headers: `Cache-Control: no-cache, no-store, must-revalidate`
+
+**Files**:
+- Component: `components/RepoAndBranchSwitcher.vue` (UI logic, refresh handler)
+- Composable: `composables/useGitHubRepo.ts` (cache busting, delayed recheck)
+- API: `server/api/github/fork/compare.get.ts` (no-cache headers)
+
+### 3. Merged Upload/Convert Workflow
 **Problem**: Users had to upload files twice (once to select, once in converter)
 **Solution**:
 - Added `initialFile` prop to ThumbnailConverter
@@ -929,5 +969,5 @@ For issues, check:
 
 ---
 
-**Last Updated**: 2026-01-13
-**Version**: 1.1.0
+**Last Updated**: 2026-01-16
+**Version**: 1.2.0

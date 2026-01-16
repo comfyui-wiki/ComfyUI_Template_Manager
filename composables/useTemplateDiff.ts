@@ -56,7 +56,7 @@ export const useTemplateDiff = () => {
 
   /**
    * Fetch templates from a specific repository and branch
-   * @param forceRefresh - If true, bypasses cache and fetches fresh data
+   * @param forceRefresh - If true, bypasses cache and uses GitHub API for fresh data
    */
   const fetchTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
     const cacheKey = getCacheKey(owner, repo, branch)
@@ -65,22 +65,27 @@ export const useTemplateDiff = () => {
     if (!forceRefresh) {
       const cached = getCachedData(cacheKey)
       if (cached) {
-        console.log('[fetchTemplates] ⚡ Using cached data (skip refresh button to force latest)')
+        console.log('[fetchTemplates] ⚡ Using cached data (click refresh to force latest)')
         return cached
       }
     } else {
-      console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache, fetching latest from GitHub')
+      console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache AND CDN, using GitHub API for fresh data')
     }
 
     try {
-      console.log(`[fetchTemplates] 🌐 Fetching fresh data from: ${owner}/${repo}/${branch}`)
+      console.log(`[fetchTemplates] 🌐 Fetching data from: ${owner}/${repo}/${branch}`)
       const response = await $fetch('/api/github/templates', {
-        query: { owner, repo, branch }
+        query: {
+          owner,
+          repo,
+          branch,
+          useApi: forceRefresh ? 'true' : 'false' // Use API when force refreshing to bypass CDN
+        }
       })
 
       // Cache the fresh data
       setCachedData(cacheKey, response.categories)
-      console.log('[fetchTemplates] ✅ Fresh data fetched and cached')
+      console.log(`[fetchTemplates] ✅ Data fetched via ${response.source?.method || 'unknown'} and cached`)
 
       return response.categories
     } catch (err: any) {

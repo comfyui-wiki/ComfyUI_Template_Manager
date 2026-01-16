@@ -8,6 +8,11 @@ export default defineEventHandler(async (event) => {
   const { username } = getQuery(event)
   const config = useRuntimeConfig()
 
+  // Disable caching for fork status to ensure fresh data
+  setHeader(event, 'Cache-Control', 'no-cache, no-store, must-revalidate')
+  setHeader(event, 'Pragma', 'no-cache')
+  setHeader(event, 'Expires', '0')
+
   if (!username) {
     return {
       error: 'Username is required'

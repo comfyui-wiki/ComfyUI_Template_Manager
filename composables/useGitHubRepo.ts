@@ -101,7 +101,7 @@ export const useGitHubRepo = () => {
   }
 
   // Check if fork is behind upstream
-  const checkForkStatus = async () => {
+  const checkForkStatus = async (bustCache = false) => {
     if (!hasFork.value || !session.value?.user?.login) {
       console.log('[useGitHubRepo] No fork or not authenticated, skipping fork status check')
       forkCompareStatus.value = null
@@ -109,13 +109,18 @@ export const useGitHubRepo = () => {
     }
 
     const username = session.value.user.login
-    console.log('[useGitHubRepo] Checking fork status for:', username)
+    console.log('[useGitHubRepo] Checking fork status for:', username, bustCache ? '(cache busting)' : '')
 
     try {
+      const query: Record<string, any> = { username }
+
+      // Add cache busting parameter if requested
+      if (bustCache) {
+        query._t = Date.now()
+      }
+
       const response = await $fetch('/api/github/fork/compare', {
-        query: {
-          username
-        }
+        query
       })
       console.log('[useGitHubRepo] Fork compare response:', response)
       forkCompareStatus.value = response
@@ -144,7 +149,13 @@ export const useGitHubRepo = () => {
 
       // Refresh fork status after sync
       if (response.success) {
-        await checkForkStatus()
+        console.log('[useGitHubRepo] Sync successful, waiting 2s before checking status...')
+        // Wait a bit for GitHub to update comparison cache
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+        // Force cache busting when checking status after sync
+        await checkForkStatus(true)
+        console.log('[useGitHubRepo] Fork status rechecked after sync')
       }
 
       return response
