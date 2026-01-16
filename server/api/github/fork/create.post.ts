@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // Create fork using user's token
+    // Create fork using user's token (only default branch)
     const response = await fetch(
       `https://api.github.com/repos/${config.public.repoOwner}/${config.public.repoName}/forks`,
       {
@@ -25,7 +25,10 @@ export default defineEventHandler(async (event) => {
           'Authorization': `Bearer ${session.accessToken}`,
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'ComfyUI-Template-CMS'
-        }
+        },
+        body: JSON.stringify({
+          default_branch_only: true
+        })
       }
     )
 
