@@ -573,10 +573,14 @@
                     />
                   </div>
 
-                  <!-- Open Source -->
+                  <!-- Open Source (Required) -->
                   <div class="space-y-2">
-                    <Label class="text-sm font-medium">Open Source Status</Label>
-                    <p class="text-xs text-muted-foreground mb-2">Does this workflow use only open-source nodes, or does it include API nodes?</p>
+                    <Label class="text-sm font-medium">
+                      Open Source Status <span class="text-red-500">*</span>
+                    </Label>
+                    <p class="text-xs text-muted-foreground mb-2">
+                      Required: Does this workflow use only open-source nodes, or does it include API nodes?
+                    </p>
                     <div class="flex items-center space-x-4">
                       <label class="flex items-center space-x-2 cursor-pointer">
                         <input
@@ -597,6 +601,9 @@
                         <span class="text-sm">Contains API nodes</span>
                       </label>
                     </div>
+                    <p v-if="form.openSource === null" class="text-xs text-red-500 mt-1">
+                      ⚠️ This field is required. Please select an option.
+                    </p>
                   </div>
 
                   <!-- Platform Distribution -->
@@ -1003,7 +1010,7 @@ const form = ref({
   requiresCustomNodes: [] as string[],
   comfyuiVersion: '',
   date: '',
-  openSource: true, // Default to true (open source)
+  openSource: null as boolean | null, // Required field, no default selection
   includeOnDistributions: [] as string[], // Platform availability: ['cloud', 'desktop', 'local'] or empty for all
   sizeGB: 0, // Size in GB (will be converted to bytes when saving)
   vramGB: 0, // VRAM in GB (will be converted to bytes when saving)
@@ -2232,6 +2239,12 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
 
 const handleSubmit = async () => {
   if (isSubmitting.value) return
+
+  // Validate required fields
+  if (form.value.openSource === null) {
+    alert('Please select Open Source Status (required field)')
+    return
+  }
 
   try {
     isSubmitting.value = true
