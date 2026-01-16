@@ -11,7 +11,9 @@
           </div>
           <div>
             <div class="font-semibold text-sm">Workflow File</div>
-            <div class="font-mono text-xs text-muted-foreground">{{ templateName === 'new' ? 'workflow.json' : `${templateName}.json` }}</div>
+            <div class="font-mono text-xs text-muted-foreground">
+              {{ templateName === 'new' ? (extractedTemplateName ? `${extractedTemplateName}.json` : 'workflow.json') : `${templateName}.json` }}
+            </div>
           </div>
         </div>
         <div class="flex gap-2">
