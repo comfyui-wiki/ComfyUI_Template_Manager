@@ -12,10 +12,15 @@ interface UpdateTemplateRequest {
     thumbnailVariant?: string
     tags?: string[]
     models?: string[]
+    requiresCustomNodes?: string[]
     tutorialUrl?: string
     comfyuiVersion?: string
     date?: string
     openSource?: boolean
+    size?: number
+    vram?: number
+    usage?: number
+    searchRank?: number
   }
   templateOrder?: string[]  // Array of template names in new order
   files?: {
@@ -129,10 +134,21 @@ export default defineEventHandler(async (event) => {
       }
       if (metadata.tags) templateData.tags = metadata.tags
       if (metadata.models) templateData.models = metadata.models
+      if (metadata.requiresCustomNodes !== undefined) {
+        if (metadata.requiresCustomNodes.length === 0) {
+          delete templateData.requiresCustomNodes
+        } else {
+          templateData.requiresCustomNodes = metadata.requiresCustomNodes
+        }
+      }
       if (metadata.tutorialUrl) templateData.tutorialUrl = metadata.tutorialUrl
       if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
       if (metadata.date) templateData.date = metadata.date
       if (metadata.openSource !== undefined) templateData.openSource = metadata.openSource
+      if (metadata.size !== undefined) templateData.size = metadata.size
+      if (metadata.vram !== undefined) templateData.vram = metadata.vram
+      if (metadata.usage !== undefined) templateData.usage = metadata.usage
+      if (metadata.searchRank !== undefined) templateData.searchRank = metadata.searchRank
 
       // Calculate new required thumbnail count
       const newThumbnailVariant = templateData.thumbnailVariant || 'none'

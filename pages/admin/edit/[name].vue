@@ -598,6 +598,143 @@
                       </label>
                     </div>
                   </div>
+
+                  <!-- Required Custom Nodes -->
+                  <div class="space-y-2">
+                    <Label for="requiresCustomNodes">Required Custom Nodes (optional)</Label>
+
+                    <!-- Selected Custom Nodes Display -->
+                    <div v-if="form.requiresCustomNodes.length > 0" class="flex flex-wrap gap-1.5 mb-2 p-2 border rounded-md bg-muted/30">
+                      <span
+                        v-for="node in form.requiresCustomNodes"
+                        :key="node"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-md"
+                      >
+                        {{ node }}
+                        <button
+                          type="button"
+                          @click="removeCustomNode(node)"
+                          class="hover:text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+
+                    <!-- Custom Node Input with Suggestions -->
+                    <div class="relative">
+                      <Input
+                        id="requiresCustomNodes"
+                        v-model="customNodeSearchInput"
+                        placeholder="Type custom node name and press Enter..."
+                        @keydown.enter.prevent="addCustomNode"
+                        @focus="isCustomNodesDropdownOpen = true"
+                        @blur="() => setTimeout(() => isCustomNodesDropdownOpen = false, 200)"
+                      />
+
+                      <!-- Dropdown suggestions -->
+                      <div
+                        v-if="isCustomNodesDropdownOpen"
+                        class="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
+                      >
+                        <!-- Add new custom node option -->
+                        <div
+                          v-if="customNodeSearchInput.trim()"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
+                          @mousedown.prevent="addCustomNode"
+                        >
+                          <span class="text-muted-foreground">Press Enter to add:</span>
+                          <span class="font-medium ml-1">"{{ customNodeSearchInput.trim() }}"</span>
+                        </div>
+
+                        <!-- Existing custom node suggestions -->
+                        <div
+                          v-for="node in filteredAvailableCustomNodes"
+                          :key="node"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
+                          @mousedown.prevent="selectCustomNode(node)"
+                        >
+                          <span>{{ node }}</span>
+                          <span v-if="form.requiresCustomNodes.includes(node)" class="text-primary text-xs">✓</span>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div
+                          v-if="!customNodeSearchInput.trim() && filteredAvailableCustomNodes.length === 0"
+                          class="px-3 py-2 text-sm text-muted-foreground text-center"
+                        >
+                          Type to add custom nodes
+                        </div>
+                      </div>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      List of custom node packages required to run this workflow (e.g., "comfyui-kjnodes", "comfyui_essentials")
+                    </p>
+                  </div>
+
+                  <!-- Size and VRAM (GB) -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                      <Label for="sizeGB">Model Size (GB, optional)</Label>
+                      <Input
+                        id="sizeGB"
+                        v-model.number="form.sizeGB"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0"
+                      />
+                      <p class="text-xs text-muted-foreground">
+                        Total size of models in GB
+                      </p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <Label for="vramGB">VRAM Required (GB, optional)</Label>
+                      <Input
+                        id="vramGB"
+                        v-model.number="form.vramGB"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0"
+                      />
+                      <p class="text-xs text-muted-foreground">
+                        Minimum VRAM needed in GB
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Usage Count and Search Rank -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                      <Label for="usage">Usage Count (optional)</Label>
+                      <Input
+                        id="usage"
+                        v-model.number="form.usage"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                      />
+                      <p class="text-xs text-muted-foreground">
+                        Number of times this template has been used
+                      </p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <Label for="searchRank">Search Rank (optional)</Label>
+                      <Input
+                        id="searchRank"
+                        v-model.number="form.searchRank"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                      />
+                      <p class="text-xs text-muted-foreground">
+                        Higher rank = better search visibility
+                      </p>
+                    </div>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -819,18 +956,26 @@ const form = ref({
   tutorialUrl: '',
   tags: [] as string[],
   models: [] as string[],
+  requiresCustomNodes: [] as string[],
   comfyuiVersion: '',
   date: '',
-  openSource: true // Default to true (open source)
+  openSource: true, // Default to true (open source)
+  sizeGB: 0, // Size in GB (will be converted to bytes when saving)
+  vramGB: 0, // VRAM in GB (will be converted to bytes when saving)
+  usage: 0,
+  searchRank: 0
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
 const availableTags = ref<string[]>([])
 const availableModels = ref<string[]>([])
+const availableCustomNodes = ref<string[]>([])
 const tagSearchInput = ref('')
 const modelSearchInput = ref('')
+const customNodeSearchInput = ref('')
 const isTagsDropdownOpen = ref(false)
 const isModelsDropdownOpen = ref(false)
+const isCustomNodesDropdownOpen = ref(false)
 
 // Computed: Filter available tags based on search
 const filteredAvailableTags = computed(() => {
@@ -845,6 +990,14 @@ const filteredAvailableModels = computed(() => {
   const searchLower = modelSearchInput.value.toLowerCase()
   return availableModels.value.filter(model =>
     model.toLowerCase().includes(searchLower)
+  )
+})
+
+// Computed: Filter available custom nodes based on search
+const filteredAvailableCustomNodes = computed(() => {
+  const searchLower = customNodeSearchInput.value.toLowerCase()
+  return availableCustomNodes.value.filter(node =>
+    node.toLowerCase().includes(searchLower)
   )
 })
 
@@ -896,6 +1049,42 @@ const removeModel = (model: string) => {
   form.value.models = form.value.models.filter(m => m !== model)
 }
 
+// Select existing custom node from dropdown
+const selectCustomNode = (node: string) => {
+  if (!form.value.requiresCustomNodes.includes(node)) {
+    form.value.requiresCustomNodes.push(node)
+  }
+  customNodeSearchInput.value = ''
+  isCustomNodesDropdownOpen.value = false
+}
+
+// Add custom node (when pressing Enter)
+const addCustomNode = () => {
+  const node = customNodeSearchInput.value.trim()
+  if (node && !form.value.requiresCustomNodes.includes(node)) {
+    form.value.requiresCustomNodes.push(node)
+  }
+  customNodeSearchInput.value = ''
+  isCustomNodesDropdownOpen.value = false
+}
+
+// Remove a custom node from the selection
+const removeCustomNode = (node: string) => {
+  form.value.requiresCustomNodes = form.value.requiresCustomNodes.filter(n => n !== node)
+}
+
+// Utility: Convert bytes to GB
+const bytesToGB = (bytes: number): number => {
+  if (!bytes || bytes === 0) return 0
+  return Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10 // Round to 1 decimal place
+}
+
+// Utility: Convert GB to bytes
+const gbToBytes = (gb: number): number => {
+  if (!gb || gb === 0) return 0
+  return Math.round(gb * 1024 * 1024 * 1024)
+}
+
 // Computed: Check if form fields have changed
 const hasFormChanges = computed(() => {
   if (!originalTemplate.value) return false
@@ -909,8 +1098,13 @@ const hasFormChanges = computed(() => {
     form.value.comfyuiVersion !== (originalTemplate.value.comfyuiVersion || '') ||
     form.value.date !== (originalTemplate.value.date || '') ||
     form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
+    gbToBytes(form.value.sizeGB) !== (originalTemplate.value.size || 0) ||
+    gbToBytes(form.value.vramGB) !== (originalTemplate.value.vram || 0) ||
+    form.value.usage !== (originalTemplate.value.usage || 0) ||
+    form.value.searchRank !== (originalTemplate.value.searchRank || 0) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
-    JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort())
+    JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort()) ||
+    JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort())
   )
 })
 
@@ -1815,9 +2009,10 @@ onMounted(async () => {
       }))
       console.log('[Edit Page] Available categories:', availableCategories.value)
 
-      // Get all unique tags
+      // Get all unique tags, models, and custom nodes
       const tagsSet = new Set<string>()
       const modelsSet = new Set<string>()
+      const customNodesSet = new Set<string>()
       for (const category of indexData) {
         for (const template of category.templates || []) {
           if (template.tags && Array.isArray(template.tags)) {
@@ -1826,10 +2021,14 @@ onMounted(async () => {
           if (template.models && Array.isArray(template.models)) {
             template.models.forEach((model: string) => modelsSet.add(model))
           }
+          if (template.requiresCustomNodes && Array.isArray(template.requiresCustomNodes)) {
+            template.requiresCustomNodes.forEach((node: string) => customNodesSet.add(node))
+          }
         }
       }
       availableTags.value = Array.from(tagsSet).sort()
       availableModels.value = Array.from(modelsSet).sort()
+      availableCustomNodes.value = Array.from(customNodesSet).sort()
     }
 
     // In create mode, skip loading existing template
@@ -1886,9 +2085,15 @@ onMounted(async () => {
     form.value.tutorialUrl = foundTemplate.tutorialUrl || ''
     form.value.tags = foundTemplate.tags || []
     form.value.models = foundTemplate.models || []
+    form.value.requiresCustomNodes = foundTemplate.requiresCustomNodes || []
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
     form.value.date = foundTemplate.date || ''
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
+    // Convert bytes to GB for display
+    form.value.sizeGB = bytesToGB(foundTemplate.size || 0)
+    form.value.vramGB = bytesToGB(foundTemplate.vram || 0)
+    form.value.usage = foundTemplate.usage || 0
+    form.value.searchRank = foundTemplate.searchRank || 0
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
@@ -2091,10 +2296,16 @@ const handleSubmit = async () => {
           thumbnailVariant: form.value.thumbnailVariant,
           tags: form.value.tags,
           models: form.value.models,
+          requiresCustomNodes: form.value.requiresCustomNodes,
           tutorialUrl: form.value.tutorialUrl,
           comfyuiVersion: form.value.comfyuiVersion,
           date: form.value.date,
-          openSource: form.value.openSource
+          openSource: form.value.openSource,
+          // Convert GB to bytes for storage
+          size: gbToBytes(form.value.sizeGB),
+          vram: gbToBytes(form.value.vramGB),
+          usage: form.value.usage,
+          searchRank: form.value.searchRank
         },
         templateOrder,
         files: Object.keys(filesData).length > 0 ? filesData : undefined
