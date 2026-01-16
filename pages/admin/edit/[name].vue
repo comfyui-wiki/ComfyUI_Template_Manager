@@ -98,40 +98,6 @@
               </p>
             </div>
           </div>
-
-          <!-- Completion Progress (Edit Mode) -->
-          <div v-if="canEditCurrentRepo">
-            <div class="flex items-center justify-between mb-1">
-              <div class="text-xs font-medium">
-                <span>Completion</span>
-                <span class="ml-2 text-muted-foreground">
-                  {{ completionStatus.completed }}/{{ completionStatus.total }} fields
-                </span>
-              </div>
-              <div class="text-xs font-semibold" :class="{
-                'text-green-600': completionStatus.percentage === 100,
-                'text-amber-600': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
-                'text-red-600': completionStatus.percentage < 50
-              }">
-                {{ completionStatus.percentage }}%
-              </div>
-            </div>
-            <div class="w-full bg-muted rounded-full h-2">
-              <div
-                class="h-2 rounded-full transition-all duration-300"
-                :class="{
-                  'bg-green-500': completionStatus.percentage === 100,
-                  'bg-amber-500': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
-                  'bg-red-500': completionStatus.percentage < 50
-                }"
-                :style="{ width: `${completionStatus.percentage}%` }"
-              ></div>
-            </div>
-            <!-- Missing Fields Hint -->
-            <div v-if="missingFields.length > 0" class="mt-1 text-xs text-red-600">
-              ⚠️ Required: {{ missingFields.join(', ') }}
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -818,31 +784,6 @@
                     :comfyui-version="form.comfyuiVersion"
                     :date="form.date"
                   />
-                </CardContent>
-              </Card>
-
-              <!-- File Information -->
-              <Card>
-                <CardHeader>
-                  <CardTitle class="text-base">File Info</CardTitle>
-                </CardHeader>
-                <CardContent class="space-y-2 text-sm">
-                  <div>
-                    <Label class="text-xs text-muted-foreground">Repository</Label>
-                    <p class="font-mono text-xs">{{ selectedRepo }}</p>
-                  </div>
-                  <div>
-                    <Label class="text-xs text-muted-foreground">Branch</Label>
-                    <p class="font-mono text-xs">{{ selectedBranch }}</p>
-                  </div>
-                  <div>
-                    <Label class="text-xs text-muted-foreground">Media Type</Label>
-                    <p class="text-xs">{{ originalTemplate?.mediaType }}</p>
-                  </div>
-                  <div v-if="originalTemplate?.date">
-                    <Label class="text-xs text-muted-foreground">Date</Label>
-                    <p class="text-xs">{{ originalTemplate.date }}</p>
-                  </div>
                 </CardContent>
               </Card>
             </div>
