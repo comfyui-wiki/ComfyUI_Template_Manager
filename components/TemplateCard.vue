@@ -100,6 +100,25 @@
           {{ template.mediaType || 'image' }}
         </span>
       </div>
+
+      <!-- Tutorial URL Icon -->
+      <a
+        v-if="template.tutorialUrl"
+        :href="template.tutorialUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="absolute bottom-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all duration-200 hover:scale-110 group"
+        :title="template.tutorialUrl"
+        @click.stop
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <!-- Tooltip on hover -->
+        <span class="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs bg-black/90 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none max-w-[200px] truncate">
+          {{ template.tutorialUrl }}
+        </span>
+      </a>
     </div>
 
     <!-- Content -->
