@@ -106,8 +106,8 @@
         "comment": "Rate limit per user (GitHub username). Whitelist users are exempt."
       },
       "originCheck": {
-        "enabled": true,
-        "allowedOrigins": [],
+        "enabled": false,
+        "allowedOrigins": ["http://localhost:3000"],
         "comment": "Allowed origins for API requests. Empty array = allow from same domain (using NEXTAUTH_URL). Example: ['https://yourdomain.com', 'http://localhost:3000']"
       },
       "whitelist": {

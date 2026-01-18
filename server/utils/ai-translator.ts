@@ -39,7 +39,10 @@ interface I18nConfig {
 // Load i18n config
 let i18nConfig: I18nConfig | null = null
 async function loadI18nConfig(): Promise<I18nConfig> {
-  if (!i18nConfig) {
+  // In development, always reload config to pick up changes
+  const isDev = process.env.NODE_ENV === 'development'
+
+  if (!i18nConfig || isDev) {
     try {
       // Try to read from server assets (production)
       const storage = useStorage('assets:config')
@@ -193,7 +196,7 @@ export async function translateWithRetry(
   request: TranslationRequest,
   maxRetries?: number
 ): Promise<TranslationResponse> {
-  const i18nCfg = loadI18nConfig()
+  const i18nCfg = await loadI18nConfig()
   const retries = maxRetries ?? i18nCfg.aiTranslation.retryAttempts
   let lastError: string = ''
 

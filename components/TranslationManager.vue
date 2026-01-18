@@ -200,19 +200,25 @@ const translationItems = computed(() => {
       }
     } else {
       // For tags and categories
+      // The key itself is the English value, other languages are in the object
       const translations: Record<string, string> = {}
+      translations['en'] = key // Key is the English text
+
       for (const lang of languages) {
-        translations[lang.code] = (value as any)[lang.code] || ''
+        if (lang.code === 'en') {
+          continue // Already set above
+        }
+        translations[lang.code] = (value as any)[lang.code] || key // Default to key if missing
       }
 
       const untranslatedLangs = languages
-        .filter(l => l.code !== 'en' && translations[l.code] === translations['en'])
+        .filter(l => l.code !== 'en' && translations[l.code] === key)
         .map(l => l.code)
 
       items.push({
         key,
         type: activeSection.value,
-        englishValue: translations.en || '',
+        englishValue: key, // English value is the key itself
         translations,
         isOutdated: false,
         untranslatedLangs
@@ -353,6 +359,14 @@ const saveTranslation = (key: string, lang: string, value: string) => {
       }
     }
   } else {
+    // For tags and categories, key is the English value
+    // Don't save 'en' to the data structure
+    if (lang === 'en') {
+      console.log('[TranslationManager] Skipping English save for tags/categories (key is the English value)')
+      cancelEdit()
+      return
+    }
+
     if (!i18nData.value[activeSection.value][mainKey]) {
       i18nData.value[activeSection.value][mainKey] = {}
     }
@@ -1133,16 +1147,18 @@ const saveAllChanges = async () => {
                   </div>
                   <div
                     v-else
-                    class="text-sm p-1.5 rounded cursor-pointer hover:bg-accent transition-colors min-h-[32px] border"
+                    class="text-sm p-1.5 rounded min-h-[32px] border"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
                       'bg-amber-100 border-amber-300': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
                       'bg-blue-50 border-blue-200': lang.code === 'en',
                       'bg-green-50 border-green-400 border-2': isCellModified(item.key, lang.code),
-                      'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code)
+                      'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code),
+                      'cursor-pointer hover:bg-accent transition-colors': !(lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')),
+                      'cursor-not-allowed opacity-60': lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')
                     }"
-                    :title="item.translations[lang.code] || '(empty - click to edit)'"
-                    @click="startEditCell(item.key, lang.code, item.translations[lang.code])"
+                    :title="lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories') ? 'English value is the key itself (cannot be edited)' : (item.translations[lang.code] || '(empty - click to edit)')"
+                    @click="!(lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')) && startEditCell(item.key, lang.code, item.translations[lang.code])"
                   >
                     {{ item.translations[lang.code] || '(click to edit)' }}
                   </div>

@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Check origin/referer
-    const originCheck = checkOrigin(event)
+    const originCheck = await checkOrigin(event)
     if (!originCheck.allowed) {
       throw createError({
         statusCode: 403,
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
     // Check rate limit
     const username = (session.user as any)?.login || (session.user as any)?.name || 'unknown'
-    const rateLimitCheck = checkRateLimit(username)
+    const rateLimitCheck = await checkRateLimit(username)
     if (!rateLimitCheck.allowed) {
       const resetTime = rateLimitCheck.resetAt?.toISOString() || 'unknown'
       throw createError({

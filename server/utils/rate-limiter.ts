@@ -27,7 +27,10 @@ interface I18nConfig {
 // Load i18n config
 let i18nConfig: I18nConfig | null = null
 async function loadI18nConfig(): Promise<I18nConfig> {
-  if (!i18nConfig) {
+  // In development, always reload config to pick up changes
+  const isDev = process.env.NODE_ENV === 'development'
+
+  if (!i18nConfig || isDev) {
     try {
       // Try to read from server assets (production)
       const storage = useStorage('assets:config')
@@ -131,8 +134,14 @@ export async function checkOrigin(event: H3Event): Promise<{ allowed: boolean; r
   const config = await loadI18nConfig()
   const runtimeConfig = useRuntimeConfig()
 
+  console.log('[Rate Limiter] Origin check config:', {
+    enabled: config.aiTranslation.security.originCheck.enabled,
+    allowedOrigins: config.aiTranslation.security.originCheck.allowedOrigins
+  })
+
   // Check if origin check is enabled
   if (!config.aiTranslation.security.originCheck.enabled) {
+    console.log('[Rate Limiter] Origin check is DISABLED, allowing request')
     return { allowed: true }
   }
 
