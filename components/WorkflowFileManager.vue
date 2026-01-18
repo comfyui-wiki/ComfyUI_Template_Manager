@@ -499,6 +499,7 @@ const emit = defineEmits<{
   formatChanged: [oldFilename: string, newFilename: string]
   templateNameExtracted: [name: string] // Emit template name from filename
   openModelLinksEditor: [] // Emit to open model links editor
+  customNodesDetected: [customNodes: string[]] // Emit detected custom nodes from workflow
 }>()
 
 // Refs
@@ -685,6 +686,34 @@ const checkDuplicateTemplateName = async (templateName: string): Promise<{ exist
   } catch (error) {
     console.error('Error checking duplicate template name:', error)
     return { exists: false }
+  }
+}
+
+// Extract custom nodes (cnr_id) from workflow JSON
+const extractCustomNodesFromWorkflow = (workflowJson: string): string[] => {
+  try {
+    const data = JSON.parse(workflowJson)
+    const nodes = data.nodes || []
+    const customNodesSet = new Set<string>()
+
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object') continue
+
+      // Extract cnr_id from node properties
+      const properties = node.properties
+      if (properties && typeof properties === 'object') {
+        const cnrId = properties.cnr_id
+        // Only include custom nodes (exclude comfy-core and empty/null values)
+        if (cnrId && typeof cnrId === 'string' && cnrId !== 'comfy-core') {
+          customNodesSet.add(cnrId)
+        }
+      }
+    }
+
+    return Array.from(customNodesSet).sort()
+  } catch (error) {
+    console.error('Failed to extract custom nodes from workflow:', error)
+    return []
   }
 }
 
@@ -965,6 +994,13 @@ const handleWorkflowReupload = async (event: Event) => {
     }
 
     emit('workflowUpdated', text)
+
+    // Extract and emit custom nodes
+    const customNodes = extractCustomNodesFromWorkflow(text)
+    if (customNodes.length > 0) {
+      console.log('[WorkflowFileManager] Detected custom nodes:', customNodes)
+      emit('customNodesDetected', customNodes)
+    }
 
     // Re-parse for input files
     const newRefs = parseWorkflowForInputFiles(text)

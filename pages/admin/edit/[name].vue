@@ -198,6 +198,7 @@
                 @format-changed="handleInputFileFormatChange"
                 @template-name-extracted="handleTemplateNameExtracted"
                 @open-model-links-editor="openModelLinksEditor"
+                @custom-nodes-detected="handleCustomNodesDetected"
               />
 
               <!-- Template Details Form -->
@@ -1458,6 +1459,15 @@ const handleWorkflowUpdated = (content: string) => {
 // Handler for input files updates from WorkflowFileManager
 const handleInputFilesUpdated = (files: Map<string, File>) => {
   reuploadedInputFiles.value = files
+}
+
+// Handler for custom nodes detected from workflow
+const handleCustomNodesDetected = (customNodes: string[]) => {
+  console.log('[Edit Page] Custom nodes detected from workflow:', customNodes)
+  // Merge with existing custom nodes, avoiding duplicates
+  const existingNodes = new Set(form.value.requiresCustomNodes)
+  customNodes.forEach(node => existingNodes.add(node))
+  form.value.requiresCustomNodes = Array.from(existingNodes).sort()
 }
 
 // Handler for template name extracted from workflow filename (create mode only)
