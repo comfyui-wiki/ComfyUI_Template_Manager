@@ -727,7 +727,26 @@
                   <!-- Size and VRAM (GB) -->
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-2">
-                      <Label for="sizeGB">Model Size (GB, optional)</Label>
+                      <div class="flex items-center justify-between">
+                        <Label for="sizeGB">Model Size (GB, optional)</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          @click="calculateModelSizes"
+                          :disabled="calculatingModelSize || !workflowContent"
+                          class="text-xs h-7"
+                        >
+                          <svg v-if="calculatingModelSize" class="w-3 h-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <svg v-else class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          {{ calculatingModelSize ? 'Calculating...' : 'Auto Calculate' }}
+                        </Button>
+                      </div>
                       <Input
                         id="sizeGB"
                         v-model.number="form.sizeGB"
@@ -739,6 +758,17 @@
                       <p class="text-xs text-muted-foreground">
                         Total size of models in GB
                       </p>
+                      <!-- Show suggested value in edit mode -->
+                      <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0" class="text-xs text-green-600 font-medium">
+                        💡 Suggested: {{ modelSizeCalculation.suggested }} GB (based on {{ modelSizeCalculation.totalModels }} model{{ modelSizeCalculation.totalModels > 1 ? 's' : '' }})
+                      </div>
+                      <!-- Show missing model sizes -->
+                      <div v-if="modelSizeCalculation.failedModels.length > 0" class="text-xs text-amber-600 space-y-1">
+                        <div class="font-medium">⚠️ Failed to fetch size for {{ modelSizeCalculation.failedModels.length }} model(s):</div>
+                        <ul class="list-disc list-inside pl-2 max-h-20 overflow-y-auto">
+                          <li v-for="model in modelSizeCalculation.failedModels" :key="model" class="truncate">{{ model }}</li>
+                        </ul>
+                      </div>
                     </div>
 
                     <div class="space-y-2">
@@ -754,6 +784,14 @@
                       <p class="text-xs text-muted-foreground">
                         Minimum VRAM needed in GB
                       </p>
+                      <!-- Show fake VRAM warning -->
+                      <div v-if="form.sizeGB > 0 && form.vramGB > 0 && form.sizeGB === form.vramGB" class="text-xs text-blue-600">
+                        ℹ️ VRAM is currently using a placeholder value (same as Model Size). Please update with actual VRAM requirements if known.
+                      </div>
+                      <!-- Show suggested value in edit mode -->
+                      <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0 && form.vramGB !== modelSizeCalculation.suggested" class="text-xs text-green-600 font-medium">
+                        💡 Suggested: {{ modelSizeCalculation.suggested }} GB (placeholder)
+                      </div>
                     </div>
                   </div>
 
@@ -888,6 +926,7 @@ import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
+import { calculateWorkflowModelSizes } from '~/lib/utils'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -956,6 +995,18 @@ const modelLinksValidation = ref<{
 const categoryTemplates = ref<any[]>([])
 const originalCategoryTemplates = ref<any[]>([])
 const templateOrderChanged = ref(false)
+
+// Model size calculation state
+const calculatingModelSize = ref(false)
+const modelSizeCalculation = ref<{
+  suggested: number // Suggested size in GB
+  failedModels: string[] // List of model filenames that failed to fetch
+  totalModels: number // Total number of models found
+}>({
+  suggested: 0,
+  failedModels: [],
+  totalModels: 0
+})
 
 // Computed: Calculate position changes for each template
 const templatePositionChanges = computed(() => {
@@ -1100,6 +1151,51 @@ const addCustomNode = () => {
 // Remove a custom node from the selection
 const removeCustomNode = (node: string) => {
   form.value.requiresCustomNodes = form.value.requiresCustomNodes.filter(n => n !== node)
+}
+
+// Calculate model sizes from workflow
+const calculateModelSizes = async () => {
+  const currentWorkflow = workflowContent.value || updatedWorkflowContent.value
+  if (!currentWorkflow) {
+    console.warn('[Model Size Calculator] No workflow content available')
+    return
+  }
+
+  calculatingModelSize.value = true
+
+  try {
+    const result = await calculateWorkflowModelSizes(currentWorkflow)
+
+    // Update calculation result
+    modelSizeCalculation.value = {
+      suggested: result.totalGB,
+      failedModels: result.failedUrls,
+      totalModels: result.successCount + result.failedUrls.length
+    }
+
+    // In CREATE mode, auto-update the form values
+    if (isCreateMode.value) {
+      form.value.sizeGB = result.totalGB
+      form.value.vramGB = result.totalGB // Use same value as placeholder
+      console.log('[Model Size Calculator] Auto-updated (create mode):', result.totalGB, 'GB')
+    } else {
+      // In EDIT mode, just show suggestion
+      console.log('[Model Size Calculator] Suggested (edit mode):', result.totalGB, 'GB')
+    }
+
+    if (result.failedUrls.length > 0) {
+      console.warn('[Model Size Calculator] Failed to fetch', result.failedUrls.length, 'models:', result.failedUrls)
+    }
+  } catch (error) {
+    console.error('[Model Size Calculator] Error:', error)
+    modelSizeCalculation.value = {
+      suggested: 0,
+      failedModels: [],
+      totalModels: 0
+    }
+  } finally {
+    calculatingModelSize.value = false
+  }
 }
 
 // Utility: Convert bytes to GB
@@ -1454,6 +1550,12 @@ const handleWorkflowUpdated = (content: string) => {
   })
   // Validate model links when workflow is updated
   validateModelLinks()
+
+  // Auto-calculate model sizes when workflow is uploaded
+  // Run in background to avoid blocking
+  setTimeout(() => {
+    calculateModelSizes()
+  }, 100)
 }
 
 // Handler for input files updates from WorkflowFileManager
