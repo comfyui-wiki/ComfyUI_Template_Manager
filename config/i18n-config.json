@@ -1,0 +1,92 @@
+{
+  "comment": "i18n configuration for ComfyUI Template Manager",
+  "version": "1.0",
+  "supportedLocales": [
+    {
+      "code": "en",
+      "name": "English",
+      "indexFile": "index.json",
+      "isDefault": true
+    },
+    {
+      "code": "zh",
+      "name": "简体中文",
+      "indexFile": "index.zh.json"
+    },
+    {
+      "code": "zh-TW",
+      "name": "繁體中文",
+      "indexFile": "index.zh-TW.json"
+    },
+    {
+      "code": "ja",
+      "name": "日本語",
+      "indexFile": "index.ja.json"
+    },
+    {
+      "code": "ko",
+      "name": "한국어",
+      "indexFile": "index.ko.json"
+    },
+    {
+      "code": "es",
+      "name": "Español",
+      "indexFile": "index.es.json"
+    },
+    {
+      "code": "fr",
+      "name": "Français",
+      "indexFile": "index.fr.json"
+    },
+    {
+      "code": "ru",
+      "name": "Русский",
+      "indexFile": "index.ru.json"
+    },
+    {
+      "code": "tr",
+      "name": "Türkçe",
+      "indexFile": "index.tr.json"
+    },
+    {
+      "code": "ar",
+      "name": "العربية",
+      "indexFile": "index.ar.json"
+    },
+    {
+      "code": "pt-BR",
+      "name": "Português (Brasil)",
+      "indexFile": "index.pt-BR.json"
+    }
+  ],
+  "i18nDataPath": {
+    "comment": "Path to i18n.json file relative to repository root",
+    "default": "scripts/i18n.json",
+    "fallback": "config/i18n.json"
+  },
+  "translatableFields": {
+    "comment": "Fields that need translation in templates",
+    "template": ["title", "description", "tags"],
+    "category": ["title", "category"]
+  },
+  "autoSyncFields": {
+    "comment": "Technical fields that should be synced automatically without translation",
+    "fields": [
+      "name",
+      "models",
+      "date",
+      "size",
+      "vram",
+      "mediaType",
+      "mediaSubtype",
+      "tutorialUrl",
+      "thumbnailVariant",
+      "includeOnDistributions",
+      "requiresCustomNodes",
+      "usage",
+      "searchRank",
+      "openSource",
+      "comfyuiVersion"
+    ]
+  }
+}

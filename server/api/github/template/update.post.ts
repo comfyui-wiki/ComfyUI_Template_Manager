@@ -3,6 +3,7 @@ import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
+import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations } from '~/server/utils/i18n-sync'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -332,6 +333,71 @@ export default defineEventHandler(async (event) => {
       } catch (error: any) {
         console.error('[Update Template] Failed to update bundles.json:', error.message)
         // Don't fail the entire operation if bundles.json update fails
+      }
+
+      // Sync updated template to all locale files (i18n)
+      try {
+        console.log('[Update Template] Syncing updated template to all locale files...')
+
+        // Check if English title/description changed and track outdated translations
+        // Also sync new tags to i18n.json
+        if (metadata.title || metadata.description || metadata.tags) {
+          const i18nUpdate = await trackOutdatedTranslations(
+            octokit,
+            repo,
+            branch,
+            templateName,
+            templateData.title,
+            templateData.description,
+            templateData.tags
+          )
+
+          if (i18nUpdate) {
+            // Add i18n.json update to tree
+            tree.push({
+              path: i18nUpdate.path,
+              mode: '100644' as const,
+              type: 'blob' as const,
+              content: i18nUpdate.content
+            })
+            console.log('[Update Template] Marked English updates in i18n.json for translation review')
+          }
+        }
+
+        // Determine the final category index (after potential move)
+        const finalCategoryIndex = categoryChanged
+          ? indexData.findIndex((cat: any) => cat.title === metadata.category)
+          : oldCategoryIndex
+
+        // Sync template to all locale index files
+        const localeFileUpdates = await syncUpdatedTemplateToAllLocales(
+          octokit,
+          repo,
+          branch,
+          finalCategoryIndex,
+          templateData
+        )
+
+        // Add locale file updates to tree
+        for (const update of localeFileUpdates) {
+          tree.push({
+            path: update.path,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            content: update.content
+          })
+        }
+
+        console.log(`[Update Template] Synced template to ${localeFileUpdates.length} locale file(s)`)
+
+      } catch (error: any) {
+        console.error('[Update Template] Failed to sync i18n files:', error)
+        console.error('[Update Template] Error details:', {
+          message: error.message,
+          status: error.status,
+          stack: error.stack
+        })
+        // Don't fail the entire operation if i18n sync fails
       }
     }
 

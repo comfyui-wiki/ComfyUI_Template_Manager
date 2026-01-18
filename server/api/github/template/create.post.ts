@@ -3,6 +3,7 @@ import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
+import { syncTemplateToAllLocales, updateI18nJson } from '~/server/utils/i18n-sync'
 
 interface CreateTemplateRequest {
   repo: string
@@ -287,7 +288,66 @@ export default defineEventHandler(async (event) => {
       // Don't fail the entire operation if bundles.json update fails
     }
 
-    // 2. Check for input file conflicts and prepare filename mapping
+    // 2. Sync template to all locale files (i18n)
+    try {
+      console.log('[Create Template] Syncing template to all locale files...')
+
+      // Sync template to all locale index files
+      const localeFileUpdates = await syncTemplateToAllLocales(
+        octokit,
+        repo,
+        branch,
+        targetCategoryIndex,
+        newTemplate,
+        templateOrder
+      )
+
+      // Add locale file updates to tree
+      for (const update of localeFileUpdates) {
+        tree.push({
+          path: update.path,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          content: update.content
+        })
+      }
+
+      console.log(`[Create Template] Synced template to ${localeFileUpdates.length} locale file(s)`)
+
+      // Update i18n.json with new template translations
+      const i18nUpdate = await updateI18nJson(
+        octokit,
+        repo,
+        branch,
+        templateName,
+        {
+          title: metadata.title,
+          description: metadata.description,
+          tags: metadata.tags
+        }
+      )
+
+      // Add i18n.json update to tree
+      tree.push({
+        path: i18nUpdate.path,
+        mode: '100644' as const,
+        type: 'blob' as const,
+        content: i18nUpdate.content
+      })
+
+      console.log('[Create Template] Updated i18n.json with translation placeholders')
+
+    } catch (error: any) {
+      console.error('[Create Template] Failed to sync i18n files:', error)
+      console.error('[Create Template] Error details:', {
+        message: error.message,
+        status: error.status,
+        stack: error.stack
+      })
+      // Don't fail the entire operation if i18n sync fails
+    }
+
+    // 3. Check for input file conflicts and prepare filename mapping
     const filenameMapping = new Map<string, string>() // originalName -> actualName (with prefix if conflict)
 
     if (files.inputFiles && files.inputFiles.length > 0) {
@@ -324,7 +384,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 3. Add workflow.json (with input file name updates if needed)
+    // 4. Add workflow.json (with input file name updates if needed)
     let workflowContent = Buffer.from(files.workflow.content, 'base64').toString('utf-8')
 
     // Update workflow JSON with actual filenames (prefixed if conflict)
@@ -363,7 +423,7 @@ export default defineEventHandler(async (event) => {
       content: workflowContent
     })
 
-    // 4. Add thumbnails
+    // 5. Add thumbnails
     if (files.thumbnails && files.thumbnails.length > 0) {
       for (const thumbnail of files.thumbnails) {
         // Create blob for binary image content
@@ -383,7 +443,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 5. Add input files (using actual filenames from mapping)
+    // 6. Add input files (using actual filenames from mapping)
     if (files.inputFiles && files.inputFiles.length > 0) {
       console.log(`[Create Template] Uploading ${files.inputFiles.length} input file(s)`)
       for (const inputFile of files.inputFiles) {

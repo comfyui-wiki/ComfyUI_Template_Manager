@@ -56,6 +56,28 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 - Branch selection support
 - Atomic updates with git tree API
 
+### 6. Multi-language (i18n) Synchronization
+- **Automatic sync across 11 languages**: en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR
+- **Create mode**: New templates automatically sync to all locale files with English placeholders
+- **Update mode**: Technical fields sync across all locales while preserving existing translations
+- **Outdated Translation Tracking**: Automatically marks templates when English title/description changes
+- **i18n.json Integration**: Updates translation database with placeholders for manual translation
+- **Compatible with Python workflow**: Works seamlessly with existing `sync_data.py` script
+- **Atomic commits**: All locale files and i18n.json updated in single git commit
+- **Graceful error handling**: Failures in one locale don't block template creation/update
+
+**How it works:**
+1. **Stage 1 (Automatic)**: Node.js API syncs templates with English placeholders to all locale files
+2. **Stage 2 (Manual)**: Translators update `i18n.json` → Run `sync_data.py` → Translations applied
+
+**Outdated translations tracking:**
+- When English `title` or `description` is updated, system marks it in `i18n.json`
+- `_status.outdated_translations.templates` lists templates needing translation review
+- Records which fields need update (`title`, `description`) and timestamp
+- Translators review and update, then manually clear the marker
+
+**See**: `docs/i18n-outdated-translations.md` for detailed usage guide
+
 ---
 
 ## File Structure
@@ -76,14 +98,24 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 
 /server/api
   /config
-    [name].ts                 # Config file API endpoint (NEW)
+    [name].ts                 # Config file API endpoint (serves config files)
   /github
     /template
-      update.post.ts          # Update template endpoint
+      create.post.ts          # Create template endpoint (with i18n sync)
+      update.post.ts          # Update template endpoint (with i18n sync)
+
+/server/utils
+  json-formatter.ts           # JSON formatting utilities
+  i18n-sync.ts                # Multi-language synchronization utilities
 
 /config
-  template-naming-rules.json  # Template naming conventions (NEW)
-  workflow-model-config.json  # Workflow model configuration (NEW)
+  template-naming-rules.json  # Template naming conventions
+  workflow-model-config.json  # Workflow model configuration
+  bundle-mapping-rules.json   # Bundle mapping configuration
+  i18n-config.json            # i18n configuration (11 languages)
+
+/docs
+  i18n-outdated-translations.md # i18n outdated translations guide
 
 /composables
   useGitHubRepo.ts            # GitHub repo state management
@@ -135,7 +167,66 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 ## Recent Implementations
 
-### 1. GITHUB_TOKEN Removal & PR Browser Login Requirement (2026-01-18)
+### 1. Multi-language (i18n) Synchronization & Outdated Translations Tracking (2026-01-18)
+**Problem**: Templates were only created/updated in English `index.json`, requiring manual sync to 10 other language files. No tracking of English content changes meant translations could become outdated without notice.
+
+**Solution**:
+- Implemented automatic synchronization across all 11 language files (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR)
+- Created `server/utils/i18n-sync.ts` with core sync functions
+- Added outdated translations tracking in `i18n.json`
+- Updates `_status.outdated_translations` when English title/description changes
+
+**Key Features**:
+- **Create Mode**: New templates automatically sync to all locale files with English placeholders
+- **Update Mode**: Technical fields sync across locales while preserving existing translations
+- **Outdated Tracking**: Marks templates needing translation review when English content changes
+- **i18n.json Integration**: Updates translation database with placeholders and status
+- **Atomic Commits**: All files (11 locale files + i18n.json) committed together
+- **Compatible**: Works with existing Python `sync_data.py` workflow
+
+**Outdated Translations Structure**:
+```json
+{
+  "_status": {
+    "outdated_translations": {
+      "comment": "Templates with English updates that need translation review",
+      "templates": {
+        "template_name": {
+          "fields": ["title", "description"],
+          "lastUpdated": "2026-01-18T10:30:00Z"
+        }
+      }
+    }
+  }
+}
+```
+
+**Workflow**:
+1. User updates English title/description
+2. System detects change, updates English value in `i18n.json`
+3. Marks template in `outdated_translations` with fields needing update
+4. Technical fields sync to all locale files automatically
+5. Translator reviews `outdated_translations`, updates translations in `i18n.json`
+6. Translator manually clears marker after translation complete
+7. Run `sync_data.py` to apply translations to locale files
+
+**Files**:
+- `server/utils/i18n-sync.ts` (new) - Core sync logic
+- `server/api/github/template/create.post.ts` - Added i18n sync on create
+- `server/api/github/template/update.post.ts` - Added i18n sync + outdated tracking on update
+- `server/api/config/[name].ts` - Added `i18n-config.json` support
+- `config/i18n-config.json` - Language and field configuration
+- `docs/i18n-outdated-translations.md` (new) - Detailed usage guide
+
+**Benefits**:
+- ✅ Templates immediately available in all languages
+- ✅ No missing templates in any locale
+- ✅ Translations never lost during updates
+- ✅ Clear visibility of which templates need translation updates
+- ✅ Timestamp tracking for translation maintenance
+- ✅ Compatible with existing Python workflow
+
+### 2. GITHUB_TOKEN Removal & PR Browser Login Requirement (2026-01-18)
 **Problem**: Application used optional GITHUB_TOKEN environment variable, but most features required user authentication anyway
 **Solution**:
 - Removed all `GITHUB_TOKEN` dependencies from codebase
