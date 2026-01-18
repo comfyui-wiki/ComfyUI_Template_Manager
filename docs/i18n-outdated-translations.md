@@ -1,23 +1,23 @@
 # i18n Outdated Translations Tracking
 
-## 概述
+## Overview
 
-当更新模板的英文标题或描述时，系统会自动标记需要更新翻译的字段，方便后续翻译维护。
+When updating the English title or description of a template, the system automatically marks fields that need translation updates, facilitating subsequent translation maintenance.
 
-## 功能说明
+## Feature Description
 
-### 自动追踪
+### Automatic Tracking
 
-当你在编辑模式下更新模板的英文 `title` 或 `description` 时：
+When you update the English `title` or `description` of a template in edit mode:
 
-1. 系统自动检测英文内容是否发生变化
-2. 如果发生变化，在 `i18n.json` 的 `_status.outdated_translations` 中标记
-3. 记录需要更新的字段（`title` 或 `description`）
-4. 记录更新时间
+1. The system automatically detects if the English content has changed
+2. If changed, it marks the entry in `_status.outdated_translations` of `i18n.json`
+3. Records the fields that need updating (`title` or `description`)
+4. Records the update time
 
-### 数据结构
+### Data Structure
 
-在 `scripts/i18n.json` 文件中：
+In the `scripts/i18n.json` file:
 
 ```json
 {
@@ -42,13 +42,13 @@
     "template_name": {
       "title": {
         "en": "Updated English Title",
-        "zh": "旧的中文标题",
+        "zh": "Old Chinese Title",
         "ja": "古い日本語タイトル",
         ...
       },
       "description": {
         "en": "Updated English Description",
-        "zh": "旧的中文描述",
+        "zh": "Old Chinese Description",
         "ja": "古い日本語説明",
         ...
       }
@@ -57,24 +57,24 @@
 }
 ```
 
-### 字段说明
+### Field Descriptions
 
-- **`fields`**: 数组，包含需要更新的字段名（`"title"` 或 `"description"`）
-- **`lastUpdated`**: ISO 8601 格式的时间戳，记录最后更新时间
+- **`fields`**: Array containing the field names that need updating (`"title"` or `"description"`)
+- **`lastUpdated`**: ISO 8601 formatted timestamp recording the last update time
 
-## 使用流程
+## Usage Process
 
-### 1. 编辑模板（触发标记）
+### 1. Edit Template (Trigger Marking)
 
 ```typescript
-// 用户在管理界面编辑模板
-// 修改英文标题: "Old Title" → "New Title"
-// 保存更改
+// User edits template in admin interface
+// Modify English title: "Old Title" → "New Title"
+// Save changes
 ```
 
-系统自动：
-- 更新 `templates.template_name.title.en` 为新值
-- 在 `_status.outdated_translations.templates.template_name` 中添加：
+System automatically:
+- Updates `templates.template_name.title.en` to the new value
+- Adds to `_status.outdated_translations.templates.template_name`:
   ```json
   {
     "fields": ["title"],
@@ -82,18 +82,18 @@
   }
   ```
 
-### 2. 查看需要更新的翻译
+### 2. View Translation Updates Needed
 
-查询 `_status.outdated_translations.templates` 获取所有需要翻译更新的模板：
+Query `_status.outdated_translations.templates` to get all templates that need translation updates:
 
 ```javascript
-// 读取 i18n.json
+// Read i18n.json
 const i18nData = JSON.parse(fs.readFileSync('scripts/i18n.json', 'utf-8'))
 
-// 获取所有需要更新的模板
+// Get all templates that need updates
 const outdatedTemplates = i18nData._status.outdated_translations.templates
 
-// 遍历
+// Iterate
 for (const [templateName, info] of Object.entries(outdatedTemplates)) {
   console.log(`Template: ${templateName}`)
   console.log(`  Fields to update: ${info.fields.join(', ')}`)
@@ -101,7 +101,7 @@ for (const [templateName, info] of Object.entries(outdatedTemplates)) {
 }
 ```
 
-输出示例：
+Example output:
 ```
 Template: image_flux2
   Fields to update: title, description
@@ -112,9 +112,9 @@ Template: video_animation_gen
   Last updated: 2026-01-17T15:20:00Z
 ```
 
-### 3. 更新翻译
+### 3. Update Translations
 
-翻译人员根据标记更新对应语言的翻译：
+Translators update corresponding language translations based on the markings:
 
 ```json
 {
@@ -122,8 +122,8 @@ Template: video_animation_gen
     "image_flux2": {
       "title": {
         "en": "New English Title",
-        "zh": "新的中文标题",      // 更新
-        "ja": "新しい日本語タイトル", // 更新
+        "zh": "New Chinese Title",      // Updated
+        "ja": "新しい日本語タイトル", // Updated
         ...
       }
     }
@@ -131,56 +131,56 @@ Template: video_animation_gen
 }
 ```
 
-### 4. 清除标记
+### 4. Clear Markings
 
-翻译完成后，手动从 `outdated_translations.templates` 中删除对应条目：
+After translation is complete, manually remove the corresponding entries from `outdated_translations.templates`:
 
 ```json
 {
   "_status": {
     "outdated_translations": {
       "templates": {
-        // "image_flux2": { ... }  // 删除这个条目
+        // "image_flux2": { ... }  // Remove this entry
       }
     }
   }
 }
 ```
 
-或者使用脚本批量清除：
+Or use a script to clear in bulk:
 
 ```javascript
-// 清除特定模板的标记
+// Clear markings for specific template
 delete i18nData._status.outdated_translations.templates['image_flux2']
 
-// 保存
+// Save
 fs.writeFileSync('scripts/i18n.json', JSON.stringify(i18nData, null, 2))
 ```
 
-### 5. 运行 Python 同步脚本
+### 5. Run Python Sync Script
 
 ```bash
 cd /path/to/workflow_templates
 python scripts/sync_data.py --templates-dir ./templates
 ```
 
-Python 脚本会：
-- 读取 `i18n.json` 中的翻译
-- 应用到所有语言的 `index.*.json` 文件
-- 保持 `outdated_translations` 状态不变（需要手动清理）
+The Python script will:
+- Read translations from `i18n.json`
+- Apply to all language `index.*.json` files
+- Keep `outdated_translations` status unchanged (manual cleanup needed)
 
-## 示例场景
+## Example Scenarios
 
-### 场景 1: 更新标题
+### Scenario 1: Update Title
 
-**操作**:
+**Operation**:
 ```
-编辑模板 "image_portrait" 的英文标题
-旧: "Portrait Generator"
-新: "Professional Portrait Generator"
+Edit English title of template "image_portrait"
+Old: "Portrait Generator"
+New: "Professional Portrait Generator"
 ```
 
-**结果**:
+**Result**:
 ```json
 {
   "_status": {
@@ -197,23 +197,23 @@ Python 脚本会：
     "image_portrait": {
       "title": {
         "en": "Professional Portrait Generator",
-        "zh": "肖像生成器",  // 需要更新
-        "ja": "ポートレートジェネレーター"  // 需要更新
+        "zh": "肖像生成器",  // Needs update
+        "ja": "ポートレートジェネレーター"  // Needs update
       }
     }
   }
 }
 ```
 
-### 场景 2: 同时更新标题和描述
+### Scenario 2: Update Title and Description Simultaneously
 
-**操作**:
+**Operation**:
 ```
-编辑模板 "video_animation"
-更新英文标题和描述
+Edit template "video_animation"
+Update English title and description
 ```
 
-**结果**:
+**Result**:
 ```json
 {
   "_status": {
@@ -229,50 +229,50 @@ Python 脚本会：
 }
 ```
 
-### 场景 3: 只更新技术字段（不触发标记）
+### Scenario 3: Update Technical Fields Only (Does Not Trigger Marking)
 
-**操作**:
+**Operation**:
 ```
-编辑模板 "image_flux2"
-只更新 models, tutorialUrl, comfyuiVersion
-不修改 title 或 description
+Edit template "image_flux2"
+Only update models, tutorialUrl, comfyuiVersion
+Don't modify title or description
 ```
 
-**结果**:
-- `outdated_translations` 不变
-- 技术字段正常同步到所有语言文件
+**Result**:
+- `outdated_translations` remains unchanged
+- Technical fields normally sync to all language files
 
-## 工作流程图
+## Workflow Diagram
 
 ```
-用户编辑模板
+User edits template
     ↓
-检测 title/description 是否变化?
-    ↓ 是
-更新 i18n.json 中的英文值
+Detect if title/description changed?
+    ↓ Yes
+Update English values in i18n.json
     ↓
-在 outdated_translations 中标记
+Mark in outdated_translations
     ↓
-同步到所有语言文件（保留旧翻译）
+Sync to all language files (preserve old translations)
     ↓
 Git commit
     ↓
-翻译人员查看 outdated_translations
+Translators view outdated_translations
     ↓
-更新 i18n.json 中的翻译
+Update translations in i18n.json
     ↓
-手动删除 outdated_translations 标记
+Manually remove outdated_translations marking
     ↓
-运行 sync_data.py
+Run sync_data.py
     ↓
-翻译应用到所有语言文件
+Translations applied to all language files
 ```
 
-## Tags 翻译处理
+## Tags Translation Processing
 
-### 自动翻译逻辑
+### Automatic Translation Logic
 
-系统使用 `i18n.json` 中的 `tags` 映射来自动翻译 tags：
+The system uses the `tags` mapping in `i18n.json` to automatically translate tags:
 
 ```json
 {
@@ -287,16 +287,16 @@ Git commit
 }
 ```
 
-**创建/更新模板时**：
-- 英文版本：使用原始 tag 名称（如 `"Portrait"`）
-- 其他语言：从 `i18n.json` 查找对应翻译（如中文使用 `"肖像"`）
-- 如果找不到翻译，使用英文作为 fallback
+**When creating/updating templates**:
+- English version: Use original tag name (e.g., `"Portrait"`)
+- Other languages: Look up corresponding translation from `i18n.json` (e.g., Chinese uses `"肖像"`)
+- If translation not found, use English as fallback
 
-### 新 Tag 的处理
+### New Tag Processing
 
-当添加新 tag 时，系统自动：
-1. 检查 tag 是否在 `i18n.json` 中存在
-2. 如果不存在，为所有 11 种语言创建英文占位符：
+When adding a new tag, the system automatically:
+1. Checks if the tag exists in `i18n.json`
+2. If not, creates English placeholders for all 11 languages:
    ```json
    {
      "tags": {
@@ -309,24 +309,24 @@ Git commit
      }
    }
    ```
-3. 记录日志：`✓ Added new tag to i18n.json: NewTag`
+3. Log: `✓ Added new tag to i18n.json: NewTag`
 
-翻译人员后续可以更新这些占位符为实际翻译。
+Translators can subsequently update these placeholders with actual translations.
 
-## 注意事项
+## Notes
 
-1. **不自动清除标记**: 翻译完成后需要手动清除标记，避免误删
-2. **只追踪 title 和 description**: tags 变化不会标记为 outdated，因为 tags 自动使用 i18n.json 映射
-3. **新 tags 自动添加**: 创建/更新模板时，新 tags 会自动添加到 i18n.json（英文占位）
-4. **不影响现有流程**: Python `sync_data.py` 脚本正常工作，不受影响
-5. **时间戳为服务器时间**: 使用 ISO 8601 格式，便于排序和筛选
-6. **首次创建不标记**: 新模板首次创建时不会进入 `outdated_translations`
+1. **No automatic clearing of markings**: After translation is complete, markings need to be cleared manually to avoid accidental deletion
+2. **Only track title and description**: Tag changes won't be marked as outdated because tags automatically use i18n.json mapping
+3. **New tags automatically added**: When creating/updating templates, new tags are automatically added to i18n.json (English placeholders)
+4. **Doesn't affect existing workflows**: Python `sync_data.py` script works normally, unaffected
+5. **Timestamps are server time**: Using ISO 8601 format, convenient for sorting and filtering
+6. **First creation doesn't mark**: Newly created templates won't enter `outdated_translations` on first creation
 
-## API 日志示例
+## API Log Examples
 
-### 更新标题和描述
+### Updating Title and Description
 
-当更新模板时，控制台会显示：
+When updating a template, the console will display:
 
 ```
 [Update Template] Syncing updated template to all locale files...
@@ -336,9 +336,9 @@ Git commit
 [Update Template] Synced template to 11 locale file(s)
 ```
 
-### 添加新 Tags
+### Adding New Tags
 
-当添加新 tags 时：
+When adding new tags:
 
 ```
 [Update Template] Syncing updated template to all locale files...
@@ -348,9 +348,9 @@ Git commit
 [Update Template] Synced template to 11 locale file(s)
 ```
 
-### Tags 翻译日志
+### Tags Translation Log
 
-更新模板时，tags 会自动翻译：
+When updating templates, tags are automatically translated:
 
 ```
 [Update Template] Syncing template to zh: index.zh.json
@@ -361,16 +361,16 @@ Git commit
   - Tag "Video" → "ビデオ"
 ```
 
-## 相关文件
+## Related Files
 
-- **核心逻辑**: `/server/utils/i18n-sync.ts` - `trackOutdatedTranslations()`
-- **更新 API**: `/server/api/github/template/update.post.ts`
-- **配置文件**: `/config/i18n-config.json`
-- **翻译数据**: `/path/to/workflow_templates/scripts/i18n.json`
+- **Core Logic**: `/server/utils/i18n-sync.ts` - `trackOutdatedTranslations()`
+- **Update API**: `/server/api/github/template/update.post.ts`
+- **Configuration Files**: `/config/i18n-config.json`
+- **Translation Data**: `/path/to/workflow_templates/scripts/i18n.json`
 
-## 未来改进
+## Future Improvements
 
-1. **自动清除机制**: 检测翻译完成度，自动清除已翻译的标记
-2. **翻译状态统计**: 显示翻译完成百分比
-3. **批量翻译工具**: 提供 Web UI 批量更新翻译
-4. **翻译历史记录**: 保留英文变更历史
+1. **Automatic clearing mechanism**: Detect translation completion rate, automatically clear translated markings
+2. **Translation status statistics**: Display translation completion percentage
+3. **Bulk translation tool**: Provide Web UI for bulk translation updates
+4. **Translation history records**: Maintain English change history

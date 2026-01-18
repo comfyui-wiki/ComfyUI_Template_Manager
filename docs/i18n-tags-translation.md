@@ -1,19 +1,19 @@
-# i18n Tags 翻译功能
+# i18n Tags Translation Feature
 
-## 概述
+## Overview
 
-系统现在支持基于 i18n.json 映射的 tags 自动翻译功能，确保所有语言文件中的 tags 都使用正确的本地化名称。
+The system now supports automatic tag translation based on i18n.json mappings, ensuring that tags in all language files use the correct localized names.
 
-## 功能特性
+## Feature Characteristics
 
-### 1. 自动翻译 Tags
+### 1. Automatic Tag Translation
 
-创建或更新模板时，系统会：
-- 读取 `i18n.json` 中的 `tags` 映射
-- 根据目标语言自动翻译 tags
-- 如果找不到翻译，使用英文作为 fallback
+When creating or updating a template, the system will:
+- Read the `tags` mapping from `i18n.json`
+- Automatically translate tags according to the target language
+- Use English as fallback if translation is not found
 
-**示例**：
+**Example**:
 
 i18n.json:
 ```json
@@ -35,22 +35,22 @@ i18n.json:
 }
 ```
 
-模板 tags 为 `["Portrait", "Video"]` 时：
+When template tags are `["Portrait", "Video"]`:
 - `index.json` (en): `["Portrait", "Video"]`
 - `index.zh.json` (zh): `["肖像", "视频"]`
 - `index.ja.json` (ja): `["ポートレート", "ビデオ"]`
 - `index.ko.json` (ko): `["초상화", "비디오"]`
 
-### 2. 自动添加新 Tags
+### 2. Automatic Addition of New Tags
 
-当创建/更新模板并使用新 tag 时，系统会：
-1. 检查 tag 是否在 i18n.json 中存在
-2. 如果不存在，自动添加该 tag 并为所有语言创建英文占位符
-3. 记录日志通知
+When creating/updating a template and using a new tag, the system will:
+1. Check if the tag exists in i18n.json
+2. If not, automatically add the tag and create English placeholders for all languages
+3. Record log notification
 
-**示例**：
+**Example**:
 
-添加新 tag "AIGenerated"：
+Adding new tag "AIGenerated":
 
 ```json
 {
@@ -72,33 +72,33 @@ i18n.json:
 }
 ```
 
-后续翻译人员可以更新这些占位符为实际翻译。
+Subsequently, translators can update these placeholders with actual translations.
 
-## 实现细节
+## Implementation Details
 
-### 核心函数
+### Core Functions
 
 #### `translateTag(tag, targetLang, i18nData)`
-翻译单个 tag 到目标语言。
+Translate a single tag to the target language.
 
-**参数**:
-- `tag`: 英文 tag 名称
-- `targetLang`: 目标语言代码（如 'zh', 'ja'）
-- `i18nData`: i18n.json 数据
+**Parameters**:
+- `tag`: English tag name
+- `targetLang`: Target language code (e.g., 'zh', 'ja')
+- `i18nData`: i18n.json data
 
-**返回值**: 翻译后的 tag（如果找不到翻译则返回原始 tag）
+**Return Value**: Translated tag (returns original tag if translation not found)
 
 #### `translateTags(tags, targetLang, i18nData)`
-翻译 tag 数组。
+Translate an array of tags.
 
-**参数**:
-- `tags`: 英文 tag 数组
-- `targetLang`: 目标语言代码
-- `i18nData`: i18n.json 数据
+**Parameters**:
+- `tags`: English tag array
+- `targetLang`: Target language code
+- `i18nData`: i18n.json data
 
-**返回值**: 翻译后的 tag 数组
+**Return Value**: Translated tag array
 
-### 创建模板流程
+### Template Creation Process
 
 ```typescript
 // server/utils/i18n-sync.ts - syncTemplateToAllLocales()
@@ -106,32 +106,32 @@ i18n.json:
 for (const locale of config.supportedLocales) {
   const newTemplate = { ...templateData }
 
-  // 翻译 tags
+  // Translate tags
   if (!locale.isDefault && templateData.tags) {
     newTemplate.tags = translateTags(templateData.tags, locale.code, i18nData)
   }
 
-  // 添加到 locale 文件
+  // Add to locale file
   localeData[categoryIndex].templates.push(newTemplate)
 }
 ```
 
-在 `updateI18nJson()` 中添加新 tags：
+Add new tags in `updateI18nJson()`:
 ```typescript
-// 检查并添加新 tags
+// Check and add new tags
 if (templateData.tags) {
   for (const tag of templateData.tags) {
     if (!i18nData.tags[tag]) {
       i18nData.tags[tag] = {}
       for (const langCode of allLangCodes) {
-        i18nData.tags[tag][langCode] = tag // 英文占位符
+        i18nData.tags[tag][langCode] = tag // English placeholder
       }
     }
   }
 }
 ```
 
-### 更新模板流程
+### Template Update Process
 
 ```typescript
 // server/utils/i18n-sync.ts - syncUpdatedTemplateToAllLocales()
@@ -139,7 +139,7 @@ if (templateData.tags) {
 for (const locale of config.supportedLocales) {
   const updatedTemplate = { ...existingTemplate }
 
-  // 更新 tags
+  // Update tags
   if (templateData.tags) {
     if (locale.code === 'en') {
       updatedTemplate.tags = templateData.tags
@@ -150,73 +150,73 @@ for (const locale of config.supportedLocales) {
 }
 ```
 
-在 `trackOutdatedTranslations()` 中添加新 tags：
+Add new tags in `trackOutdatedTranslations()`:
 ```typescript
-// 同步新 tags 到 i18n.json
+// Sync new tags to i18n.json
 if (newTags && newTags.length > 0) {
   for (const tag of newTags) {
     if (!i18nData.tags[tag]) {
       i18nData.tags[tag] = {}
       for (const langCode of allLangCodes) {
-        i18nData.tags[tag][langCode] = tag // 英文占位符
+        i18nData.tags[tag][langCode] = tag // English placeholder
       }
     }
   }
 }
 ```
 
-## 与 Python 脚本的兼容性
+## Compatibility with Python Scripts
 
-这个功能完全兼容现有的 Python `sync_data.py` 脚本：
+This feature is fully compatible with the existing Python `sync_data.py` script:
 
-1. **数据结构相同**: 使用相同的 i18n.json 格式
-2. **翻译来源相同**: 都从 i18n.json 的 tags 映射读取翻译
-3. **不冲突**: Node.js API 负责同步技术数据，Python 脚本负责应用人工翻译
-4. **互补工作**: API 添加英文占位符，Python 脚本应用翻译后的值
+1. **Same data structure**: Uses the same i18n.json format
+2. **Same translation source**: Both read translations from i18n.json tag mappings
+3. **No conflicts**: Node.js API handles technical data synchronization, Python script handles manual translation application
+4. **Complementary work**: API adds English placeholders, Python script applies translated values
 
-### 工作流程
+### Workflow
 
 ```
-1. 用户创建/更新模板（Node.js API）
+1. User creates/updates template (Node.js API)
    ↓
-2. 系统同步模板到所有语言文件
-   - 英文版本：原始 tags
-   - 其他语言：从 i18n.json 翻译（如果有）
+2. System synchronizes template to all language files
+   - English version: original tags
+   - Other languages: translated from i18n.json (if available)
    ↓
-3. 新 tags 自动添加到 i18n.json（英文占位）
+3. New tags automatically added to i18n.json (English placeholders)
    ↓
-4. 翻译人员更新 i18n.json 中的 tag 翻译
+4. Translators update tag translations in i18n.json
    ↓
-5. 运行 sync_data.py
+5. Run sync_data.py
    ↓
-6. 所有语言文件中的 tags 更新为正确翻译
+6. Tags in all language files updated with correct translations
 ```
 
-## 优势
+## Advantages
 
-### 1. 一致性
-- 所有语言文件中的 tags 始终使用相同的翻译策略
-- 避免手动维护导致的不一致
+### 1. Consistency
+- Tags in all language files always use the same translation strategy
+- Avoids inconsistencies caused by manual maintenance
 
-### 2. 自动化
-- 新 tags 自动添加到 i18n.json
-- 无需手动创建 tag 映射
+### 2. Automation
+- New tags automatically added to i18n.json
+- No need to manually create tag mappings
 
-### 3. Fallback 机制
-- 如果翻译缺失，使用英文
-- 不会因为缺失翻译而中断流程
+### 3. Fallback Mechanism
+- Uses English if translation is missing
+- Won't interrupt the process due to missing translations
 
-### 4. 可维护性
-- 单一真实来源（i18n.json）
-- 便于批量更新和管理
+### 4. Maintainability
+- Single source of truth (i18n.json)
+- Convenient for batch updates and management
 
-### 5. 兼容性
-- 不破坏现有 Python 脚本
-- 可以逐步完善翻译
+### 5. Compatibility
+- Doesn't break existing Python scripts
+- Can gradually improve translations
 
-## 日志输出
+## Log Output
 
-### 创建模板
+### Creating Template
 ```
 [Create Template] Syncing template to all locale files...
 ✓ Added new tag to i18n.json: NewTag
@@ -228,7 +228,7 @@ if (newTags && newTags.length > 0) {
 [Create Template] Updated i18n.json with translation placeholders
 ```
 
-### 更新模板
+### Updating Template
 ```
 [Update Template] Syncing updated template to all locale files...
 ✓ Added new tag to i18n.json: Experimental
@@ -238,55 +238,55 @@ if (newTags && newTags.length > 0) {
 [Update Template] Synced template to 11 locale file(s)
 ```
 
-## 故障排除
+## Troubleshooting
 
-### 问题：Tags 没有被翻译
+### Problem: Tags are not being translated
 
-**可能原因**:
-1. i18n.json 中缺少该 tag 的映射
-2. 目标语言的翻译值缺失
+**Possible Causes**:
+1. Tag mapping missing from i18n.json
+2. Translation value missing for target language
 
-**解决方案**:
-1. 检查 i18n.json 中是否有该 tag
-2. 确认目标语言有对应的翻译值
-3. 如果是新 tag，等待系统自动添加英文占位符
-4. 更新 i18n.json 中的翻译
-5. 重新运行 sync_data.py
+**Solutions**:
+1. Check if the tag exists in i18n.json
+2. Confirm the target language has corresponding translation values
+3. If it's a new tag, wait for the system to automatically add English placeholders
+4. Update translations in i18n.json
+5. Re-run sync_data.py
 
-### 问题：新 tag 没有添加到 i18n.json
+### Problem: New tag not added to i18n.json
 
-**可能原因**:
-1. i18n.json 文件读取失败
-2. 权限问题
-3. JSON 格式错误
+**Possible Causes**:
+1. i18n.json file read failure
+2. Permission issues
+3. JSON format error
 
-**解决方案**:
-1. 检查控制台日志查看错误信息
-2. 验证 i18n.json 格式是否正确
-3. 确认 GitHub token 有写入权限
+**Solutions**:
+1. Check console logs for error information
+2. Verify i18n.json format is correct
+3. Confirm GitHub token has write permissions
 
-## 相关文件
+## Related Files
 
-- **核心逻辑**: `server/utils/i18n-sync.ts`
-  - `translateTag()` - 翻译单个 tag
-  - `translateTags()` - 翻译 tag 数组
-  - `syncTemplateToAllLocales()` - 创建模板时同步
-  - `syncUpdatedTemplateToAllLocales()` - 更新模板时同步
-  - `updateI18nJson()` - 添加新 tags 到 i18n.json
-  - `trackOutdatedTranslations()` - 追踪变化并添加新 tags
+- **Core Logic**: `server/utils/i18n-sync.ts`
+  - `translateTag()` - Translate single tag
+  - `translateTags()` - Translate tag array
+  - `syncTemplateToAllLocales()` - Synchronize when creating template
+  - `syncUpdatedTemplateToAllLocales()` - Synchronize when updating template
+  - `updateI18nJson()` - Add new tags to i18n.json
+  - `trackOutdatedTranslations()` - Track changes and add new tags
 
-- **API 端点**:
-  - `server/api/github/template/create.post.ts` - 创建模板
-  - `server/api/github/template/update.post.ts` - 更新模板
+- **API Endpoints**:
+  - `server/api/github/template/create.post.ts` - Create template
+  - `server/api/github/template/update.post.ts` - Update template
 
-- **配置文件**:
-  - `config/i18n-config.json` - i18n 配置
-  - `scripts/i18n.json` - 翻译数据库（在 workflow_templates 仓库中）
+- **Configuration Files**:
+  - `config/i18n-config.json` - i18n configuration
+  - `scripts/i18n.json` - Translation database (in workflow_templates repository)
 
-## 未来改进
+## Future Improvements
 
-1. **批量 Tag 管理**: Web UI 批量编辑 tag 翻译
-2. **翻译建议**: AI 辅助生成 tag 翻译建议
-3. **翻译状态统计**: 显示哪些 tags 还需要翻译
-4. **Tag 别名**: 支持 tag 别名和同义词
-5. **自动检测**: 检测未使用的 tags 并清理
+1. **Bulk Tag Management**: Web UI for bulk editing tag translations
+2. **Translation Suggestions**: AI-assisted generation of tag translation suggestions
+3. **Translation Status Statistics**: Show which tags still need translation
+4. **Tag Aliases**: Support for tag aliases and synonyms
+5. **Automatic Detection**: Detect unused tags and clean up
