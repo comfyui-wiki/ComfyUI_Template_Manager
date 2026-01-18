@@ -13,10 +13,17 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Try to get session for authenticated requests, but don't require it
+    // Require authentication to use PR browser
     const session = await getServerSession(event)
+    if (!session?.accessToken) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: 'Authentication required. Please sign in to browse pull requests.'
+      })
+    }
+
     const octokit = new Octokit({
-      auth: session?.accessToken || process.env.GITHUB_TOKEN
+      auth: session.accessToken
     })
 
     // Get pull requests

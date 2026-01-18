@@ -43,8 +43,7 @@ export default defineNuxtConfig({
     authSecret: process.env.NEXTAUTH_SECRET,
     github: {
       clientId: process.env.GITHUB_CLIENT_ID,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      token: process.env.GITHUB_TOKEN
+      clientSecret: process.env.GITHUB_CLIENT_SECRET
     },
     // Public (client-side)
     public: {

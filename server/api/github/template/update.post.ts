@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
+import { resolve } from 'path'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -295,7 +296,8 @@ export default defineEventHandler(async (event) => {
             console.log(`[Update Template] Template "${templateName}" not found in bundles.json, adding it...`)
 
             // Load bundle mapping rules
-            const configPath = new URL('../../../config/bundle-mapping-rules.json', import.meta.url)
+            const configPath = resolve(process.cwd(), 'config/bundle-mapping-rules.json')
+            console.log('[Update Template] Loading bundle mapping rules from:', configPath)
             const bundleMappingRules = JSON.parse(await readFile(configPath, 'utf-8'))
 
             // Determine which bundle to add the template to

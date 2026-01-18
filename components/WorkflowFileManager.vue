@@ -838,7 +838,11 @@ const downloadWorkflow = () => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${props.templateName}.json`
+  // In create mode, use extractedTemplateName; otherwise use templateName
+  const filename = props.templateName === 'new' && extractedTemplateName.value
+    ? `${extractedTemplateName.value}.json`
+    : `${props.templateName}.json`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }

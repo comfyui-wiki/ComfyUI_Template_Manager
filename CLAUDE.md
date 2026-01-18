@@ -99,12 +99,11 @@ package.json                  # Dependencies
 ### Environment Variables
 
 ```bash
-# GitHub OAuth
+# GitHub OAuth (required)
 GITHUB_CLIENT_ID=your_client_id
 GITHUB_CLIENT_SECRET=your_client_secret
-GITHUB_TOKEN=your_personal_token  # For API access
 
-# NextAuth
+# NextAuth (required)
 NEXTAUTH_SECRET=your_secret
 NEXTAUTH_URL=http://localhost:3000/api/auth
 ```

@@ -1,5 +1,7 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
+import { readFile } from 'fs/promises'
+import { resolve } from 'path'
 
 interface CreateTemplateRequest {
   repo: string
@@ -207,6 +209,81 @@ export default defineEventHandler(async (event) => {
       type: 'blob' as const,
       content: JSON.stringify(indexData, null, 2)
     })
+
+    // Update bundles.json to include the new template
+    try {
+      console.log('[Create Template] Checking bundles.json...')
+
+      let bundlesData: any = {}
+      let bundlesFileExists = false
+
+      // Try to get current bundles.json
+      try {
+        const { data: bundlesFile } = await octokit.repos.getContent({
+          owner,
+          repo: repoName,
+          path: 'bundles.json',
+          ref: branch
+        })
+
+        if ('content' in bundlesFile) {
+          const bundlesContent = Buffer.from(bundlesFile.content, 'base64').toString('utf-8')
+          bundlesData = JSON.parse(bundlesContent)
+          bundlesFileExists = true
+          console.log('[Create Template] bundles.json found and loaded')
+        }
+      } catch (error: any) {
+        if (error.status === 404) {
+          console.log('[Create Template] bundles.json not found in branch, will create new one')
+          bundlesData = {}
+        } else {
+          console.error('[Create Template] Error reading bundles.json:', error.message)
+          throw error
+        }
+      }
+
+      // Load bundle mapping rules
+      const configPath = resolve(process.cwd(), 'config/bundle-mapping-rules.json')
+      console.log('[Create Template] Loading bundle mapping rules from:', configPath)
+      const bundleMappingRules = JSON.parse(await readFile(configPath, 'utf-8'))
+
+      // Determine which bundle to add the template to based on category
+      const targetBundle = bundleMappingRules.categoryMapping[metadata.category] || bundleMappingRules.defaultBundle
+
+      console.log(`[Create Template] Category "${metadata.category}" maps to bundle "${targetBundle}"`)
+
+      // Ensure bundle exists
+      if (!bundlesData[targetBundle]) {
+        bundlesData[targetBundle] = []
+        console.log(`[Create Template] Created new bundle "${targetBundle}"`)
+      }
+
+      // Add template to bundle (avoid duplicates)
+      if (!bundlesData[targetBundle].includes(templateName)) {
+        bundlesData[targetBundle].push(templateName)
+        console.log(`[Create Template] Added "${templateName}" to bundle "${targetBundle}"`)
+
+        // Add updated bundles.json to tree
+        tree.push({
+          path: 'bundles.json',
+          mode: '100644' as const,
+          type: 'blob' as const,
+          content: JSON.stringify(bundlesData, null, 2)
+        })
+
+        console.log('[Create Template] bundles.json update queued for commit')
+      } else {
+        console.log(`[Create Template] Template "${templateName}" already exists in bundle "${targetBundle}"`)
+      }
+    } catch (error: any) {
+      console.error('[Create Template] Failed to update bundles.json:', error)
+      console.error('[Create Template] Error details:', {
+        message: error.message,
+        status: error.status,
+        stack: error.stack
+      })
+      // Don't fail the entire operation if bundles.json update fails
+    }
 
     // 2. Check for input file conflicts and prepare filename mapping
     const filenameMapping = new Map<string, string>() // originalName -> actualName (with prefix if conflict)

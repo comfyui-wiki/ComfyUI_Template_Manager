@@ -109,9 +109,9 @@
                 {{ isUpdatingBranch ? 'Updating...' : `Update (${prUpdateInfo?.comparison?.aheadBy || 0})` }}
               </Button>
 
-              <!-- Browse PRs Button (no login required) -->
+              <!-- Browse PRs Button (requires login) -->
               <Button
-                v-if="isMounted"
+                v-if="isMounted && status === 'authenticated'"
                 @click="showPRBrowser = true"
                 size="sm"
                 variant="outline"
