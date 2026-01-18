@@ -32,16 +32,17 @@ export default defineEventHandler(async (event) => {
 
     try {
       // Try to read from server assets (production)
-      const storage = useStorage('assets:config')
+      const storage = useStorage('assets:server')
       const configContent = await storage.getItem('i18n-config.json')
 
       if (configContent) {
         config = typeof configContent === 'string'
           ? JSON.parse(configContent)
           : configContent
+        console.log('[i18n read API] Loaded config from server assets')
       }
     } catch (error) {
-      console.log('[i18n read API] Server assets not available, using file system fallback')
+      console.log('[i18n read API] Server assets not available, trying file system fallback:', error)
     }
 
     // Fallback to file system (development)

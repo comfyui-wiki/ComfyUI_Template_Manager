@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Use Nitro's storage API for serverless compatibility
-    const storage = useStorage('assets:config')
+    const storage = useStorage('assets:server')
     const content = await storage.getItem(name)
 
     if (!content) {
