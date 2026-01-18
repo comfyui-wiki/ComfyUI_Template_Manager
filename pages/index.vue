@@ -153,11 +153,13 @@
 
               <!-- Create PR Button -->
               <Button
-                v-if="shouldShowCreatePR"
+                v-if="isMounted && status === 'authenticated' && !isViewingPR"
                 @click="handleCreatePR"
                 size="sm"
                 variant="outline"
                 class="gap-1.5 text-xs whitespace-nowrap"
+                :disabled="!shouldShowCreatePR"
+                :title="createPRTooltip"
               >
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
@@ -1275,12 +1277,40 @@ const shouldShowCreatePR = computed(() => {
   // Only show if user has write access to the current repo/branch
   if (!canEditCurrentRepo.value) return false
 
-  // Check if there are actual changes (new, modified, or deleted templates)
-  if (diffStats.value.new === 0 && diffStats.value.modified === 0 && diffStats.value.deleted === 0) {
-    return false
+  // Allow PR creation as long as above conditions are met
+  // GitHub will handle validation if there are no commits to merge
+  return true
+})
+
+// Tooltip message for Create PR button
+const createPRTooltip = computed(() => {
+  if (!selectedRepo.value || !selectedBranch.value) {
+    return 'Select a repository and branch first'
   }
 
-  return true
+  if (selectedBranch.value === 'main') {
+    return 'Cannot create PR from main branch - create a new branch first'
+  }
+
+  if (prStatus.value && prStatus.value.hasPR) {
+    return `PR already exists for this branch (${prStatus.value.status})`
+  }
+
+  if (!canEditCurrentRepo.value) {
+    return 'No write access to this branch'
+  }
+
+  // Show template changes info if available
+  const hasTemplateChanges = diffStats.value.new > 0 || diffStats.value.modified > 0 || diffStats.value.deleted > 0
+  if (hasTemplateChanges) {
+    const changes = []
+    if (diffStats.value.new > 0) changes.push(`${diffStats.value.new} new`)
+    if (diffStats.value.modified > 0) changes.push(`${diffStats.value.modified} modified`)
+    if (diffStats.value.deleted > 0) changes.push(`${diffStats.value.deleted} deleted`)
+    return `Create PR with template changes: ${changes.join(', ')}`
+  }
+
+  return 'Create a pull request for this branch'
 })
 
 const handleCreatePR = () => {
