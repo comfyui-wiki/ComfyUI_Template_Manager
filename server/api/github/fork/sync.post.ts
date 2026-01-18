@@ -62,6 +62,16 @@ export default defineEventHandler(async (event) => {
           needsManualMerge: true
         }
       } else if (response.status === 422) {
+        // Check if it's a workflow permission issue
+        const errorMessage = errorData.message || ''
+        if (errorMessage.includes('workflow scope') || errorMessage.includes('workflow ')) {
+          return {
+            success: false,
+            error: 'Cannot sync: upstream contains workflow changes but OAuth token lacks workflow permission. Please sync manually on GitHub.',
+            needsWorkflowPermission: true
+          }
+        }
+
         // Already up to date
         return {
           success: true,

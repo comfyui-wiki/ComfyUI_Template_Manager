@@ -133,6 +133,25 @@
             <span>Working on: <span class="font-mono font-semibold">{{ selectedBranch }}</span></span>
           </div>
 
+          <!-- Branch upstream comparison -->
+          <div v-if="currentBranchComparison" class="mt-1 flex items-center gap-1 text-muted-foreground">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+            <span v-if="currentBranchComparison.aheadBy > 0 && currentBranchComparison.behindBy > 0" class="text-yellow-600">
+              {{ currentBranchComparison.aheadBy }} ahead, {{ currentBranchComparison.behindBy }} behind upstream
+            </span>
+            <span v-else-if="currentBranchComparison.aheadBy > 0" class="text-blue-600">
+              {{ currentBranchComparison.aheadBy }} commit{{ currentBranchComparison.aheadBy !== 1 ? 's' : '' }} ahead of upstream
+            </span>
+            <span v-else-if="currentBranchComparison.behindBy > 0" class="text-orange-600">
+              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind upstream
+            </span>
+            <span v-else class="text-green-600">
+              Up to date with upstream
+            </span>
+          </div>
+
           <!-- Permission status -->
           <div v-if="canEditCurrentRepo" class="text-green-600 mt-1 flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,6 +195,66 @@
                   Create New Branch
                 </Button>
               </div>
+            </div>
+          </div>
+
+          <!-- Manage Branches (collapsible) -->
+          <div v-if="hasRepoWriteAccess && branches.length > 1" class="mt-2 pt-2 border-t text-xs">
+            <button
+              @click="showManageBranches = !showManageBranches"
+              class="flex items-center gap-1 w-full hover:opacity-80 transition-opacity font-medium"
+            >
+              <svg
+                class="w-3 h-3 transition-transform"
+                :class="{ 'rotate-90': showManageBranches }"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+              <span>Manage Branches</span>
+              <span v-if="mergedBranchCount > 0" class="text-green-600">({{ mergedBranchCount }} merged)</span>
+            </button>
+            <div v-if="showManageBranches" class="mt-2 space-y-1">
+              <div
+                v-for="branch in branches"
+                :key="branch.name"
+                class="flex items-center justify-between p-1.5 rounded hover:bg-muted/50 group"
+              >
+                <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                  <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+                  </svg>
+                  <code class="font-mono text-xs truncate">{{ branch.name }}</code>
+                  <span v-if="branch.isDefault" class="text-[10px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded flex-shrink-0">
+                    default
+                  </span>
+                  <span v-if="branchStatuses[branch.name]?.isMerged" class="text-[10px] bg-green-100 text-green-700 px-1 py-0.5 rounded flex-shrink-0">
+                    merged
+                  </span>
+                </div>
+                <Button
+                  v-if="!branch.isDefault"
+                  @click="handleDeleteBranch(branch.name)"
+                  size="sm"
+                  variant="ghost"
+                  class="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  :disabled="deletingBranch === branch.name"
+                  :title="`Delete branch ${branch.name}`"
+                >
+                  <svg v-if="deletingBranch === branch.name" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <svg v-else class="w-3 h-3 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </Button>
+              </div>
+              <p v-if="!branchStatusesLoaded" class="text-muted-foreground text-[10px] italic">
+                Loading merge status...
+              </p>
             </div>
           </div>
 
@@ -287,6 +366,11 @@ const {
 const showCreateBranch = ref(false)
 const newBranchName = ref('')
 const showDebugInfo = ref(false) // Collapsed by default
+const showManageBranches = ref(false)
+const branchStatuses = ref<Record<string, { isMerged: boolean; message?: string }>>({})
+const branchStatusesLoaded = ref(false)
+const deletingBranch = ref<string | null>(null)
+const currentBranchComparison = ref<any>(null)
 
 const suggestedBranchName = computed(() => {
   const now = new Date()
@@ -294,6 +378,10 @@ const suggestedBranchName = computed(() => {
   const date = now.toISOString().slice(0, 10).replace(/-/g, '')
   const time = now.toISOString().slice(11, 19).replace(/:/g, '')
   return `template-update-${date}-${time}`
+})
+
+const mergedBranchCount = computed(() => {
+  return Object.values(branchStatuses.value).filter(status => status.isMerged).length
 })
 
 // Check if currently selected repo is the user's fork
@@ -389,6 +477,8 @@ const handleCreateBranch = async () => {
     selectedBranch.value = branchName
     showCreateBranch.value = false
     newBranchName.value = ''
+    // Load comparison for the new branch
+    await loadCurrentBranchComparison()
   } catch (error) {
     console.error('Failed to create branch:', error)
     alert('Failed to create branch. Please try again.')
@@ -405,6 +495,8 @@ const handleSyncFork = async () => {
         alert('Fork synced successfully! Refreshing...')
         // Refresh the page to load updated templates
         await initialize()
+        // Refresh branch comparison
+        await loadCurrentBranchComparison()
         window.location.reload()
       }
     } else if (result.needsManualMerge) {
@@ -419,8 +511,135 @@ const handleSyncFork = async () => {
   }
 }
 
+// Load branch merge statuses
+const loadBranchStatuses = async () => {
+  if (!hasRepoWriteAccess.value || branches.value.length === 0) return
+
+  branchStatusesLoaded.value = false
+  branchStatuses.value = {}
+
+  try {
+    const branchNames = branches.value.map(b => b.name)
+    const response = await $fetch('/api/github/fork/branch-status', {
+      method: 'POST',
+      body: {
+        branches: branchNames
+      }
+    })
+
+    if (response.success) {
+      // Store statuses in a map for easy lookup
+      response.statuses.forEach((status: any) => {
+        branchStatuses.value[status.name] = {
+          isMerged: status.isMerged,
+          message: status.message
+        }
+      })
+      branchStatusesLoaded.value = true
+    }
+  } catch (error) {
+    console.error('Failed to load branch statuses:', error)
+    branchStatusesLoaded.value = true // Mark as loaded even if failed
+  }
+}
+
+// Delete a branch
+const handleDeleteBranch = async (branchName: string) => {
+  if (!confirm(`Are you sure you want to delete branch "${branchName}"?`)) {
+    return
+  }
+
+  deletingBranch.value = branchName
+
+  try {
+    const response = await $fetch('/api/github/fork/branch', {
+      method: 'DELETE',
+      body: {
+        branch: branchName
+      }
+    })
+
+    if (response.success) {
+      // Reload branches
+      const [owner, name] = selectedRepo.value.split('/')
+      await loadBranches(owner, name)
+
+      // Reload statuses
+      await loadBranchStatuses()
+
+      alert(`Branch "${branchName}" deleted successfully`)
+    } else {
+      alert(`Failed to delete branch: ${response.error}`)
+    }
+  } catch (error: any) {
+    console.error('Failed to delete branch:', error)
+    alert(`Failed to delete branch: ${error.message || 'Unknown error'}`)
+  } finally {
+    deletingBranch.value = null
+  }
+}
+
+// Watch for branch changes to load statuses
+watch(branches, async () => {
+  if (showManageBranches.value && hasRepoWriteAccess.value) {
+    await loadBranchStatuses()
+  }
+}, { immediate: false })
+
+// Load statuses when manage branches is opened
+watch(showManageBranches, async (isOpen) => {
+  if (isOpen && hasRepoWriteAccess.value && !branchStatusesLoaded.value) {
+    await loadBranchStatuses()
+  }
+})
+
+// Compare current branch with upstream
+const loadCurrentBranchComparison = async () => {
+  if (!selectedRepo.value || !selectedBranch.value) {
+    currentBranchComparison.value = null
+    return
+  }
+
+  // Only show comparison for non-upstream repos (forks)
+  const [owner, repo] = selectedRepo.value.split('/')
+  const config = useRuntimeConfig()
+  if (owner === config.public.repoOwner) {
+    // This is the upstream repo, no need to compare
+    currentBranchComparison.value = null
+    return
+  }
+
+  try {
+    const response = await $fetch('/api/github/branch/compare-upstream', {
+      query: {
+        owner,
+        repo,
+        branch: selectedBranch.value
+      }
+    })
+
+    if (response.success) {
+      currentBranchComparison.value = response
+    } else {
+      currentBranchComparison.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load branch comparison:', error)
+    currentBranchComparison.value = null
+  }
+}
+
+// Watch for branch/repo changes to load comparison
+watch([selectedRepo, selectedBranch], async () => {
+  await loadCurrentBranchComparison()
+}, { immediate: false })
+
 // Initialize on mount
 onMounted(() => {
   initialize()
+  // Load comparison after initialization
+  setTimeout(() => {
+    loadCurrentBranchComparison()
+  }, 1000)
 })
 </script>
