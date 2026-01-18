@@ -1,8 +1,7 @@
 import { getServerSession } from '#auth'
 import { translateText } from '~/server/utils/ai-translator'
 import { checkRateLimit, checkOrigin } from '~/server/utils/rate-limiter'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import i18nConfigImport from '~/config/i18n-config.json'
 
 interface BatchItem {
   key: string
@@ -29,38 +28,9 @@ interface I18nConfig {
   }
 }
 
-// Load i18n config
-let i18nConfig: I18nConfig | null = null
-async function loadI18nConfig(): Promise<I18nConfig> {
-  if (!i18nConfig) {
-    try {
-      // Try to read from server assets (production)
-      const storage = useStorage('assets:config')
-      const configContent = await storage.getItem('i18n-config.json')
-
-      if (configContent) {
-        i18nConfig = typeof configContent === 'string'
-          ? JSON.parse(configContent)
-          : configContent as I18nConfig
-      }
-    } catch (error: any) {
-      console.log('[AI Batch Translate] Server assets not available, using file system fallback')
-    }
-
-    // Fallback to file system (development)
-    if (!i18nConfig) {
-      try {
-        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
-        const configContent = readFileSync(configPath, 'utf-8')
-        i18nConfig = JSON.parse(configContent)
-        console.log('[AI Batch Translate] Loaded config from file system')
-      } catch (error: any) {
-        console.error('[AI Batch Translate] Failed to load i18n config:', error.message)
-        throw new Error('Failed to load AI translation configuration')
-      }
-    }
-  }
-  return i18nConfig!
+// Use directly imported config (works in both dev and production/Vercel)
+function getI18nConfig(): I18nConfig {
+  return i18nConfigImport as I18nConfig
 }
 
 // Language name mapping
@@ -130,7 +100,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Check origin/referer
-    const originCheck = await checkOrigin(event)
+    const originCheck = checkOrigin(event)
     if (!originCheck.allowed) {
       throw createError({
         statusCode: 403,
@@ -140,7 +110,7 @@ export default defineEventHandler(async (event) => {
 
     // Check rate limit
     const username = (session.user as any)?.login || (session.user as any)?.name || 'unknown'
-    const rateLimitCheck = await checkRateLimit(username)
+    const rateLimitCheck = checkRateLimit(username)
     if (!rateLimitCheck.allowed) {
       const resetTime = rateLimitCheck.resetAt?.toISOString() || 'unknown'
       throw createError({
@@ -175,7 +145,7 @@ export default defineEventHandler(async (event) => {
     })
 
     // Load config and build batch prompt
-    const i18nCfg = await loadI18nConfig()
+    const i18nCfg = getI18nConfig()
     const jsonArray = JSON.stringify(body.items, null, 2)
 
     let userPrompt = body.batchPromptTemplate || i18nCfg.aiTranslation.batchTranslationTemplate

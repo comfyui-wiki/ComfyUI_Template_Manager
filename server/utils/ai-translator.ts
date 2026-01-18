@@ -2,8 +2,7 @@
  * AI Translation utility using DeepSeek API
  */
 
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import i18nConfigImport from '~/config/i18n-config.json'
 
 interface TranslationRequest {
   sourceText: string
@@ -36,41 +35,9 @@ interface I18nConfig {
   }
 }
 
-// Load i18n config
-let i18nConfig: I18nConfig | null = null
-async function loadI18nConfig(): Promise<I18nConfig> {
-  // In development, always reload config to pick up changes
-  const isDev = process.env.NODE_ENV === 'development'
-
-  if (!i18nConfig || isDev) {
-    try {
-      // Try to read from server assets (production)
-      const storage = useStorage('assets:config')
-      const configContent = await storage.getItem('i18n-config.json')
-
-      if (configContent) {
-        i18nConfig = typeof configContent === 'string'
-          ? JSON.parse(configContent)
-          : configContent as I18nConfig
-      }
-    } catch (error: any) {
-      console.log('[AI Translator] Server assets not available, using file system fallback')
-    }
-
-    // Fallback to file system (development)
-    if (!i18nConfig) {
-      try {
-        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
-        const configContent = readFileSync(configPath, 'utf-8')
-        i18nConfig = JSON.parse(configContent)
-        console.log('[AI Translator] Loaded config from file system')
-      } catch (error: any) {
-        console.error('[AI Translator] Failed to load i18n config:', error.message)
-        throw new Error('Failed to load AI translation configuration')
-      }
-    }
-  }
-  return i18nConfig!
+// Use directly imported config (works in both dev and production/Vercel)
+function getI18nConfig(): I18nConfig {
+  return i18nConfigImport as I18nConfig
 }
 
 // Language name mapping
@@ -97,7 +64,7 @@ function getLanguageName(code: string): string {
  */
 export async function translateText(request: TranslationRequest): Promise<TranslationResponse> {
   const config = useRuntimeConfig()
-  const i18nCfg = await loadI18nConfig()
+  const i18nCfg = getI18nConfig()
 
   const apiKey = config.deepseekApiKey
   const endpoint = config.deepseekApiEndpoint || 'https://api.deepseek.com/v1/chat/completions'
@@ -196,7 +163,7 @@ export async function translateWithRetry(
   request: TranslationRequest,
   maxRetries?: number
 ): Promise<TranslationResponse> {
-  const i18nCfg = await loadI18nConfig()
+  const i18nCfg = getI18nConfig()
   const retries = maxRetries ?? i18nCfg.aiTranslation.retryAttempts
   let lastError: string = ''
 
