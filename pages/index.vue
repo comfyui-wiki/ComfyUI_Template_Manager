@@ -157,13 +157,12 @@
                 @click="handleCreatePR"
                 size="sm"
                 variant="outline"
-                :disabled="isCreatingPR"
                 class="gap-1.5 text-xs whitespace-nowrap"
               >
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
                 </svg>
-                {{ isCreatingPR ? 'Creating...' : 'Create PR' }}
+                Create PR
               </Button>
             </div>
           </div>
@@ -189,6 +188,64 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR Details Banner -->
+    <div v-if="prDetails && !prDetailsLoading" class="border-b bg-blue-50">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
+          </svg>
+          <div class="flex-1 space-y-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-medium text-blue-900">
+                Viewing PR #{{ prDetails.pr.number }}:
+              </span>
+              <a :href="prDetails.pr.url" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                {{ prDetails.pr.title }}
+              </a>
+              <span
+                class="px-2 py-0.5 rounded text-xs font-medium"
+                :class="{
+                  'bg-green-100 text-green-800': prDetails.pr.state === 'open',
+                  'bg-purple-100 text-purple-800': prDetails.pr.merged,
+                  'bg-red-100 text-red-800': prDetails.pr.state === 'closed' && !prDetails.pr.merged
+                }"
+              >
+                {{ prDetails.pr.merged ? 'Merged' : prDetails.pr.state }}
+              </span>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-blue-700">
+              <span>
+                <strong>{{ prDetails.templates.changed.length }}</strong> template{{ prDetails.templates.changed.length !== 1 ? 's' : '' }} changed
+              </span>
+              <span>
+                <strong>{{ prDetails.pr.changedFiles }}</strong> file{{ prDetails.pr.changedFiles !== 1 ? 's' : '' }}
+              </span>
+              <span class="text-green-700">
+                <strong>+{{ prDetails.pr.additions }}</strong>
+              </span>
+              <span class="text-red-700">
+                <strong>-{{ prDetails.pr.deletions }}</strong>
+              </span>
+              <span>by @{{ prDetails.pr.user.login }}</span>
+            </div>
+            <div v-if="prDetails.templates.changed.length > 0" class="text-xs text-blue-600">
+              Changed templates: {{ prDetails.templates.changed.join(', ') }}
+            </div>
+          </div>
+          <a
+            :href="`?${Object.entries(route.query).filter(([k]) => k !== 'pr').map(([k, v]) => `${k}=${v}`).join('&')}`"
+            class="text-blue-600 hover:text-blue-800 transition-colors"
+            title="Clear PR filter"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </a>
         </div>
       </div>
     </div>
@@ -518,6 +575,7 @@
               :branch="selectedBranch"
               :cache-bust="cacheBustTimestamp"
               :commit-sha="latestCommitSha"
+              :pr-templates="prDetails?.templates.changed"
               @edit="editTemplate"
               @view="viewTemplate"
             />
@@ -546,6 +604,18 @@
       :branch="selectedBranch"
       @updated="handleUsageUpdated"
     />
+
+    <!-- Create PR Modal -->
+    <CreatePRModal
+      v-if="isMounted"
+      v-model:open="showCreatePRModal"
+      :default-title="prModalData.title"
+      :default-description="prModalData.description"
+      :target-repo="prModalData.targetRepo"
+      :target-branch="prModalData.targetBranch"
+      :head="prModalData.head"
+      @created="handlePRCreated"
+    />
   </div>
 </template>
 
@@ -561,12 +631,18 @@ import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
 import PRBrowser from '~/components/PRBrowser.vue'
 import TranslationManager from '~/components/TranslationManager.vue'
 import UsageUpdateModal from '~/components/UsageUpdateModal.vue'
+import CreatePRModal from '~/components/CreatePRModal.vue'
 
 const { status } = useAuth()
 const route = useRoute()
 
 // Error message from redirects
 const errorMessage = ref<string | null>(null)
+
+// PR query parameter
+const prId = computed(() => route.query.pr as string | undefined)
+const prDetails = ref<any>(null)
+const prDetailsLoading = ref(false)
 
 // GitHub repo and branch management
 const {
@@ -603,13 +679,22 @@ const sortBy = ref('default')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
 const showUsageUpdateModal = ref(false)
+const showCreatePRModal = ref(false)
 const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
 
 // PR Status
 const prStatus = ref<any>(null)
-const isCreatingPR = ref(false)
 const showPRBrowser = ref(false)
+
+// Create PR Modal data
+const prModalData = ref({
+  title: '',
+  description: '',
+  targetRepo: 'Comfy-Org/workflow_templates',
+  targetBranch: 'main',
+  head: ''
+})
 
 // PR Update Status
 const prUpdateInfo = ref<any>(null)
@@ -876,6 +961,42 @@ const handleUsageUpdated = async () => {
   await refreshTemplates()
 }
 
+// Load PR details when prId is provided
+const loadPRDetails = async (prNumber: string) => {
+  if (!prNumber) return
+
+  prDetailsLoading.value = true
+  try {
+    const [owner, repo] = 'Comfy-Org/workflow_templates'.split('/')
+    const response = await $fetch('/api/github/pr/details', {
+      query: {
+        owner,
+        repo,
+        prNumber
+      }
+    })
+
+    if (response.success) {
+      prDetails.value = response
+      console.log('[PR Details] Loaded PR #' + prNumber, response)
+    }
+  } catch (error: any) {
+    console.error('[PR Details] Error loading PR:', error)
+    prDetails.value = null
+  } finally {
+    prDetailsLoading.value = false
+  }
+}
+
+// Watch for PR ID changes
+watch(prId, (newPrId) => {
+  if (newPrId) {
+    loadPRDetails(newPrId)
+  } else {
+    prDetails.value = null
+  }
+}, { immediate: true })
+
 // Computed
 const categories = computed(() => {
   return categoriesWithDiff.value || []
@@ -1131,15 +1252,15 @@ const shouldShowCreatePR = computed(() => {
   // Only show if user has write access to the current repo/branch
   if (!canEditCurrentRepo.value) return false
 
-  // Check if there are commits to create PR from
-  if (prStatus.value?.comparison?.aheadBy === 0) return false
+  // Check if there are actual changes (new, modified, or deleted templates)
+  if (diffStats.value.new === 0 && diffStats.value.modified === 0 && diffStats.value.deleted === 0) {
+    return false
+  }
 
   return true
 })
 
-const handleCreatePR = async () => {
-  if (isCreatingPR.value) return
-
+const handleCreatePR = () => {
   const { data: session } = useAuth()
   const username = session.value?.user?.login
 
@@ -1158,27 +1279,61 @@ const handleCreatePR = async () => {
     ? selectedBranch.value  // Same repo, just branch name
     : `${currentOwner}:${selectedBranch.value}` // Fork, need owner:branch format
 
-  isCreatingPR.value = true
+  // Generate PR title based on diff stats
+  let title = `Update templates from ${selectedBranch.value}`
+  if (diffStats.value.new > 0 || diffStats.value.modified > 0) {
+    const parts = []
+    if (diffStats.value.new > 0) parts.push(`${diffStats.value.new} new`)
+    if (diffStats.value.modified > 0) parts.push(`${diffStats.value.modified} modified`)
+    if (diffStats.value.deleted > 0) parts.push(`${diffStats.value.deleted} deleted`)
+    title = `Update templates: ${parts.join(', ')}`
+  }
 
-  try {
-    // Generate PR title based on diff stats
-    let title = `Update templates from ${selectedBranch.value}`
-    if (diffStats.value.new > 0 || diffStats.value.modified > 0) {
-      const parts = []
-      if (diffStats.value.new > 0) parts.push(`${diffStats.value.new} new`)
-      if (diffStats.value.modified > 0) parts.push(`${diffStats.value.modified} modified`)
-      if (diffStats.value.deleted > 0) parts.push(`${diffStats.value.deleted} deleted`)
-      title = `Update templates: ${parts.join(', ')}`
-    }
+  // Get lists of changed templates by status
+  const newTemplates: string[] = []
+  const modifiedTemplates: string[] = []
+  const deletedTemplates: string[] = []
 
-    // Generate PR body
-    const body = `## Changes Summary
+  categories.value.forEach((category: any) => {
+    category.templates?.forEach((template: any) => {
+      if (template.diffStatus === 'new') {
+        newTemplates.push(template.name)
+      } else if (template.diffStatus === 'modified') {
+        modifiedTemplates.push(template.name)
+      } else if (template.diffStatus === 'deleted') {
+        deletedTemplates.push(template.name)
+      }
+    })
+  })
 
-${diffStats.value.new > 0 ? `- ✨ **${diffStats.value.new}** new template${diffStats.value.new > 1 ? 's' : ''}` : ''}
-${diffStats.value.modified > 0 ? `- ✏️ **${diffStats.value.modified}** modified template${diffStats.value.modified > 1 ? 's' : ''}` : ''}
-${diffStats.value.deleted > 0 ? `- 🗑️ **${diffStats.value.deleted}** deleted template${diffStats.value.deleted > 1 ? 's' : ''}` : ''}
+  // Generate PR body with file lists
+  let body = `## Changes Summary\n\n`
 
-## Details
+  if (diffStats.value.new > 0) {
+    body += `### ✨ New Templates (${diffStats.value.new})\n\n`
+    newTemplates.forEach(name => {
+      body += `- \`${name}\`\n`
+    })
+    body += '\n'
+  }
+
+  if (diffStats.value.modified > 0) {
+    body += `### ✏️ Modified Templates (${diffStats.value.modified})\n\n`
+    modifiedTemplates.forEach(name => {
+      body += `- \`${name}\`\n`
+    })
+    body += '\n'
+  }
+
+  if (diffStats.value.deleted > 0) {
+    body += `### 🗑️ Deleted Templates (${diffStats.value.deleted})\n\n`
+    deletedTemplates.forEach(name => {
+      body += `- \`${name}\`\n`
+    })
+    body += '\n'
+  }
+
+  body += `## Details
 
 This PR contains updates to the ComfyUI workflow templates.
 
@@ -1188,34 +1343,61 @@ This PR contains updates to the ComfyUI workflow templates.
 Branch: \`${selectedBranch.value}\`
 Repository: \`${selectedRepo.value}\``
 
-    const response = await $fetch('/api/github/pr/create', {
+  // Set modal data and open modal
+  prModalData.value = {
+    title,
+    description: body,
+    targetRepo,
+    targetBranch: 'main',
+    head
+  }
+  showCreatePRModal.value = true
+}
+
+// Handle PR created from modal
+const handlePRCreated = async (pr: any) => {
+  try {
+    // Update PR description to add view link
+    const viewLink = `${window.location.origin}/?pr=${pr.number}`
+    const updatedBody = `${pr.body || prModalData.value.description}
+
+---
+
+📊 **View changes in Template Manager:** ${viewLink}`
+
+    const [owner, repo] = prModalData.value.targetRepo.split('/')
+
+    // Call update API to add the link
+    await $fetch('/api/github/pr/update', {
       method: 'POST',
       body: {
-        owner: targetOwner,
-        repo: targetRepoName,
-        head,
-        base: 'main',
-        title,
-        body
+        owner,
+        repo,
+        prNumber: pr.number,
+        description: updatedBody
       }
     })
 
-    if (response.success) {
-      alert(`Pull request created successfully!\n\nPR #${response.pr.number}: ${response.pr.title}`)
-      // Refresh PR status
-      await checkPRStatus()
-      // Open PR in new tab
-      window.open(response.pr.url, '_blank')
-    } else {
-      alert(`Failed to create PR: ${response.message}`)
-    }
-  } catch (error: any) {
-    console.error('[Create PR] Error:', error)
-    const message = error.data?.message || error.message || 'Failed to create pull request'
-    alert(`Error: ${message}`)
-  } finally {
-    isCreatingPR.value = false
+    console.log('[PR Created] Added view link to PR description')
+  } catch (error) {
+    console.error('[PR Created] Failed to update PR description:', error)
+    // Don't fail the whole process if update fails
   }
+
+  const viewLink = `${window.location.origin}/?pr=${pr.number}`
+
+  alert(`Pull request created successfully!\n\nPR #${pr.number}: ${pr.title}\n\nView in Template Manager: ${viewLink}`)
+
+  // Refresh PR status
+  await checkPRStatus()
+
+  // Open GitHub PR in new tab
+  window.open(pr.url, '_blank')
+
+  // Also open Template Manager view in new tab (slight delay to avoid popup blocker)
+  setTimeout(() => {
+    window.open(viewLink, '_blank')
+  }, 100)
 }
 
 // Handle Update Branch (pull new commits from PR)

@@ -95,9 +95,13 @@
       </div>
 
       <!-- Media Type Badge -->
-      <div class="absolute top-2 right-2">
+      <div class="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
           {{ template.mediaType || 'image' }}
+        </span>
+        <!-- PR Badge -->
+        <span v-if="isInPR" class="px-2 py-1 text-xs font-bold bg-blue-500 text-white rounded shadow-lg" title="In Pull Request">
+          PR
         </span>
       </div>
 
@@ -256,6 +260,7 @@ const props = defineProps<{
   branch?: string
   cacheBust?: number // Optional timestamp to force fresh images
   commitSha?: string // Optional commit SHA for stronger cache busting
+  prTemplates?: string[] // List of templates changed in a PR (for highlighting)
 }>()
 
 defineEmits(['edit', 'view'])
@@ -265,6 +270,11 @@ const sliderPosition = ref(50) // For compareSlider, start at 50%
 const isHovered = ref(false)
 const compareContainer = ref<HTMLElement | null>(null)
 const showDetailsModal = ref(false)
+
+// Check if this template is in the PR
+const isInPR = computed(() => {
+  return props.prTemplates?.includes(props.template.name) || false
+})
 
 // Use VueUse to track mouse position
 const { elementX, elementWidth, isOutside } = useMouseInElement(compareContainer)

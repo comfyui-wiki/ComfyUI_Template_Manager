@@ -70,7 +70,8 @@ export default defineEventHandler(async (event) => {
       pr: {
         number: pr.number,
         url: pr.html_url,
-        title: pr.title
+        title: pr.title,
+        body: pr.body
       }
     }
 
