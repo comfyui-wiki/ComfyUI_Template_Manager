@@ -57,6 +57,11 @@ const batchTranslating = ref(false)
 const batchProgress = ref({ current: 0, total: 0, status: '' })
 const showBatchDialog = ref(false)
 
+// Custom prompt dialog state
+const showCustomPromptDialog = ref(false)
+const customSystemPrompt = ref('')
+const defaultSystemPrompt = ref('') // Store default prompt from config
+
 // Translation sections
 type TranslationSection = 'templates' | 'tags' | 'categories'
 const activeSection = ref<TranslationSection>('templates')
@@ -106,10 +111,28 @@ const loadI18nData = async () => {
   }
 }
 
+// Load default system prompt from config
+const loadDefaultPrompt = async () => {
+  try {
+    const response = await $fetch('/api/config/i18n-config.json')
+    if (response && response.aiTranslation && response.aiTranslation.systemPrompt) {
+      defaultSystemPrompt.value = response.aiTranslation.systemPrompt
+      console.log('[TranslationManager] Loaded default system prompt')
+    }
+  } catch (error) {
+    console.error('[TranslationManager] Failed to load default prompt:', error)
+  }
+}
+
 // Watch dialog open state
 watch(() => props.open, (isOpen) => {
-  if (isOpen && !i18nData.value) {
-    loadI18nData()
+  if (isOpen) {
+    if (!i18nData.value) {
+      loadI18nData()
+    }
+    if (!defaultSystemPrompt.value) {
+      loadDefaultPrompt()
+    }
   }
 })
 
@@ -434,8 +457,32 @@ const allSelected = computed(() => {
 // Count selected items
 const selectedCount = computed(() => selectedItems.value.size)
 
+// Open custom prompt dialog
+const openCustomPromptDialog = () => {
+  if (selectedItems.value.size === 0) {
+    alert('Please select at least one item to translate')
+    return
+  }
+
+  // Load default prompt if not loaded
+  if (!defaultSystemPrompt.value) {
+    loadDefaultPrompt()
+  }
+
+  // Initialize custom prompt with default
+  customSystemPrompt.value = defaultSystemPrompt.value || 'You are a professional translator. Translate the following text accurately while maintaining the original meaning and tone.'
+
+  showCustomPromptDialog.value = true
+}
+
+// Execute batch translation with custom prompt
+const executeCustomBatchTranslate = () => {
+  showCustomPromptDialog.value = false
+  batchTranslate(customSystemPrompt.value)
+}
+
 // Batch translate selected items
-const batchTranslate = async () => {
+const batchTranslate = async (customPrompt?: string) => {
   if (selectedItems.value.size === 0) {
     alert('Please select at least one item to translate')
     return
@@ -443,13 +490,13 @@ const batchTranslate = async () => {
 
   // Special handling for single item - translate to all languages
   if (selectedItems.value.size === 1) {
-    await translateSingleItemToAllLanguages()
+    await translateSingleItemToAllLanguages(customPrompt)
     return
   }
 
   // Handle "All Languages" option
   if (batchTargetLang.value === 'all') {
-    await translateMultipleItemsToAllLanguages()
+    await translateMultipleItemsToAllLanguages(customPrompt)
     return
   }
 
@@ -484,13 +531,21 @@ const batchTranslate = async () => {
     batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.find(l => l.code === batchTargetLang.value)?.name}...`
 
     // Call batch translation API
+    const requestBody: any = {
+      items: itemsToTranslate,
+      sourceLang: 'en',
+      targetLang: batchTargetLang.value
+    }
+
+    // Add custom prompt if provided
+    if (customPrompt) {
+      requestBody.systemPrompt = customPrompt
+      console.log('[TranslationManager] Using custom system prompt for batch translation')
+    }
+
     const response = await $fetch('/api/ai/translate/batch', {
       method: 'POST',
-      body: {
-        items: itemsToTranslate,
-        sourceLang: 'en',
-        targetLang: batchTargetLang.value
-      }
+      body: requestBody
     })
 
     if (response.success) {
@@ -547,7 +602,7 @@ const batchTranslate = async () => {
 }
 
 // Translate single selected item to all languages
-const translateSingleItemToAllLanguages = async () => {
+const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
   const itemKey = Array.from(selectedItems.value)[0]
   const item = filteredItems.value.find(i => i.key === itemKey)
 
@@ -574,16 +629,25 @@ const translateSingleItemToAllLanguages = async () => {
     console.log('[TranslationManager] Multi-language translation:', {
       key: itemKey,
       text: item.englishValue,
-      targetLangs: targetLangs.length
+      targetLangs: targetLangs.length,
+      customPrompt: !!customPrompt
     })
+
+    const requestBody: any = {
+      sourceText: item.englishValue,
+      sourceLang: 'en',
+      targetLangs
+    }
+
+    // Add custom prompt if provided
+    if (customPrompt) {
+      requestBody.systemPrompt = customPrompt
+      console.log('[TranslationManager] Using custom system prompt for multi-language translation')
+    }
 
     const response = await $fetch('/api/ai/translate/multi-lang', {
       method: 'POST',
-      body: {
-        sourceText: item.englishValue,
-        sourceLang: 'en',
-        targetLangs
-      }
+      body: requestBody
     })
 
     if (response.success) {
@@ -637,7 +701,7 @@ const translateSingleItemToAllLanguages = async () => {
 }
 
 // Translate multiple selected items to all languages
-const translateMultipleItemsToAllLanguages = async () => {
+const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
   const selectedKeys = Array.from(selectedItems.value)
   const itemsToTranslate = filteredItems.value.filter(i => selectedKeys.includes(i.key))
 
@@ -671,18 +735,26 @@ const translateMultipleItemsToAllLanguages = async () => {
         console.log('[TranslationManager] Multi-language translation for item:', {
           key: item.key,
           text: item.englishValue,
-          targetLangs: targetLangs.length
+          targetLangs: targetLangs.length,
+          customPrompt: !!customPrompt
         })
 
         batchProgress.value.status = `Translating "${item.key}" (${successCount + 1}/${totalOperations})...`
 
+        const requestBody: any = {
+          sourceText: item.englishValue,
+          sourceLang: 'en',
+          targetLangs
+        }
+
+        // Add custom prompt if provided
+        if (customPrompt) {
+          requestBody.systemPrompt = customPrompt
+        }
+
         const response = await $fetch('/api/ai/translate/multi-lang', {
           method: 'POST',
-          body: {
-            sourceText: item.englishValue,
-            sourceLang: 'en',
-            targetLangs
-          }
+          body: requestBody
         })
 
         if (response.success) {
@@ -901,7 +973,7 @@ const saveAllChanges = async () => {
             </Select>
 
             <Button
-              @click="batchTranslate"
+              @click="batchTranslate()"
               :disabled="batchTranslating || !batchTargetLang"
               size="sm"
               class="flex-shrink-0"
@@ -920,6 +992,19 @@ const saveAllChanges = async () => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               {{ batchTranslating ? 'Translating...' : 'Batch Translate' }}
+            </Button>
+
+            <Button
+              @click="openCustomPromptDialog"
+              :disabled="batchTranslating || !batchTargetLang"
+              variant="outline"
+              size="sm"
+              class="flex-shrink-0"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Custom Translate
             </Button>
 
             <Button
@@ -1185,6 +1270,72 @@ const saveAllChanges = async () => {
           variant="outline"
         >
           {{ batchTranslating ? 'Please wait...' : 'Close' }}
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+
+  <!-- Custom Prompt Dialog -->
+  <Dialog :open="showCustomPromptDialog" @update:open="(val) => showCustomPromptDialog = val">
+    <DialogContent class="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogHeader>
+        <DialogTitle>Custom Translation Prompt</DialogTitle>
+        <DialogDescription>
+          Edit the system prompt to customize how AI translates your content. You can provide additional context, specify tone, or add domain-specific guidance.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="flex-1 overflow-auto py-4">
+        <div class="space-y-4">
+          <!-- Help text -->
+          <div class="text-sm text-muted-foreground bg-accent/30 border border-border rounded-md p-3">
+            <div class="font-medium mb-2">Tips for customizing prompts:</div>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+              <li>Add domain-specific context (e.g., "This is technical documentation for developers")</li>
+              <li>Specify tone or style (e.g., "Use professional and formal language")</li>
+              <li>Provide terminology guidelines (e.g., "Translate 'workflow' as '工作流程', not '流程'")</li>
+              <li>Give examples of correct translations for specific terms</li>
+            </ul>
+          </div>
+
+          <!-- Textarea for editing prompt -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium">System Prompt</label>
+            <textarea
+              v-model="customSystemPrompt"
+              class="w-full min-h-[300px] p-3 rounded-md border border-input bg-background text-sm font-mono resize-y"
+              placeholder="Enter your custom system prompt here..."
+            />
+          </div>
+
+          <!-- Info about target language -->
+          <div class="text-xs text-muted-foreground bg-muted/50 rounded-md p-2 flex items-start gap-2">
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              This will translate {{ selectedCount }} item{{ selectedCount > 1 ? 's' : '' }} to
+              <strong>{{ batchTargetLang === 'all' ? 'All Languages' : languages.find(l => l.code === batchTargetLang)?.name }}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 border-t pt-4">
+        <Button
+          @click="showCustomPromptDialog = false"
+          variant="outline"
+        >
+          Cancel
+        </Button>
+        <Button
+          @click="executeCustomBatchTranslate"
+          :disabled="!customSystemPrompt.trim()"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Execute Translation
         </Button>
       </div>
     </DialogContent>
