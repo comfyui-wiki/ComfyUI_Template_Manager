@@ -880,7 +880,7 @@ const saveAllChanges = async () => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+    <DialogContent class="w-[98vw] h-[98vh] max-w-none overflow-hidden flex flex-col p-6">
       <DialogHeader>
         <DialogTitle>Translation Manager</DialogTitle>
         <DialogDescription>
@@ -892,9 +892,9 @@ const saveAllChanges = async () => {
         <div class="text-muted-foreground">Loading translations...</div>
       </div>
 
-      <div v-else-if="i18nData" class="flex-1 flex flex-col gap-4 overflow-hidden">
+      <div v-else-if="i18nData" class="flex-1 flex flex-col gap-2 min-h-0">
         <!-- Controls -->
-        <div class="flex flex-col gap-3 border-b pb-4">
+        <div class="flex flex-col gap-3 border-b pb-3 flex-shrink-0">
           <!-- Section tabs -->
           <div class="flex gap-2">
             <Button
@@ -1019,31 +1019,32 @@ const saveAllChanges = async () => {
         </div>
 
         <!-- Translation table -->
-        <div class="flex-1 overflow-auto border rounded-md">
-          <Table>
-            <TableHeader class="sticky top-0 bg-background z-10">
-              <TableRow>
-                <!-- Checkbox column for batch selection -->
-                <TableHead v-if="aiEnabled" class="w-[50px]">
-                  <input
-                    type="checkbox"
-                    :checked="allSelected"
-                    @change="toggleSelectAll"
-                    class="w-4 h-4 cursor-pointer"
-                    title="Select/Deselect all"
-                  />
-                </TableHead>
-                <TableHead class="w-[250px] font-semibold">Key</TableHead>
-                <TableHead
-                  v-for="lang in visibleLanguages"
-                  :key="lang.code"
-                  class="min-w-[200px] font-semibold"
-                >
-                  {{ lang.name }}
-                </TableHead>
-                <TableHead class="w-[100px] font-semibold">Status</TableHead>
-              </TableRow>
-            </TableHeader>
+        <div class="flex-1 min-h-[300px] border rounded-md relative">
+          <div class="absolute inset-0 overflow-auto">
+            <Table>
+              <TableHeader class="sticky-header">
+                <TableRow class="hover:bg-transparent bg-background">
+                  <!-- Checkbox column for batch selection -->
+                  <TableHead v-if="aiEnabled" class="w-[50px] bg-background">
+                    <input
+                      type="checkbox"
+                      :checked="allSelected"
+                      @change="toggleSelectAll"
+                      class="w-4 h-4 cursor-pointer"
+                      title="Select/Deselect all"
+                    />
+                  </TableHead>
+                  <TableHead class="w-[250px] font-semibold bg-background">Key</TableHead>
+                  <TableHead
+                    v-for="lang in visibleLanguages"
+                    :key="lang.code"
+                    class="min-w-[200px] font-semibold bg-background"
+                  >
+                    {{ lang.name }}
+                  </TableHead>
+                  <TableHead class="w-[100px] font-semibold bg-background">Status</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               <TableRow
                 v-for="item in filteredItems"
@@ -1167,10 +1168,11 @@ const saveAllChanges = async () => {
               </TableRow>
             </TableBody>
           </Table>
+          </div>
         </div>
 
         <!-- Actions -->
-        <div class="border-t pt-4 flex justify-between items-center">
+        <div class="border-t pt-3 flex justify-between items-center flex-shrink-0">
           <div class="text-sm text-muted-foreground">
             Showing {{ filteredItems.length }} of {{ stats.total }} items
           </div>
@@ -1341,3 +1343,37 @@ const saveAllChanges = async () => {
     </DialogContent>
   </Dialog>
 </template>
+
+<style scoped>
+/* Fixed sticky header - only scroll inside table container */
+:deep(.sticky-header) {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: hsl(var(--background));
+}
+
+:deep(.sticky-header tr) {
+  background-color: hsl(var(--background));
+}
+
+:deep(.sticky-header th) {
+  position: sticky;
+  top: 0;
+  background-color: hsl(var(--background));
+  z-index: 20;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Add shadow for better visual separation */
+:deep(.sticky-header)::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.05), transparent);
+  pointer-events: none;
+}
+</style>
