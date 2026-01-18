@@ -214,7 +214,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
               </svg>
               <span>Manage Branches</span>
-              <span v-if="mergedBranchCount > 0" class="text-green-600">({{ mergedBranchCount }} merged)</span>
             </button>
             <div v-if="showManageBranches" class="mt-2 space-y-1">
               <div
@@ -229,9 +228,6 @@
                   <code class="font-mono text-xs truncate">{{ branch.name }}</code>
                   <span v-if="branch.isDefault" class="text-[10px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded flex-shrink-0">
                     default
-                  </span>
-                  <span v-if="branchStatuses[branch.name]?.isMerged" class="text-[10px] bg-green-100 text-green-700 px-1 py-0.5 rounded flex-shrink-0">
-                    merged
                   </span>
                 </div>
                 <Button
@@ -252,9 +248,6 @@
                   </svg>
                 </Button>
               </div>
-              <p v-if="!branchStatusesLoaded" class="text-muted-foreground text-[10px] italic">
-                Loading merge status...
-              </p>
             </div>
           </div>
 
@@ -319,13 +312,29 @@
             :placeholder="suggestedBranchName"
             class="font-mono"
           />
-          <p class="text-xs text-muted-foreground mt-1">
-            Leave empty to use: {{ suggestedBranchName }}
-          </p>
+          <div class="mt-1 space-y-1">
+            <p v-if="!hasUserInput" class="text-xs text-muted-foreground">
+              Leave empty to use: <code class="font-mono">{{ suggestedBranchName }}</code>
+            </p>
+            <p v-else-if="!sanitizedBranchName" class="text-xs text-red-600">
+              ✗ Invalid branch name (contains only invalid characters)
+            </p>
+            <p v-else-if="needsConversion" class="text-xs">
+              <span class="text-orange-600">Will be converted to: </span>
+              <code class="font-mono font-semibold text-blue-600">{{ sanitizedBranchName }}</code>
+            </p>
+            <p v-else class="text-xs text-green-600">
+              ✓ Valid branch name
+            </p>
+          </div>
         </div>
 
         <div class="flex gap-2">
-          <Button @click="handleCreateBranch" class="flex-1" :disabled="isLoading">
+          <Button
+            @click="handleCreateBranch"
+            class="flex-1"
+            :disabled="isLoading || (hasUserInput && !sanitizedBranchName)"
+          >
             <span v-if="isLoading">Creating...</span>
             <span v-else>Create Branch</span>
           </Button>
@@ -367,8 +376,6 @@ const showCreateBranch = ref(false)
 const newBranchName = ref('')
 const showDebugInfo = ref(false) // Collapsed by default
 const showManageBranches = ref(false)
-const branchStatuses = ref<Record<string, { isMerged: boolean; message?: string }>>({})
-const branchStatusesLoaded = ref(false)
 const deletingBranch = ref<string | null>(null)
 const currentBranchComparison = ref<any>(null)
 
@@ -380,8 +387,46 @@ const suggestedBranchName = computed(() => {
   return `template-update-${date}-${time}`
 })
 
-const mergedBranchCount = computed(() => {
-  return Object.values(branchStatuses.value).filter(status => status.isMerged).length
+// Sanitize branch name to follow Git branch naming rules
+const sanitizeBranchName = (name: string): string => {
+  if (!name) return ''
+
+  return name
+    .trim()
+    // Convert to lowercase
+    .toLowerCase()
+    // Replace spaces with hyphens
+    .replace(/\s+/g, '-')
+    // Replace multiple consecutive hyphens/underscores with single hyphen
+    .replace(/[-_]+/g, '-')
+    // Remove invalid characters: ~, ^, :, ?, *, [, \, @{, etc.
+    .replace(/[~^:?*[\]\\@{}<>|"'`]/g, '')
+    // Remove dots at the beginning or end
+    .replace(/^\.+|\.+$/g, '')
+    // Remove consecutive dots
+    .replace(/\.{2,}/g, '.')
+    // Remove leading/trailing hyphens
+    .replace(/^-+|-+$/g, '')
+    // Remove slashes at the end
+    .replace(/\/+$/g, '')
+    // Ensure it doesn't end with .lock
+    .replace(/\.lock$/i, '')
+}
+
+const sanitizedBranchName = computed(() => {
+  return sanitizeBranchName(newBranchName.value)
+})
+
+// Check if user has actually entered something (after trim)
+const hasUserInput = computed(() => {
+  return newBranchName.value.trim().length > 0
+})
+
+// Check if sanitization will change the input
+const needsConversion = computed(() => {
+  if (!hasUserInput.value) return false
+  const trimmed = newBranchName.value.trim()
+  return sanitizedBranchName.value !== trimmed
 })
 
 // Check if currently selected repo is the user's fork
@@ -469,7 +514,18 @@ const handleRecheckFork = async () => {
 }
 
 const handleCreateBranch = async () => {
-  const branchName = newBranchName.value || suggestedBranchName.value
+  // Use sanitized branch name or suggested name
+  const inputName = newBranchName.value.trim()
+  const branchName = inputName
+    ? sanitizeBranchName(inputName)
+    : suggestedBranchName.value
+
+  // Validate that we have a valid branch name after sanitization
+  if (!branchName) {
+    alert('Please enter a valid branch name')
+    return
+  }
+
   const [owner, name] = selectedRepo.value.split('/')
 
   try {
@@ -511,38 +567,6 @@ const handleSyncFork = async () => {
   }
 }
 
-// Load branch merge statuses
-const loadBranchStatuses = async () => {
-  if (!hasRepoWriteAccess.value || branches.value.length === 0) return
-
-  branchStatusesLoaded.value = false
-  branchStatuses.value = {}
-
-  try {
-    const branchNames = branches.value.map(b => b.name)
-    const response = await $fetch('/api/github/fork/branch-status', {
-      method: 'POST',
-      body: {
-        branches: branchNames
-      }
-    })
-
-    if (response.success) {
-      // Store statuses in a map for easy lookup
-      response.statuses.forEach((status: any) => {
-        branchStatuses.value[status.name] = {
-          isMerged: status.isMerged,
-          message: status.message
-        }
-      })
-      branchStatusesLoaded.value = true
-    }
-  } catch (error) {
-    console.error('Failed to load branch statuses:', error)
-    branchStatusesLoaded.value = true // Mark as loaded even if failed
-  }
-}
-
 // Delete a branch
 const handleDeleteBranch = async (branchName: string) => {
   if (!confirm(`Are you sure you want to delete branch "${branchName}"?`)) {
@@ -564,9 +588,6 @@ const handleDeleteBranch = async (branchName: string) => {
       const [owner, name] = selectedRepo.value.split('/')
       await loadBranches(owner, name)
 
-      // Reload statuses
-      await loadBranchStatuses()
-
       alert(`Branch "${branchName}" deleted successfully`)
     } else {
       alert(`Failed to delete branch: ${response.error}`)
@@ -578,20 +599,6 @@ const handleDeleteBranch = async (branchName: string) => {
     deletingBranch.value = null
   }
 }
-
-// Watch for branch changes to load statuses
-watch(branches, async () => {
-  if (showManageBranches.value && hasRepoWriteAccess.value) {
-    await loadBranchStatuses()
-  }
-}, { immediate: false })
-
-// Load statuses when manage branches is opened
-watch(showManageBranches, async (isOpen) => {
-  if (isOpen && hasRepoWriteAccess.value && !branchStatusesLoaded.value) {
-    await loadBranchStatuses()
-  }
-})
 
 // Compare current branch with upstream
 const loadCurrentBranchComparison = async () => {
