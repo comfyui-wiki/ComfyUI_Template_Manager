@@ -1,6 +1,8 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
+import fs from 'fs'
+import path from 'path'
 
 interface I18nData {
   _status: any
@@ -41,7 +43,14 @@ export default defineEventHandler(async (event) => {
     const [owner, repoName] = repo.split('/')
     const octokit = new Octokit({ auth: session.accessToken })
 
+    // Read i18n config to get the correct path
+    const configPath = path.join(process.cwd(), 'config', 'i18n-config.json')
+    const configContent = fs.readFileSync(configPath, 'utf-8')
+    const config = JSON.parse(configContent)
+    const i18nPath = config.i18nDataPath?.default || 'scripts/i18n.json'
+
     console.log('[Update i18n] Starting translation update and sync...')
+    console.log('[Update i18n] i18n.json path:', i18nPath)
 
     // Get current commit SHA
     const { data: refData } = await octokit.git.getRef({
@@ -64,13 +73,13 @@ export default defineEventHandler(async (event) => {
 
     // 1. Update i18n.json
     tree.push({
-      path: 'scripts/i18n.json',
+      path: i18nPath,
       mode: '100644' as const,
       type: 'blob' as const,
       content: JSON.stringify(i18nData, null, 2)
     })
 
-    console.log('[Update i18n] Updated i18n.json')
+    console.log('[Update i18n] Updated i18n.json at path:', i18nPath)
 
     // 2. Sync translations to all locale files
     const localeFiles = [
