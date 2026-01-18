@@ -280,7 +280,7 @@ export async function updateI18nJson(
   repo: string,
   branch: string,
   templateName: string,
-  templateData: { title: string; description: string; tags?: string[] }
+  templateData: { title: string; description: string; category?: string; tags?: string[] }
 ): Promise<FileUpdate> {
   const config = await loadI18nConfig(octokit, repo, branch)
   const i18nData = await readI18nJson(octokit, repo, branch, config)
@@ -319,6 +319,23 @@ export async function updateI18nJson(
           i18nData.tags[tag][langCode] = tag // English placeholder
         }
         console.log(`✓ Added new tag placeholder: ${tag}`)
+      }
+    }
+  }
+
+  // Categories - add English placeholders if they don't exist
+  if (templateData.category) {
+    if (!i18nData.categories[templateData.category]) {
+      i18nData.categories[templateData.category] = {}
+      for (const langCode of allLangCodes) {
+        i18nData.categories[templateData.category][langCode] = templateData.category // English placeholder
+      }
+      console.log(`✓ Added new category placeholder: ${templateData.category}`)
+    } else {
+      // Category exists - ensure English value is always set
+      if (!i18nData.categories[templateData.category]['en']) {
+        i18nData.categories[templateData.category]['en'] = templateData.category
+        console.log(`✓ Set English value for existing category: ${templateData.category}`)
       }
     }
   }
@@ -411,7 +428,7 @@ export async function syncTagsToI18n(
 
 /**
  * Check if English title/description changed and track outdated translations
- * Also syncs new tags to i18n.json
+ * Also syncs new tags and categories to i18n.json
  */
 export async function trackOutdatedTranslations(
   octokit: Octokit,
@@ -420,7 +437,8 @@ export async function trackOutdatedTranslations(
   templateName: string,
   newTitle: string,
   newDescription: string,
-  newTags?: string[]
+  newTags?: string[],
+  newCategory?: string
 ): Promise<FileUpdate | null> {
   const config = await loadI18nConfig(octokit, repo, branch)
   const i18nData = await readI18nJson(octokit, repo, branch, config)
@@ -480,6 +498,18 @@ export async function trackOutdatedTranslations(
         console.log(`✓ Added new tag to i18n.json: ${tag}`)
         hasChanges = true
       }
+    }
+  }
+
+  // Sync new category to i18n.json
+  if (newCategory) {
+    if (!i18nData.categories[newCategory]) {
+      i18nData.categories[newCategory] = {}
+      for (const langCode of allLangCodes) {
+        i18nData.categories[newCategory][langCode] = newCategory // English placeholder
+      }
+      console.log(`✓ Added new category to i18n.json: ${newCategory}`)
+      hasChanges = true
     }
   }
 

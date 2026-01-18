@@ -2,9 +2,9 @@
  * Rate limiter for AI translation API
  */
 
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
 import type { H3Event } from 'h3'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 interface I18nConfig {
   aiTranslation: {
@@ -26,15 +26,33 @@ interface I18nConfig {
 
 // Load i18n config
 let i18nConfig: I18nConfig | null = null
-function loadI18nConfig(): I18nConfig {
+async function loadI18nConfig(): Promise<I18nConfig> {
   if (!i18nConfig) {
     try {
-      const configPath = resolve(process.cwd(), 'config/i18n-config.json')
-      const configContent = readFileSync(configPath, 'utf-8')
-      i18nConfig = JSON.parse(configContent)
+      // Try to read from server assets (production)
+      const storage = useStorage('assets:config')
+      const configContent = await storage.getItem('i18n-config.json')
+
+      if (configContent) {
+        i18nConfig = typeof configContent === 'string'
+          ? JSON.parse(configContent)
+          : configContent as I18nConfig
+      }
     } catch (error: any) {
-      console.error('[Rate Limiter] Failed to load i18n config:', error.message)
-      throw new Error('Failed to load rate limiter configuration')
+      console.log('[Rate Limiter] Server assets not available, using file system fallback')
+    }
+
+    // Fallback to file system (development)
+    if (!i18nConfig) {
+      try {
+        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
+        const configContent = readFileSync(configPath, 'utf-8')
+        i18nConfig = JSON.parse(configContent)
+        console.log('[Rate Limiter] Loaded config from file system')
+      } catch (error: any) {
+        console.error('[Rate Limiter] Failed to load i18n config:', error.message)
+        throw new Error('Failed to load rate limiter configuration')
+      }
     }
   }
   return i18nConfig!
@@ -47,8 +65,8 @@ const requestLog = new Map<string, number[]>()
 /**
  * Check if user is in whitelist
  */
-export function isWhitelisted(username: string): boolean {
-  const config = loadI18nConfig()
+export async function isWhitelisted(username: string): Promise<boolean> {
+  const config = await loadI18nConfig()
   return config.aiTranslation.security.whitelist.users.includes(username)
 }
 
@@ -56,8 +74,8 @@ export function isWhitelisted(username: string): boolean {
  * Check rate limit for a user
  * Returns true if allowed, false if rate limit exceeded
  */
-export function checkRateLimit(username: string): { allowed: boolean; remaining?: number; resetAt?: Date } {
-  const config = loadI18nConfig()
+export async function checkRateLimit(username: string): Promise<{ allowed: boolean; remaining?: number; resetAt?: Date }> {
+  const config = await loadI18nConfig()
 
   // Check if rate limiting is enabled
   if (!config.aiTranslation.security.rateLimit.enabled) {
@@ -109,8 +127,8 @@ export function checkRateLimit(username: string): { allowed: boolean; remaining?
 /**
  * Check Origin/Referer header
  */
-export function checkOrigin(event: H3Event): { allowed: boolean; reason?: string } {
-  const config = loadI18nConfig()
+export async function checkOrigin(event: H3Event): Promise<{ allowed: boolean; reason?: string }> {
+  const config = await loadI18nConfig()
   const runtimeConfig = useRuntimeConfig()
 
   // Check if origin check is enabled

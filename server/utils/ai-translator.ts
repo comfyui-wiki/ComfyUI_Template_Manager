@@ -3,7 +3,7 @@
  */
 
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { join } from 'path'
 
 interface TranslationRequest {
   sourceText: string
@@ -38,15 +38,33 @@ interface I18nConfig {
 
 // Load i18n config
 let i18nConfig: I18nConfig | null = null
-function loadI18nConfig(): I18nConfig {
+async function loadI18nConfig(): Promise<I18nConfig> {
   if (!i18nConfig) {
     try {
-      const configPath = resolve(process.cwd(), 'config/i18n-config.json')
-      const configContent = readFileSync(configPath, 'utf-8')
-      i18nConfig = JSON.parse(configContent)
+      // Try to read from server assets (production)
+      const storage = useStorage('assets:config')
+      const configContent = await storage.getItem('i18n-config.json')
+
+      if (configContent) {
+        i18nConfig = typeof configContent === 'string'
+          ? JSON.parse(configContent)
+          : configContent as I18nConfig
+      }
     } catch (error: any) {
-      console.error('[AI Translator] Failed to load i18n config:', error.message)
-      throw new Error('Failed to load AI translation configuration')
+      console.log('[AI Translator] Server assets not available, using file system fallback')
+    }
+
+    // Fallback to file system (development)
+    if (!i18nConfig) {
+      try {
+        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
+        const configContent = readFileSync(configPath, 'utf-8')
+        i18nConfig = JSON.parse(configContent)
+        console.log('[AI Translator] Loaded config from file system')
+      } catch (error: any) {
+        console.error('[AI Translator] Failed to load i18n config:', error.message)
+        throw new Error('Failed to load AI translation configuration')
+      }
     }
   }
   return i18nConfig!
@@ -76,7 +94,7 @@ function getLanguageName(code: string): string {
  */
 export async function translateText(request: TranslationRequest): Promise<TranslationResponse> {
   const config = useRuntimeConfig()
-  const i18nCfg = loadI18nConfig()
+  const i18nCfg = await loadI18nConfig()
 
   const apiKey = config.deepseekApiKey
   const endpoint = config.deepseekApiEndpoint || 'https://api.deepseek.com/v1/chat/completions'

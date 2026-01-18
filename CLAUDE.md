@@ -80,8 +80,9 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 
 ### 7. AI Translation (Optional Feature)
 - **DeepSeek API Integration**: AI-powered translation for template metadata
-- **Single Translation**: Translate individual fields with AI button in edit mode
-- **Batch Translation**: Translate multiple items simultaneously (coming soon)
+- **Single Cell Translation**: Translate individual fields with AI button in cell editor
+- **Batch Translation**: Multi-select items and translate to a single target language
+- **Multi-Language Translation**: Select 1 item and translate to ALL 10 languages at once
 - **Security Protection**:
   - Rate limiting (20 requests/minute per user by default)
   - Origin/Referer verification (auto-detects from NEXTAUTH_URL)
@@ -91,12 +92,34 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 - **Real-time Feedback**: Shows loading state, modified cells, and translation status
 - **Modified Cell Tracking**: Green border indicates recently translated/edited cells
 
-**How it works:**
-1. User clicks AI translate button (purple lightbulb icon) in cell editor
-2. System sends source text + target language to DeepSeek API
-3. AI returns translation following configured prompt rules
-4. Translation auto-fills the textarea for user review
-5. User can modify and save as normal
+**Translation Modes:**
+
+1. **Single Cell Translation**:
+   - Click AI translate button (purple lightbulb icon) in cell editor
+   - Translates one field to one target language
+   - Shows translation in textarea for review before saving
+
+2. **Batch Translation** (multiple items → single language):
+   - Select multiple items using checkboxes
+   - Choose target language from dropdown (e.g., 简体中文, Français)
+   - Click "Batch Translate" button
+   - All selected items translated to the chosen language
+   - Progress dialog shows real-time status
+
+3. **Multi-Language Translation** (1 item → all languages):
+   - Select exactly 1 item using checkbox
+   - Click "Batch Translate" button
+   - System automatically translates to all 10 non-English languages in one API call
+   - Most efficient for updating all translations of a single key
+   - Progress dialog shows language-by-language completion
+
+4. **Batch Multi-Language Translation** (multiple items → all languages):
+   - Select multiple items using checkboxes
+   - Choose "🌐 All Languages" from dropdown (default option)
+   - Click "Batch Translate" button
+   - System translates each item to all 10 non-English languages sequentially
+   - Progress shows current item being translated (e.g., "Translating item 3/10...")
+   - Most efficient for bulk translation of multiple keys
 
 **Security Configuration:**
 - **Rate Limit**: Configure `maxRequestsPerMinute` in `config/i18n-config.json`
@@ -228,7 +251,72 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 ## Recent Implementations
 
-### 1. Multi-language (i18n) Synchronization & Outdated Translations Tracking (2026-01-18)
+### 1. Batch Multi-Language Translation & "All Languages" Option (2026-01-18)
+**Problem**: Users needed to translate multiple keys to ALL languages but had to either select one language at a time or select items one by one. No efficient way to bulk translate.
+
+**Solution**:
+- Added "🌐 All Languages" option to target language dropdown (now default selection)
+- Created new API endpoint `/api/ai/translate/multi-lang.post.ts` that translates to multiple languages in one call
+- Implemented intelligent routing based on selection:
+  - **1 item selected** → Auto-translates to all 10 languages in 1 API call
+  - **Multiple items + "All Languages"** → Translates each item to all 10 languages sequentially
+  - **Multiple items + single language** → Batch translates all items to that language
+
+**Key Features**:
+- **Default to All**: Dropdown defaults to "All Languages" for maximum efficiency
+- **Smart Detection**: Automatically chooses optimal translation strategy based on selection
+- **Progress Tracking**: Shows current item and language progress in real-time
+- **Efficient**: Uses multi-language API to translate 1 key to 10 languages in 1 request
+- **Sequential Processing**: For multiple items, processes each one by one with clear progress
+- **Graceful Failures**: Shows success/failure counts per item
+- **Smart Parsing**: Robust JSON response parsing handles markdown code blocks and various AI response formats
+
+**Translation Modes**:
+1. **Single Cell**: Individual field translation via AI button in editor
+2. **Batch Single Language**: Multiple items → 1 target language (e.g., "简体中文")
+3. **Single Item All Languages**: 1 item → all 10 languages (1 API call)
+4. **Batch All Languages**: Multiple items → all 10 languages (new feature)
+
+**How Batch All Languages Works**:
+1. User selects multiple items (e.g., 5 items)
+2. Dropdown shows "🌐 All Languages" (default)
+3. Clicks "Batch Translate"
+4. System processes each item sequentially:
+   - Item 1 → calls multi-lang API → translates to 10 languages
+   - Item 2 → calls multi-lang API → translates to 10 languages
+   - ... (repeats for all items)
+5. Progress shows: "Translating item 3/5..."
+6. All 50 translations (5 items × 10 languages) completed
+7. Auto-closes after 3 seconds
+
+**Files**:
+- API: `server/api/ai/translate/multi-lang.post.ts` (new) - Multi-language translation endpoint
+- Component: `components/TranslationManager.vue:55` (default value), `782-784` (UI option), `450-453` (routing logic), `639-739` (new function)
+
+**API Request/Response**:
+```typescript
+// Request
+{
+  sourceText: "Advanced Image Generation",
+  sourceLang: "en",
+  targetLangs: ["zh", "zh-TW", "ja", "ko", "es", "fr", "ru", "tr", "ar", "pt-BR"]
+}
+
+// Response
+{
+  success: true,
+  translations: {
+    "zh": "高级图像生成",
+    "zh-TW": "進階圖像生成",
+    "ja": "高度な画像生成",
+    // ... 7 more languages
+  },
+  failed: [],
+  usage: { promptTokens: 245, completionTokens: 180, totalTokens: 425 }
+}
+```
+
+### 2. Multi-language (i18n) Synchronization & Outdated Translations Tracking (2026-01-18)
 **Problem**: Templates were only created/updated in English `index.json`, requiring manual sync to 10 other language files. No tracking of English content changes meant translations could become outdated without notice.
 
 **Solution**:
@@ -287,7 +375,7 @@ All configuration files are stored in `/config/` and served via the API endpoint
 - ✅ Timestamp tracking for translation maintenance
 - ✅ Compatible with existing Python workflow
 
-### 2. GITHUB_TOKEN Removal & PR Browser Login Requirement (2026-01-18)
+### 3. GITHUB_TOKEN Removal & PR Browser Login Requirement (2026-01-18)
 **Problem**: Application used optional GITHUB_TOKEN environment variable, but most features required user authentication anyway
 **Solution**:
 - Removed all `GITHUB_TOKEN` dependencies from codebase
@@ -313,7 +401,7 @@ All configuration files are stored in `/config/` and served via the API endpoint
 - `pages/index.vue`
 - `composables/useGitHubRepo.ts`
 
-### 2. Bundles.json Auto-Update on Template Creation (2026-01-18)
+### 4. Bundles.json Auto-Update on Template Creation (2026-01-18)
 **Problem**: Creating new templates only updated `templates/index.json` but not `bundles.json`, requiring manual updates
 **Solution**:
 - Added automatic `bundles.json` update logic to template creation API
@@ -338,7 +426,7 @@ All configuration files are stored in `/config/` and served via the API endpoint
 - `server/api/github/template/update.post.ts` (fixed config path)
 - `config/bundle-mapping-rules.json` (mapping rules)
 
-### 3. Fixed Workflow Filename Display in Create Mode (2026-01-18)
+### 5. Fixed Workflow Filename Display in Create Mode (2026-01-18)
 **Problem**: After uploading workflow JSON in create mode, filename still showed "workflow.json" instead of actual filename
 **Solution**:
 - Updated filename display logic to use `extractedTemplateName` when available
@@ -937,6 +1025,88 @@ Please rename your template or proceed to update the existing one.
   }
 }
 ```
+
+---
+
+### POST `/api/ai/translate/multi-lang`
+
+**Description**: Translates a single text to multiple target languages in one API call (AI Translation feature)
+
+**Authentication**: Required (GitHub OAuth session)
+
+**Security Checks**:
+- Origin/Referer verification
+- Rate limiting (per user)
+- Whitelist support
+
+**Request Body**:
+```typescript
+{
+  sourceText: string      // Text to translate
+  sourceLang: string      // Source language code (e.g., "en")
+  targetLangs: string[]   // Array of target language codes
+  systemPrompt?: string   // Optional custom system prompt
+}
+```
+
+**Example Request**:
+```json
+{
+  "sourceText": "Advanced Image Generation Template",
+  "sourceLang": "en",
+  "targetLangs": ["zh", "zh-TW", "ja", "ko", "es", "fr", "ru", "tr", "ar", "pt-BR"]
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean
+  translations: Record<string, string>  // { "zh": "...", "ja": "...", ... }
+  failed: string[]                       // Array of language codes that failed
+  usage: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
+}
+```
+
+**Example Response**:
+```json
+{
+  "success": true,
+  "translations": {
+    "zh": "高级图像生成模板",
+    "zh-TW": "進階圖像生成模板",
+    "ja": "高度な画像生成テンプレート",
+    "ko": "고급 이미지 생성 템플릿",
+    "es": "Plantilla de Generación de Imágenes Avanzada",
+    "fr": "Modèle de Génération d'Images Avancé",
+    "ru": "Расширенный шаблон генерации изображений",
+    "tr": "Gelişmiş Görüntü Oluşturma Şablonu",
+    "ar": "قالب إنشاء الصور المتقدم",
+    "pt-BR": "Modelo Avançado de Geração de Imagens"
+  },
+  "failed": [],
+  "usage": {
+    "promptTokens": 245,
+    "completionTokens": 180,
+    "totalTokens": 425
+  }
+}
+```
+
+**Error Responses**:
+- `401` - Unauthorized (not signed in)
+- `403` - Forbidden (invalid origin)
+- `429` - Rate limit exceeded
+- `400` - Missing required parameters
+- `500` - Translation failed or invalid AI response
+
+**Files**: `/server/api/ai/translate/multi-lang.post.ts`
+
+**Usage**: Automatically used when user selects exactly 1 item in Translation Manager and clicks "Batch Translate"
 
 ---
 

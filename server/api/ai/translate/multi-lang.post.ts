@@ -4,17 +4,11 @@ import { checkRateLimit, checkOrigin } from '~/server/utils/rate-limiter'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-interface BatchItem {
-  key: string
-  text: string
-}
-
 interface RequestBody {
-  items: BatchItem[]
+  sourceText: string
   sourceLang: string
-  targetLang: string
+  targetLangs: string[]
   systemPrompt?: string
-  batchPromptTemplate?: string
 }
 
 interface I18nConfig {
@@ -22,10 +16,6 @@ interface I18nConfig {
     systemPrompt: string
     singleTranslationTemplate: string
     batchTranslationTemplate: string
-    batchSize: number
-    maxConcurrent: number
-    requestTimeout: number
-    retryAttempts: number
   }
 }
 
@@ -44,7 +34,7 @@ async function loadI18nConfig(): Promise<I18nConfig> {
           : configContent as I18nConfig
       }
     } catch (error: any) {
-      console.log('[AI Batch Translate] Server assets not available, using file system fallback')
+      console.log('[AI Multi-Lang Translate] Server assets not available, using file system fallback')
     }
 
     // Fallback to file system (development)
@@ -53,9 +43,9 @@ async function loadI18nConfig(): Promise<I18nConfig> {
         const configPath = join(process.cwd(), 'config', 'i18n-config.json')
         const configContent = readFileSync(configPath, 'utf-8')
         i18nConfig = JSON.parse(configContent)
-        console.log('[AI Batch Translate] Loaded config from file system')
+        console.log('[AI Multi-Lang Translate] Loaded config from file system')
       } catch (error: any) {
-        console.error('[AI Batch Translate] Failed to load i18n config:', error.message)
+        console.error('[AI Multi-Lang Translate] Failed to load i18n config:', error.message)
         throw new Error('Failed to load AI translation configuration')
       }
     }
@@ -99,15 +89,7 @@ function parseAIResponse(text: string): any {
     } catch {}
   }
 
-  // 3. Extract JSON array
-  const arrayMatch = text.match(/\[[\s\S]*\]/)
-  if (arrayMatch) {
-    try {
-      return JSON.parse(arrayMatch[0])
-    } catch {}
-  }
-
-  // 4. Extract JSON object
+  // 3. Extract JSON object
   const objectMatch = text.match(/\{[\s\S]*\}/)
   if (objectMatch) {
     try {
@@ -152,60 +134,72 @@ export default defineEventHandler(async (event) => {
     // Parse request body
     const body = await readBody<RequestBody>(event)
 
-    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+    if (!body.sourceText || !body.targetLangs || body.targetLangs.length === 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Missing required parameter: items (non-empty array)'
-      })
-    }
-
-    if (!body.targetLang) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Missing required parameter: targetLang'
+        statusMessage: 'Missing required parameters: sourceText, targetLangs'
       })
     }
 
     const sourceLang = body.sourceLang || 'en'
 
-    console.log('[AI Batch Translate] Request:', {
-      itemCount: body.items.length,
+    console.log('[AI Multi-Lang Translate] Request:', {
       from: sourceLang,
-      to: body.targetLang
+      targetLangs: body.targetLangs,
+      textLength: body.sourceText.length
     })
 
-    // Load config and build batch prompt
+    // Load config and build multi-language prompt
     const i18nCfg = await loadI18nConfig()
-    const jsonArray = JSON.stringify(body.items, null, 2)
 
-    let userPrompt = body.batchPromptTemplate || i18nCfg.aiTranslation.batchTranslationTemplate
-    userPrompt = userPrompt
-      .replace('{sourceLang}', getLanguageName(sourceLang))
-      .replace('{targetLang}', getLanguageName(body.targetLang))
-      .replace('{jsonArray}', jsonArray)
+    // Build language list for prompt
+    const langList = body.targetLangs
+      .map(code => `- ${code}: ${getLanguageName(code)}`)
+      .join('\n')
 
-    // Call AI with batch request
+    // Build multi-language translation prompt
+    const userPrompt = `Translate the following text from ${getLanguageName(sourceLang)} to multiple languages.
+Return a valid JSON object with language codes as keys and translations as values.
+
+CRITICAL: Return ONLY the JSON object, no markdown code blocks, no explanations.
+
+Format:
+{
+  "zh": "translated text",
+  "zh-TW": "translated text",
+  "ja": "translated text",
+  ...
+}
+
+Target languages:
+${langList}
+
+Text to translate: "${body.sourceText}"
+
+Return only the JSON object with translations.`
+
+    // Call AI with multi-language request
     const result = await translateText({
       sourceText: userPrompt,
       sourceLang,
-      targetLang: body.targetLang,
-      systemPrompt: body.systemPrompt,
+      targetLang: body.targetLangs[0], // Use first target lang as hint
+      systemPrompt: body.systemPrompt || i18nCfg.aiTranslation.systemPrompt,
       userPromptTemplate: '{sourceText}' // Use the prompt as-is
     })
 
     if (!result.success || !result.translation) {
       throw createError({
         statusCode: 500,
-        statusMessage: result.error || 'Batch translation failed'
+        statusMessage: result.error || 'Multi-language translation failed'
       })
     }
 
     // Parse the response
-    let translations: Array<{ key: string; translation: string }>
+    let translations: Record<string, string>
     try {
       translations = parseAIResponse(result.translation)
     } catch (error: any) {
-      console.error('[AI Batch Translate] Failed to parse response:', result.translation)
+      console.error('[AI Multi-Lang Translate] Failed to parse response:', result.translation)
       throw createError({
         statusCode: 500,
         statusMessage: `Failed to parse AI response: ${error.message}`
@@ -213,47 +207,40 @@ export default defineEventHandler(async (event) => {
     }
 
     // Validate response structure
-    if (!Array.isArray(translations)) {
+    if (typeof translations !== 'object' || Array.isArray(translations)) {
       throw createError({
         statusCode: 500,
-        statusMessage: 'AI returned invalid format (expected array)'
+        statusMessage: 'AI returned invalid format (expected object with language keys)'
       })
     }
 
-    // Match results with original items
-    const results: Array<{ key: string; translation: string }> = []
-    const failed: Array<{ key: string; error: string }> = []
+    // Match results with requested languages
+    const results: Record<string, string> = {}
+    const failed: string[] = []
 
-    for (const item of body.items) {
-      const match = translations.find(t => t.key === item.key)
-      if (match && match.translation) {
-        results.push({
-          key: item.key,
-          translation: match.translation
-        })
+    for (const targetLang of body.targetLangs) {
+      if (translations[targetLang]) {
+        results[targetLang] = translations[targetLang]
       } else {
-        failed.push({
-          key: item.key,
-          error: 'Translation not found in response'
-        })
+        failed.push(targetLang)
       }
     }
 
-    console.log('[AI Batch Translate] Completed:', {
-      total: body.items.length,
-      succeeded: results.length,
+    console.log('[AI Multi-Lang Translate] Completed:', {
+      requested: body.targetLangs.length,
+      succeeded: Object.keys(results).length,
       failed: failed.length,
       usage: result.usage
     })
 
     return {
       success: true,
-      results,
+      translations: results,
       failed,
       usage: result.usage
     }
   } catch (error: any) {
-    console.error('[AI Batch Translate] Error:', error)
+    console.error('[AI Multi-Lang Translate] Error:', error)
 
     if (error.statusCode) {
       throw error
@@ -261,7 +248,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Failed to translate batch'
+      statusMessage: error.message || 'Failed to translate to multiple languages'
     })
   }
 })

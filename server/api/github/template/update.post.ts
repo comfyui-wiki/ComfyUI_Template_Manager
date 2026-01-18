@@ -340,8 +340,11 @@ export default defineEventHandler(async (event) => {
         console.log('[Update Template] Syncing updated template to all locale files...')
 
         // Check if English title/description changed and track outdated translations
-        // Also sync new tags to i18n.json
-        if (metadata.title || metadata.description || metadata.tags) {
+        // Also sync new tags and categories to i18n.json
+        if (metadata.title || metadata.description || metadata.tags || metadata.category) {
+          // Use updated category if provided, otherwise use current category
+          const categoryToSync = metadata.category || currentCategoryTitle
+
           const i18nUpdate = await trackOutdatedTranslations(
             octokit,
             repo,
@@ -349,7 +352,8 @@ export default defineEventHandler(async (event) => {
             templateName,
             templateData.title,
             templateData.description,
-            templateData.tags
+            templateData.tags,
+            categoryToSync
           )
 
           if (i18nUpdate) {

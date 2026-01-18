@@ -50,6 +50,13 @@ const modifiedCells = ref<Set<string>>(new Set()) // Track modified cells "key:l
 const config = useRuntimeConfig()
 const aiEnabled = computed(() => config.public.aiTranslationEnabled)
 
+// Batch translation state
+const selectedItems = ref<Set<string>>(new Set()) // Set of item keys
+const batchTargetLang = ref<string>('all') // Default to "All Languages"
+const batchTranslating = ref(false)
+const batchProgress = ref({ current: 0, total: 0, status: '' })
+const showBatchDialog = ref(false)
+
 // Translation sections
 type TranslationSection = 'templates' | 'tags' | 'categories'
 const activeSection = ref<TranslationSection>('templates')
@@ -398,6 +405,346 @@ const translateCell = async (key: string, lang: string, sourceText: string) => {
   }
 }
 
+// Toggle item selection
+const toggleItemSelection = (key: string) => {
+  if (selectedItems.value.has(key)) {
+    selectedItems.value.delete(key)
+  } else {
+    selectedItems.value.add(key)
+  }
+}
+
+// Select/deselect all items
+const toggleSelectAll = () => {
+  if (selectedItems.value.size === filteredItems.value.length) {
+    selectedItems.value.clear()
+  } else {
+    selectedItems.value.clear()
+    filteredItems.value.forEach(item => {
+      selectedItems.value.add(item.key)
+    })
+  }
+}
+
+// Check if all items are selected
+const allSelected = computed(() => {
+  return filteredItems.value.length > 0 && selectedItems.value.size === filteredItems.value.length
+})
+
+// Count selected items
+const selectedCount = computed(() => selectedItems.value.size)
+
+// Batch translate selected items
+const batchTranslate = async () => {
+  if (selectedItems.value.size === 0) {
+    alert('Please select at least one item to translate')
+    return
+  }
+
+  // Special handling for single item - translate to all languages
+  if (selectedItems.value.size === 1) {
+    await translateSingleItemToAllLanguages()
+    return
+  }
+
+  // Handle "All Languages" option
+  if (batchTargetLang.value === 'all') {
+    await translateMultipleItemsToAllLanguages()
+    return
+  }
+
+  if (!batchTargetLang.value || batchTargetLang.value === 'en') {
+    alert('Please select a valid target language (non-English)')
+    return
+  }
+
+  batchTranslating.value = true
+  showBatchDialog.value = true
+  batchProgress.value = { current: 0, total: selectedItems.value.size, status: 'Starting...' }
+
+  try {
+    // Prepare items for batch translation
+    const itemsToTranslate: Array<{ key: string; text: string }> = []
+
+    for (const itemKey of selectedItems.value) {
+      const item = filteredItems.value.find(i => i.key === itemKey)
+      if (item && item.englishValue) {
+        itemsToTranslate.push({
+          key: itemKey,
+          text: item.englishValue
+        })
+      }
+    }
+
+    console.log('[TranslationManager] Batch translating:', {
+      count: itemsToTranslate.length,
+      targetLang: batchTargetLang.value
+    })
+
+    batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.find(l => l.code === batchTargetLang.value)?.name}...`
+
+    // Call batch translation API
+    const response = await $fetch('/api/ai/translate/batch', {
+      method: 'POST',
+      body: {
+        items: itemsToTranslate,
+        sourceLang: 'en',
+        targetLang: batchTargetLang.value
+      }
+    })
+
+    if (response.success) {
+      console.log('[TranslationManager] Batch translation completed:', {
+        succeeded: response.results.length,
+        failed: response.failed.length,
+        usage: response.usage
+      })
+
+      // Apply translations to i18nData
+      let successCount = 0
+      for (const result of response.results) {
+        const item = filteredItems.value.find(i => i.key === result.key)
+        if (item) {
+          saveTranslation(result.key, batchTargetLang.value, result.translation)
+          successCount++
+        }
+      }
+
+      batchProgress.value.current = successCount
+      batchProgress.value.status = `Successfully translated ${successCount} items!`
+
+      // Show failed items if any
+      if (response.failed.length > 0) {
+        console.warn('[TranslationManager] Some items failed:', response.failed)
+        batchProgress.value.status += ` (${response.failed.length} failed)`
+      }
+
+      // Clear selection after successful batch
+      selectedItems.value.clear()
+
+      // Auto-close dialog after 3 seconds
+      setTimeout(() => {
+        showBatchDialog.value = false
+      }, 3000)
+    } else {
+      throw new Error('Batch translation failed')
+    }
+  } catch (error: any) {
+    console.error('[TranslationManager] Batch translation failed:', error)
+
+    let errorMessage = 'Batch translation failed.'
+    if (error.data?.message) {
+      errorMessage = error.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
+    batchProgress.value.status = `Error: ${errorMessage}`
+    alert(errorMessage)
+  } finally {
+    batchTranslating.value = false
+  }
+}
+
+// Translate single selected item to all languages
+const translateSingleItemToAllLanguages = async () => {
+  const itemKey = Array.from(selectedItems.value)[0]
+  const item = filteredItems.value.find(i => i.key === itemKey)
+
+  if (!item || !item.englishValue) {
+    alert('Cannot find item or English text')
+    return
+  }
+
+  batchTranslating.value = true
+  showBatchDialog.value = true
+
+  // Get all non-English language codes
+  const targetLangs = languages
+    .filter(l => l.code !== 'en')
+    .map(l => l.code)
+
+  batchProgress.value = {
+    current: 0,
+    total: targetLangs.length,
+    status: `Translating "${item.englishValue.substring(0, 50)}..." to ${targetLangs.length} languages...`
+  }
+
+  try {
+    console.log('[TranslationManager] Multi-language translation:', {
+      key: itemKey,
+      text: item.englishValue,
+      targetLangs: targetLangs.length
+    })
+
+    const response = await $fetch('/api/ai/translate/multi-lang', {
+      method: 'POST',
+      body: {
+        sourceText: item.englishValue,
+        sourceLang: 'en',
+        targetLangs
+      }
+    })
+
+    if (response.success) {
+      console.log('[TranslationManager] Multi-language translation completed:', {
+        succeeded: Object.keys(response.translations).length,
+        failed: response.failed?.length || 0,
+        usage: response.usage
+      })
+
+      // Apply all translations
+      let successCount = 0
+      for (const [lang, translation] of Object.entries(response.translations)) {
+        saveTranslation(itemKey, lang, translation as string)
+        successCount++
+        batchProgress.value.current = successCount
+      }
+
+      batchProgress.value.status = `Successfully translated to ${successCount} languages!`
+
+      // Show failed languages if any
+      if (response.failed && response.failed.length > 0) {
+        console.warn('[TranslationManager] Some languages failed:', response.failed)
+        batchProgress.value.status += ` (${response.failed.length} failed: ${response.failed.join(', ')})`
+      }
+
+      // Clear selection
+      selectedItems.value.clear()
+
+      // Auto-close after 3 seconds
+      setTimeout(() => {
+        showBatchDialog.value = false
+      }, 3000)
+    } else {
+      throw new Error('Multi-language translation failed')
+    }
+  } catch (error: any) {
+    console.error('[TranslationManager] Multi-language translation failed:', error)
+
+    let errorMessage = 'Multi-language translation failed.'
+    if (error.data?.message) {
+      errorMessage = error.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
+    batchProgress.value.status = `Error: ${errorMessage}`
+    alert(errorMessage)
+  } finally {
+    batchTranslating.value = false
+  }
+}
+
+// Translate multiple selected items to all languages
+const translateMultipleItemsToAllLanguages = async () => {
+  const selectedKeys = Array.from(selectedItems.value)
+  const itemsToTranslate = filteredItems.value.filter(i => selectedKeys.includes(i.key))
+
+  if (itemsToTranslate.length === 0 || itemsToTranslate.some(i => !i.englishValue)) {
+    alert('Cannot find items or English text')
+    return
+  }
+
+  batchTranslating.value = true
+  showBatchDialog.value = true
+
+  // Get all non-English language codes
+  const targetLangs = languages
+    .filter(l => l.code !== 'en')
+    .map(l => l.code)
+
+  const totalOperations = itemsToTranslate.length
+  batchProgress.value = {
+    current: 0,
+    total: totalOperations,
+    status: `Translating ${totalOperations} items to all ${targetLangs.length} languages...`
+  }
+
+  try {
+    let successCount = 0
+    let failedCount = 0
+
+    // Process each item
+    for (const item of itemsToTranslate) {
+      try {
+        console.log('[TranslationManager] Multi-language translation for item:', {
+          key: item.key,
+          text: item.englishValue,
+          targetLangs: targetLangs.length
+        })
+
+        batchProgress.value.status = `Translating "${item.key}" (${successCount + 1}/${totalOperations})...`
+
+        const response = await $fetch('/api/ai/translate/multi-lang', {
+          method: 'POST',
+          body: {
+            sourceText: item.englishValue,
+            sourceLang: 'en',
+            targetLangs
+          }
+        })
+
+        if (response.success) {
+          // Apply all translations for this item
+          for (const [lang, translation] of Object.entries(response.translations)) {
+            saveTranslation(item.key, lang, translation as string)
+          }
+          successCount++
+          batchProgress.value.current = successCount
+        } else {
+          failedCount++
+          console.warn('[TranslationManager] Failed to translate item:', item.key)
+        }
+      } catch (error: any) {
+        failedCount++
+        console.error('[TranslationManager] Error translating item:', item.key, error)
+      }
+    }
+
+    const summary = `Completed! Translated ${successCount} items to all languages.`
+    batchProgress.value.status = failedCount > 0
+      ? `${summary} (${failedCount} failed)`
+      : summary
+
+    console.log('[TranslationManager] Multiple items to all languages completed:', {
+      succeeded: successCount,
+      failed: failedCount,
+      totalItems: totalOperations,
+      totalLanguages: targetLangs.length
+    })
+
+    // Clear selection
+    selectedItems.value.clear()
+
+    // Auto-close after 3 seconds
+    setTimeout(() => {
+      showBatchDialog.value = false
+    }, 3000)
+  } catch (error: any) {
+    console.error('[TranslationManager] Multiple items multi-language translation failed:', error)
+
+    let errorMessage = 'Failed to translate multiple items to all languages.'
+    if (error.data?.message) {
+      errorMessage = error.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
+    batchProgress.value.status = `Error: ${errorMessage}`
+    alert(errorMessage)
+  } finally {
+    batchTranslating.value = false
+  }
+}
+
+// Close batch dialog
+const closeBatchDialog = () => {
+  if (!batchTranslating.value) {
+    showBatchDialog.value = false
+  }
+}
+
 // Save all changes
 const saveAllChanges = async () => {
   if (!i18nData.value) return
@@ -528,6 +875,62 @@ const saveAllChanges = async () => {
               </SelectContent>
             </Select>
           </div>
+
+          <!-- Batch translation bar -->
+          <div v-if="aiEnabled && selectedCount > 0" class="flex items-center gap-3 p-3 bg-accent/50 rounded-md border border-border">
+            <span class="text-sm font-medium">
+              {{ selectedCount }} item{{ selectedCount > 1 ? 's' : '' }} selected
+            </span>
+
+            <Select v-model="batchTargetLang" class="flex-shrink-0">
+              <SelectTrigger class="w-[180px]">
+                <SelectValue placeholder="Target language" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  🌐 All Languages
+                </SelectItem>
+                <SelectItem
+                  v-for="lang in languages.filter(l => l.code !== 'en')"
+                  :key="lang.code"
+                  :value="lang.code"
+                >
+                  {{ lang.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              @click="batchTranslate"
+              :disabled="batchTranslating || !batchTargetLang"
+              size="sm"
+              class="flex-shrink-0"
+            >
+              <svg
+                v-if="batchTranslating"
+                class="animate-spin -ml-1 mr-2 h-4 w-4"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {{ batchTranslating ? 'Translating...' : 'Batch Translate' }}
+            </Button>
+
+            <Button
+              @click="selectedItems.clear()"
+              variant="ghost"
+              size="sm"
+              class="flex-shrink-0"
+            >
+              Clear Selection
+            </Button>
+          </div>
         </div>
 
         <!-- Translation table -->
@@ -535,6 +938,16 @@ const saveAllChanges = async () => {
           <Table>
             <TableHeader class="sticky top-0 bg-background z-10">
               <TableRow>
+                <!-- Checkbox column for batch selection -->
+                <TableHead v-if="aiEnabled" class="w-[50px]">
+                  <input
+                    type="checkbox"
+                    :checked="allSelected"
+                    @change="toggleSelectAll"
+                    class="w-4 h-4 cursor-pointer"
+                    title="Select/Deselect all"
+                  />
+                </TableHead>
                 <TableHead class="w-[250px] font-semibold">Key</TableHead>
                 <TableHead
                   v-for="lang in visibleLanguages"
@@ -555,6 +968,16 @@ const saveAllChanges = async () => {
                   'bg-amber-50': !item.isOutdated && item.untranslatedLangs.length > 0
                 }"
               >
+                <!-- Checkbox column -->
+                <TableCell v-if="aiEnabled" class="align-top py-2">
+                  <input
+                    type="checkbox"
+                    :checked="selectedItems.has(item.key)"
+                    @change="toggleItemSelection(item.key)"
+                    class="w-4 h-4 cursor-pointer"
+                  />
+                </TableCell>
+
                 <!-- Key column -->
                 <TableCell class="font-mono text-xs align-top py-2">
                   <div class="truncate" :title="item.key">{{ item.key }}</div>
@@ -700,6 +1123,69 @@ const saveAllChanges = async () => {
             </div>
           </div>
         </div>
+      </div>
+    </DialogContent>
+  </Dialog>
+
+  <!-- Batch Translation Progress Dialog -->
+  <Dialog :open="showBatchDialog" @update:open="closeBatchDialog">
+    <DialogContent class="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Batch Translation Progress</DialogTitle>
+        <DialogDescription>
+          Translating multiple items to {{ languages.find(l => l.code === batchTargetLang)?.name }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="flex flex-col gap-4 py-4">
+        <!-- Progress bar -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-sm">
+            <span>Progress</span>
+            <span>{{ batchProgress.current }} / {{ batchProgress.total }}</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div
+              class="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              :style="{ width: `${batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0}%` }"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Status message -->
+        <div class="text-sm text-muted-foreground">
+          {{ batchProgress.status }}
+        </div>
+
+        <!-- Spinner when translating -->
+        <div v-if="batchTranslating" class="flex items-center justify-center py-4">
+          <svg
+            class="animate-spin h-8 w-8 text-blue-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+
+        <!-- Success checkmark when done -->
+        <div v-else-if="batchProgress.current === batchProgress.total && batchProgress.total > 0" class="flex items-center justify-center py-4">
+          <svg class="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <Button
+          @click="closeBatchDialog"
+          :disabled="batchTranslating"
+          variant="outline"
+        >
+          {{ batchTranslating ? 'Please wait...' : 'Close' }}
+        </Button>
       </div>
     </DialogContent>
   </Dialog>

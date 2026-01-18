@@ -1,8 +1,8 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
-import fs from 'fs'
-import path from 'path'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 interface I18nData {
   _status: any
@@ -44,9 +44,38 @@ export default defineEventHandler(async (event) => {
     const octokit = new Octokit({ auth: session.accessToken })
 
     // Read i18n config to get the correct path
-    const configPath = path.join(process.cwd(), 'config', 'i18n-config.json')
-    const configContent = fs.readFileSync(configPath, 'utf-8')
-    const config = JSON.parse(configContent)
+    let config: any
+
+    try {
+      // Try to read from server assets (production)
+      const storage = useStorage('assets:config')
+      const configContent = await storage.getItem('i18n-config.json')
+
+      if (configContent) {
+        config = typeof configContent === 'string'
+          ? JSON.parse(configContent)
+          : configContent
+      }
+    } catch (error) {
+      console.log('[Update i18n] Server assets not available, using file system fallback')
+    }
+
+    // Fallback to file system (development)
+    if (!config) {
+      try {
+        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
+        const configContent = readFileSync(configPath, 'utf-8')
+        config = JSON.parse(configContent)
+        console.log('[Update i18n] Loaded config from file system')
+      } catch (error) {
+        console.error('[Update i18n] Failed to load config from file system:', error)
+        throw createError({
+          statusCode: 500,
+          statusMessage: 'Failed to load i18n configuration'
+        })
+      }
+    }
+
     const i18nPath = config.i18nDataPath?.default || 'scripts/i18n.json'
 
     console.log('[Update i18n] Starting translation update and sync...')

@@ -323,6 +323,7 @@ export default defineEventHandler(async (event) => {
         {
           title: metadata.title,
           description: metadata.description,
+          category: metadata.category,
           tags: metadata.tags
         }
       )
