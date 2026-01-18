@@ -78,6 +78,44 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 
 **See**: `docs/i18n-outdated-translations.md` for detailed usage guide
 
+### 7. AI Translation (Optional Feature)
+- **DeepSeek API Integration**: AI-powered translation for template metadata
+- **Single Translation**: Translate individual fields with AI button in edit mode
+- **Batch Translation**: Translate multiple items simultaneously (coming soon)
+- **Security Protection**:
+  - Rate limiting (20 requests/minute per user by default)
+  - Origin/Referer verification (auto-detects from NEXTAUTH_URL)
+  - User authentication required (GitHub login)
+  - Whitelist support for trusted users (unlimited access)
+- **Configurable Prompts**: All AI prompts stored in `config/i18n-config.json`
+- **Real-time Feedback**: Shows loading state, modified cells, and translation status
+- **Modified Cell Tracking**: Green border indicates recently translated/edited cells
+
+**How it works:**
+1. User clicks AI translate button (purple lightbulb icon) in cell editor
+2. System sends source text + target language to DeepSeek API
+3. AI returns translation following configured prompt rules
+4. Translation auto-fills the textarea for user review
+5. User can modify and save as normal
+
+**Security Configuration:**
+- **Rate Limit**: Configure `maxRequestsPerMinute` in `config/i18n-config.json`
+- **Origin Check**: Automatically uses domain from `NEXTAUTH_URL` environment variable
+- **Whitelist**: Add GitHub usernames to `whitelist.users` array for unlimited access
+- **Enable/Disable**: Set `DEEPSEEK_API_KEY` environment variable to enable feature
+
+**Files:**
+- `server/utils/ai-translator.ts` - Core translation logic with retry
+- `server/utils/rate-limiter.ts` - Security and rate limiting
+- `server/api/ai/translate/single.post.ts` - Single translation endpoint
+- `server/api/ai/translate/batch.post.ts` - Batch translation endpoint
+- `components/TranslationManager.vue` - Translation UI with AI button
+- `config/i18n-config.json` - AI prompts and security configuration
+
+**Documentation:**
+- `SECURITY-QUICKSTART.md` - Quick security setup guide (3 steps)
+- `TODO-i18n-sync.md` - Complete AI translation security documentation
+
 ---
 
 ## File Structure
@@ -95,6 +133,7 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
   TemplateCardPreview.vue     # Template card preview
   WorkflowFileManager.vue     # Workflow and input files manager
   WorkflowModelLinksEditor.vue # Model links editor
+  TranslationManager.vue      # i18n translation manager with AI support
 
 /server/api
   /config
@@ -103,10 +142,16 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
     /template
       create.post.ts          # Create template endpoint (with i18n sync)
       update.post.ts          # Update template endpoint (with i18n sync)
+  /ai
+    /translate
+      single.post.ts          # Single field AI translation endpoint
+      batch.post.ts           # Batch AI translation endpoint
 
 /server/utils
   json-formatter.ts           # JSON formatting utilities
   i18n-sync.ts                # Multi-language synchronization utilities
+  ai-translator.ts            # AI translation with DeepSeek API
+  rate-limiter.ts             # Rate limiting and security checks
 
 /config
   template-naming-rules.json  # Template naming conventions
@@ -138,7 +183,18 @@ GITHUB_CLIENT_SECRET=your_client_secret
 # NextAuth (required)
 NEXTAUTH_SECRET=your_secret
 NEXTAUTH_URL=http://localhost:3000/api/auth
+
+# AI Translation (optional - enables AI-powered translation feature)
+DEEPSEEK_API_KEY=sk-xxxxx                                    # Your DeepSeek API key
+DEEPSEEK_API_ENDPOINT=https://api.deepseek.com/v1/chat/completions  # Optional, defaults to DeepSeek
+DEEPSEEK_MODEL=deepseek-chat                                 # Optional, defaults to deepseek-chat
 ```
+
+**Note on AI Translation:**
+- If `DEEPSEEK_API_KEY` is not set, the AI translation feature will be disabled
+- The system automatically uses `NEXTAUTH_URL` domain for origin verification
+- Configure security settings (rate limits, whitelist) in `config/i18n-config.json`
+- See `SECURITY-QUICKSTART.md` for quick setup guide
 
 ### nuxt.config.ts
 
@@ -147,6 +203,11 @@ Key settings:
 - Auth: `@sidebase/nuxt-auth` with GitHub provider
 - FFmpeg excluded from Vite optimization
 - Default repo: `Comfy-Org/workflow_templates`
+- **AI Translation config**:
+  - `deepseekApiKey` - Server-side API key (from environment)
+  - `deepseekApiEndpoint` - API endpoint (defaults to DeepSeek)
+  - `deepseekModel` - Model name (defaults to `deepseek-chat`)
+  - `public.aiTranslationEnabled` - Client-side feature flag (auto-set based on API key presence)
 
 ### Configuration Files
 

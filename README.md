@@ -20,6 +20,11 @@ A modern web-based admin interface for managing ComfyUI workflow templates. This
   - Search by name, title, or description
   - Filter by category, model, tags, and type
   - Sort by date or name
+- **AI Translation (Optional)**:
+  - DeepSeek API integration for automated translation
+  - One-click translation for individual fields
+  - Built-in security with rate limiting and whitelist
+  - Configurable prompts and settings
 - **Modern UI**: Built with Shadcn UI components and Tailwind CSS
 - **Type-Safe**: Full TypeScript support
 - **Testing**: Comprehensive test coverage with Vitest
@@ -76,9 +81,16 @@ NEXTAUTH_URL=http://localhost:3000/api/auth
 # GitHub OAuth App
 GITHUB_CLIENT_ID=your-github-oauth-client-id
 GITHUB_CLIENT_SECRET=your-github-oauth-client-secret
+
+# AI Translation (Optional - uncomment to enable)
+# DEEPSEEK_API_KEY=sk-xxxxx
+# DEEPSEEK_API_ENDPOINT=https://api.deepseek.com/v1/chat/completions
+# DEEPSEEK_MODEL=deepseek-chat
 ```
 
 **Note**: `GITHUB_TOKEN` is NOT required. All GitHub operations use the user's OAuth token obtained during sign-in.
+
+**AI Translation (Optional)**: To enable AI-powered translation, set `DEEPSEEK_API_KEY`. See [AI Translation Setup](#ai-translation-optional) for details.
 
 ### 4. Run development server
 
@@ -178,6 +190,185 @@ template_cms/
 3. Fork repositories or switch to your fork
 4. Create new branches for your changes
 5. View diff statistics comparing your branch to main
+
+## AI Translation (Optional)
+
+The application includes an optional AI-powered translation feature using the DeepSeek API. This feature helps translate template metadata across multiple languages.
+
+### Features
+
+- **One-Click Translation**: Translate individual fields with a single click
+- **Multiple Languages**: Support for 11 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR)
+- **Security Protection**:
+  - Rate limiting (20 requests/minute per user)
+  - Origin verification (auto-detects from `NEXTAUTH_URL`)
+  - GitHub authentication required
+  - Whitelist support for trusted users
+- **Real-Time Feedback**: Shows loading state and translation status
+- **Configurable**: All prompts and settings in `config/i18n-config.json`
+
+### Setup
+
+#### Step 1: Get DeepSeek API Key
+
+1. Sign up at [DeepSeek Platform](https://platform.deepseek.com/)
+2. Navigate to API Keys section
+3. Create a new API key
+4. Copy the key (starts with `sk-`)
+
+#### Step 2: Configure Environment Variables
+
+Add to your `.env` file:
+
+```bash
+DEEPSEEK_API_KEY=sk-xxxxx
+DEEPSEEK_API_ENDPOINT=https://api.deepseek.com/v1/chat/completions  # Optional
+DEEPSEEK_MODEL=deepseek-chat  # Optional
+```
+
+#### Step 3: Configure Security Settings
+
+Edit `config/i18n-config.json`:
+
+```json
+{
+  "aiTranslation": {
+    "security": {
+      "rateLimit": {
+        "enabled": true,
+        "maxRequestsPerMinute": 20
+      },
+      "originCheck": {
+        "enabled": true,
+        "allowedOrigins": []  // Empty = auto-use NEXTAUTH_URL
+      },
+      "whitelist": {
+        "users": ["your-github-username"]  // Add your username for unlimited access
+      }
+    }
+  }
+}
+```
+
+#### Step 4: Restart Server
+
+```bash
+npm run dev
+```
+
+### Security Configuration
+
+#### Rate Limiting
+
+By default, each user is limited to 20 translation requests per minute. This prevents API abuse and controls costs.
+
+**To adjust the limit:**
+
+```json
+{
+  "aiTranslation": {
+    "security": {
+      "rateLimit": {
+        "maxRequestsPerMinute": 50  // Increase or decrease as needed
+      }
+    }
+  }
+}
+```
+
+#### Origin Verification
+
+The system automatically allows requests only from your configured domain (extracted from `NEXTAUTH_URL`).
+
+**For multiple domains** (development + staging + production):
+
+```json
+{
+  "aiTranslation": {
+    "security": {
+      "originCheck": {
+        "enabled": true,
+        "allowedOrigins": [
+          "http://localhost:3000",
+          "https://staging.yourdomain.com",
+          "https://yourdomain.com"
+        ]
+      }
+    }
+  }
+}
+```
+
+#### Whitelist for Trusted Users
+
+Users in the whitelist bypass all rate limits and have unlimited translation access.
+
+**To add users to whitelist:**
+
+1. Get their GitHub username (visible when they sign in)
+2. Add to `config/i18n-config.json`:
+
+```json
+{
+  "aiTranslation": {
+    "security": {
+      "whitelist": {
+        "users": [
+          "admin-username",
+          "trusted-translator-1",
+          "trusted-translator-2"
+        ]
+      }
+    }
+  }
+}
+```
+
+### Usage
+
+1. **Access Translation Manager**:
+   - Navigate to `/admin/i18n`
+   - Or click "Manage Translations" in the admin panel
+
+2. **Translate a Field**:
+   - Click "Edit" on any cell (non-English language)
+   - Click the purple lightbulb icon (AI translate button)
+   - Review the AI-generated translation
+   - Modify if needed and click "Save"
+
+3. **Modified Cell Tracking**:
+   - Recently translated/edited cells show a green border
+   - This helps track which fields you've updated
+
+### Error Messages
+
+- **"Rate limit exceeded"**: You've exceeded the request limit. Wait 1 minute or add yourself to the whitelist.
+- **"Request origin not allowed"**: Check that `NEXTAUTH_URL` is correctly configured.
+- **"Unauthorized"**: Sign in with GitHub first.
+
+### Cost Considerations
+
+- DeepSeek API pricing: ~$0.14 per 1M input tokens, ~$0.28 per 1M output tokens
+- Average translation (50 words): ~100 tokens ≈ $0.00003 per translation
+- With default rate limit (20/min): Maximum ~$0.0006 per user per minute
+- Whitelist users can bypass limits, so monitor their usage
+
+### Documentation
+
+- **Quick Start**: See `SECURITY-QUICKSTART.md`
+- **Detailed Guide**: See `TODO-i18n-sync.md`
+- **Configuration**: All settings in `config/i18n-config.json`
+
+### Disable AI Translation
+
+To disable the feature:
+
+1. Remove or comment out `DEEPSEEK_API_KEY` from `.env`
+2. Restart the server
+
+The AI translate button will automatically disappear from the UI.
+
+---
 
 ## Testing
 

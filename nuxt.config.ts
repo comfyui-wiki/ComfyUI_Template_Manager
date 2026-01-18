@@ -45,10 +45,15 @@ export default defineNuxtConfig({
       clientId: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET
     },
+    // DeepSeek AI Translation
+    deepseekApiKey: process.env.DEEPSEEK_API_KEY,
+    deepseekApiEndpoint: process.env.DEEPSEEK_API_ENDPOINT || 'https://api.deepseek.com/v1/chat/completions',
+    deepseekModel: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
     // Public (client-side)
     public: {
       repoOwner: 'Comfy-Org',
-      repoName: 'workflow_templates'
+      repoName: 'workflow_templates',
+      aiTranslationEnabled: !!process.env.DEEPSEEK_API_KEY
     }
   },
 

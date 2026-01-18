@@ -43,6 +43,12 @@ const filterMode = ref<'all' | 'outdated' | 'untranslated'>('untranslated')
 const searchQuery = ref('')
 const editingCell = ref<{ key: string; lang: string } | null>(null)
 const editValue = ref('')
+const translatingCell = ref<string | null>(null) // "key:lang" format
+const modifiedCells = ref<Set<string>>(new Set()) // Track modified cells "key:lang"
+
+// Check if AI translation is enabled
+const config = useRuntimeConfig()
+const aiEnabled = computed(() => config.public.aiTranslationEnabled)
 
 // Translation sections
 type TranslationSection = 'templates' | 'tags' | 'categories'
@@ -323,12 +329,73 @@ const saveTranslation = (key: string, lang: string, value: string) => {
     i18nData.value[activeSection.value][mainKey][lang] = cleanedValue
   }
 
+  // Mark cell as modified
+  modifiedCells.value.add(`${key}:${lang}`)
+
   cancelEdit()
 }
 
 // Check if a cell is being edited
 const isCellEditing = (key: string, lang: string) => {
   return editingCell.value?.key === key && editingCell.value?.lang === lang
+}
+
+// Check if a cell is being translated
+const isCellTranslating = (key: string, lang: string) => {
+  return translatingCell.value === `${key}:${lang}`
+}
+
+// Check if a cell was modified
+const isCellModified = (key: string, lang: string) => {
+  return modifiedCells.value.has(`${key}:${lang}`)
+}
+
+// AI Translate single cell
+const translateCell = async (key: string, lang: string, sourceText: string) => {
+  if (!sourceText || lang === 'en') return
+
+  const cellKey = `${key}:${lang}`
+  translatingCell.value = cellKey
+
+  try {
+    console.log('[TranslationManager] AI translating:', { key, lang, sourceText })
+
+    const response = await $fetch('/api/ai/translate/single', {
+      method: 'POST',
+      body: {
+        sourceText,
+        sourceLang: 'en',
+        targetLang: lang
+      }
+    })
+
+    if (response.success && response.translation) {
+      // Auto-fill the textarea
+      editValue.value = response.translation
+
+      console.log('[TranslationManager] AI translation successful:', {
+        key,
+        lang,
+        translation: response.translation,
+        usage: response.usage
+      })
+    } else {
+      throw new Error('Translation failed')
+    }
+  } catch (error: any) {
+    console.error('[TranslationManager] AI translation failed:', error)
+
+    let errorMessage = 'AI translation failed.'
+    if (error.data?.message) {
+      errorMessage = error.data.message
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
+    alert(errorMessage)
+  } finally {
+    translatingCell.value = null
+  }
 }
 
 // Save all changes
@@ -362,6 +429,9 @@ const saveAllChanges = async () => {
       commitSha: response.commit.sha,
       commitUrl: response.commit.url
     }
+
+    // Clear modified cells tracking
+    modifiedCells.value.clear()
 
     // Clear success message after 5 seconds
     setTimeout(() => {
@@ -500,15 +570,48 @@ const saveAllChanges = async () => {
                     v-if="isCellEditing(item.key, lang.code)"
                     class="flex flex-col gap-1"
                   >
-                    <Textarea
-                      v-model="editValue"
-                      class="text-sm min-h-[80px] resize-y"
-                      @keyup.ctrl.enter="saveTranslation(item.key, lang.code, editValue)"
-                      @keyup.meta.enter="saveTranslation(item.key, lang.code, editValue)"
-                      @keyup.esc="cancelEdit"
-                      placeholder="Enter translation..."
-                      autofocus
-                    />
+                    <div class="relative">
+                      <Textarea
+                        v-model="editValue"
+                        class="text-sm min-h-[80px] resize-y pr-10"
+                        @keyup.ctrl.enter="saveTranslation(item.key, lang.code, editValue)"
+                        @keyup.meta.enter="saveTranslation(item.key, lang.code, editValue)"
+                        @keyup.esc="cancelEdit"
+                        placeholder="Enter translation..."
+                        autofocus
+                      />
+                      <!-- AI Translate Button -->
+                      <Button
+                        v-if="aiEnabled && lang.code !== 'en'"
+                        size="sm"
+                        variant="ghost"
+                        class="absolute top-1 right-1 h-7 w-7 p-0"
+                        :disabled="isCellTranslating(item.key, lang.code) || !item.englishValue"
+                        @click="translateCell(item.key, lang.code, item.englishValue)"
+                        :title="isCellTranslating(item.key, lang.code) ? 'Translating...' : 'AI Translate'"
+                      >
+                        <svg
+                          v-if="isCellTranslating(item.key, lang.code)"
+                          class="h-4 w-4 animate-spin text-blue-600"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <svg
+                          v-else
+                          class="h-4 w-4 text-purple-600"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </Button>
+                    </div>
                     <div class="flex gap-1 items-center flex-wrap">
                       <Button size="sm" class="h-6 text-xs px-2" @click="saveTranslation(item.key, lang.code, editValue)">
                         Save
@@ -521,11 +624,13 @@ const saveAllChanges = async () => {
                   </div>
                   <div
                     v-else
-                    class="text-sm p-1.5 rounded cursor-pointer hover:bg-accent transition-colors min-h-[32px]"
+                    class="text-sm p-1.5 rounded cursor-pointer hover:bg-accent transition-colors min-h-[32px] border"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
-                      'bg-amber-100': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code),
-                      'bg-blue-50': lang.code === 'en'
+                      'bg-amber-100 border-amber-300': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
+                      'bg-blue-50 border-blue-200': lang.code === 'en',
+                      'bg-green-50 border-green-400 border-2': isCellModified(item.key, lang.code),
+                      'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code)
                     }"
                     :title="item.translations[lang.code] || '(empty - click to edit)'"
                     @click="startEditCell(item.key, lang.code, item.translations[lang.code])"

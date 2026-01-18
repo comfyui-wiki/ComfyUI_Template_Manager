@@ -88,5 +88,37 @@
       "openSource",
       "comfyuiVersion"
     ]
+  },
+  "aiTranslation": {
+    "comment": "AI translation prompts and configuration for DeepSeek API",
+    "systemPrompt": "You are a professional translator specializing in UI/UX content and technical documentation.\n\nCRITICAL RULES:\n1. Return ONLY the translation, no explanations or extra content\n2. Maintain the same tone and style as the source\n3. Keep technical terms, product names, and brand names unchanged\n4. Preserve formatting, punctuation, and special characters\n5. Be concise and natural in the target language",
+    "singleTranslationTemplate": "Translate this text from {sourceLang} to {targetLang}:\n\n\"{sourceText}\"\n\nReturn only the translated text, nothing else.",
+    "batchTranslationTemplate": "Translate the following items from {sourceLang} to {targetLang}.\nReturn a valid JSON array with translations in the EXACT same order.\n\nCRITICAL: Return ONLY the JSON array, no markdown code blocks, no explanations.\n\nFormat:\n[\n  {\"key\": \"item_key\", \"translation\": \"translated_text\"},\n  ...\n]\n\nItems to translate:\n{jsonArray}",
+    "batchSize": 30,
+    "maxConcurrent": 2,
+    "requestTimeout": 30000,
+    "retryAttempts": 2,
+    "security": {
+      "comment": "Security settings for AI translation API",
+      "rateLimit": {
+        "enabled": true,
+        "maxRequestsPerMinute": 20,
+        "comment": "Rate limit per user (GitHub username). Whitelist users are exempt."
+      },
+      "originCheck": {
+        "enabled": true,
+        "allowedOrigins": [],
+        "comment": "Allowed origins for API requests. Empty array = allow from same domain (using NEXTAUTH_URL). Example: ['https://yourdomain.com', 'http://localhost:3000']"
+      },
+      "whitelist": {
+        "comment": "GitHub usernames that bypass all rate limits. Add your GitHub username here.",
+        "users": [
+          "comfyui-wiki",
+          "purzbeats",
+          "jojodecayz",
+          "christian-byrne"
+        ]
+      }
+    }
   }
 }
