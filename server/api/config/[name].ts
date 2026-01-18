@@ -1,6 +1,3 @@
-import { readFile } from 'fs/promises'
-import { join } from 'path'
-
 export default defineEventHandler(async (event) => {
   const name = getRouterParam(event, 'name')
 
@@ -22,13 +19,19 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const configPath = join(process.cwd(), 'config', name)
-    const content = await readFile(configPath, 'utf-8')
+    // Use Nitro's storage API for serverless compatibility
+    const storage = useStorage('assets:config')
+    const content = await storage.getItem(name)
+
+    if (!content) {
+      throw new Error(`Config file not found: ${name}`)
+    }
 
     // Set cache headers
     setHeader(event, 'Cache-Control', 'public, max-age=60')
 
-    return JSON.parse(content)
+    // Parse if string, otherwise return as-is (already parsed)
+    return typeof content === 'string' ? JSON.parse(content) : content
   } catch (error) {
     throw createError({
       statusCode: 500,
