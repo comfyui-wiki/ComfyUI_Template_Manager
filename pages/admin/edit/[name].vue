@@ -813,7 +813,7 @@
                         id="sizeGB"
                         v-model.number="form.sizeGB"
                         type="number"
-                        step="0.1"
+                        step="0.001"
                         min="0"
                         placeholder="Enter model size in GB"
                       />
@@ -822,14 +822,96 @@
                       </p>
                       <!-- Show suggested value in edit mode -->
                       <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0" class="text-xs text-green-600 font-medium">
-                        💡 Suggested: {{ modelSizeCalculation.suggested }} GB (based on {{ modelSizeCalculation.totalModels }} model{{ modelSizeCalculation.totalModels > 1 ? 's' : '' }})
+                        💡 Suggested: {{ modelSizeCalculation.suggested.toFixed(3) }} GB (based on {{ modelSizeCalculation.totalModels }} model{{ modelSizeCalculation.totalModels > 1 ? 's' : '' }})
                       </div>
-                      <!-- Show missing model sizes -->
-                      <div v-if="modelSizeCalculation.failedModels.length > 0" class="text-xs text-amber-600 space-y-1">
-                        <div class="font-medium">⚠️ Failed to fetch size for {{ modelSizeCalculation.failedModels.length }} model(s):</div>
-                        <ul class="list-disc list-inside pl-2 max-h-20 overflow-y-auto">
-                          <li v-for="model in modelSizeCalculation.failedModels" :key="model" class="truncate">{{ model }}</li>
-                        </ul>
+
+                      <!-- Individual Model Sizes List (with manual edit) -->
+                      <div v-if="modelSizes.length > 0" class="mt-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="text-xs font-medium text-muted-foreground">
+                            Model Details ({{ modelSizes.length }} total)
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <div class="text-xs font-medium text-primary">
+                              Auto Total: {{ totalModelSizeFromIndividual.toFixed(3) }} GB
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              @click="applyModelSizeTotal"
+                              class="text-xs h-6 px-2"
+                            >
+                              Apply to Model Size
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div class="border rounded-md max-h-60 overflow-y-auto">
+                          <div v-for="(model, index) in modelSizes" :key="model.url" class="border-b last:border-b-0">
+                            <div class="px-3 py-2 space-y-1">
+                              <!-- Model filename -->
+                              <div class="flex items-start justify-between gap-2">
+                                <div class="flex-1 min-w-0">
+                                  <div class="text-xs font-medium truncate" :title="model.filename">
+                                    {{ model.filename }}
+                                  </div>
+                                  <!-- Repository link for failed models -->
+                                  <a
+                                    v-if="model.status === 'failed'"
+                                    :href="model.repoUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    View Repository
+                                  </a>
+                                </div>
+
+                                <!-- Size input (editable) -->
+                                <div class="flex items-center gap-2">
+                                  <Input
+                                    v-model.number="model.editableSize"
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    class="w-24 h-7 text-xs"
+                                    :class="{
+                                      'border-amber-500': model.status === 'failed',
+                                      'border-green-500': model.status === 'success'
+                                    }"
+                                    :placeholder="model.status === 'failed' ? 'Enter GB' : '0'"
+                                  />
+                                  <span class="text-xs text-muted-foreground">GB</span>
+                                </div>
+                              </div>
+
+                              <!-- Status badge -->
+                              <div class="flex items-center gap-1">
+                                <span
+                                  v-if="model.status === 'success'"
+                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded"
+                                >
+                                  ✓ Auto-fetched
+                                </span>
+                                <span
+                                  v-else
+                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded"
+                                >
+                                  ⚠️ Manual input required
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Instructions -->
+                        <p class="text-xs text-muted-foreground">
+                          Edit individual model sizes above. Click "Apply to Model Size" or "Apply to VRAM" to use the calculated total.
+                        </p>
                       </div>
                     </div>
 
@@ -839,7 +921,7 @@
                         id="vramGB"
                         v-model.number="form.vramGB"
                         type="number"
-                        step="0.1"
+                        step="0.001"
                         min="0"
                         placeholder="Enter VRAM requirement (optional)"
                       />
@@ -851,8 +933,20 @@
                         ℹ️ VRAM is currently using a placeholder value (same as Model Size). Please update with actual VRAM requirements if known.
                       </div>
                       <!-- Show suggested value in edit mode -->
-                      <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0 && form.vramGB !== modelSizeCalculation.suggested" class="text-xs text-green-600 font-medium">
-                        💡 Suggested: {{ modelSizeCalculation.suggested }} GB (placeholder)
+                      <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0 && form.vramGB !== Math.round(modelSizeCalculation.suggested * 10) / 10" class="text-xs text-green-600 font-medium">
+                        💡 Suggested: {{ modelSizeCalculation.suggested.toFixed(3) }} GB (placeholder)
+                      </div>
+                      <!-- Apply button for calculated total (show if model sizes available) -->
+                      <div v-if="modelSizes.length > 0" class="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          @click="applyVramTotal"
+                          class="text-xs h-7"
+                        >
+                          Apply Calculated Total ({{ totalModelSizeFromIndividual.toFixed(3) }} GB)
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -989,7 +1083,7 @@ import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 import AIAssistant from '~/components/AIAssistant.vue'
-import { calculateWorkflowModelSizes } from '~/lib/utils'
+import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -1069,6 +1163,18 @@ const modelSizeCalculation = ref<{
   suggested: 0,
   failedModels: [],
   totalModels: 0
+})
+
+// Individual model sizes (editable by user)
+const modelSizes = ref<Array<ModelSizeDetail & { editableSize: number | null }>>([])
+
+// Computed: Auto-calculate total size from individual model sizes (keep 3 decimals for display)
+const totalModelSizeFromIndividual = computed(() => {
+  const total = modelSizes.value.reduce((sum, model) => {
+    const size = model.editableSize ?? model.sizeGB ?? 0
+    return sum + size
+  }, 0)
+  return Math.round(total * 1000) / 1000 // Keep 3 decimals for display
 })
 
 // Computed: Calculate position changes for each template
@@ -1287,15 +1393,14 @@ const calculateModelSizes = async () => {
       totalModels: result.successCount + result.failedUrls.length
     }
 
-    // In CREATE mode, auto-update the form values
-    if (isCreateMode.value) {
-      form.value.sizeGB = result.totalGB
-      form.value.vramGB = result.totalGB // Use same value as placeholder
-      console.log('[Model Size Calculator] Auto-updated (create mode):', result.totalGB, 'GB')
-    } else {
-      // In EDIT mode, just show suggestion
-      console.log('[Model Size Calculator] Suggested (edit mode):', result.totalGB, 'GB')
-    }
+    // Update individual model sizes with editable field
+    modelSizes.value = result.models.map(model => ({
+      ...model,
+      editableSize: model.sizeGB // Initialize with fetched size (or null if failed)
+    }))
+
+    // Don't auto-update form values - user must click Apply button
+    console.log('[Model Size Calculator] Calculated:', result.totalGB, 'GB')
 
     if (result.failedUrls.length > 0) {
       console.warn('[Model Size Calculator] Failed to fetch', result.failedUrls.length, 'models:', result.failedUrls)
@@ -1307,9 +1412,28 @@ const calculateModelSizes = async () => {
       failedModels: [],
       totalModels: 0
     }
+    modelSizes.value = []
   } finally {
     calculatingModelSize.value = false
   }
+}
+
+// Update total model size when user edits individual sizes (keep 3 decimals in form)
+const updateTotalFromIndividual = () => {
+  // Keep 3 decimals in the form field (rounding only happens when saving to index.json)
+  form.value.sizeGB = totalModelSizeFromIndividual.value
+}
+
+// Apply calculated model size total to Model Size field
+const applyModelSizeTotal = () => {
+  form.value.sizeGB = totalModelSizeFromIndividual.value
+  console.log('[Apply] Model Size updated to:', totalModelSizeFromIndividual.value, 'GB')
+}
+
+// Apply calculated model size total to VRAM field
+const applyVramTotal = () => {
+  form.value.vramGB = totalModelSizeFromIndividual.value
+  console.log('[Apply] VRAM updated to:', totalModelSizeFromIndividual.value, 'GB')
 }
 
 // Utility: Convert bytes to GB
@@ -1338,8 +1462,9 @@ const hasFormChanges = computed(() => {
     form.value.comfyuiVersion !== (originalTemplate.value.comfyuiVersion || '') ||
     form.value.date !== (originalTemplate.value.date || '') ||
     form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
-    gbToBytes(form.value.sizeGB) !== (originalTemplate.value.size || 0) ||
-    gbToBytes(form.value.vramGB) !== (originalTemplate.value.vram || 0) ||
+    // Compare rounded values (1 decimal) to match what's saved in index.json
+    gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null) !== (originalTemplate.value.size || 0) ||
+    gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null) !== (originalTemplate.value.vram || 0) ||
     (form.value.usage ?? 0) !== (originalTemplate.value.usage || 0) ||
     (form.value.searchRank ?? 0) !== (originalTemplate.value.searchRank || 0) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
@@ -2634,9 +2759,9 @@ const handleSubmit = async () => {
           date: form.value.date,
           openSource: form.value.openSource,
           includeOnDistributions: form.value.includeOnDistributions,
-          // Convert GB to bytes for storage (null becomes 0)
-          size: gbToBytes(form.value.sizeGB),
-          vram: gbToBytes(form.value.vramGB),
+          // Round to 1 decimal before converting to bytes for storage (data loss minimization)
+          size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
+          vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
           usage: form.value.usage ?? 0,
           searchRank: form.value.searchRank ?? 0
         },
@@ -2707,8 +2832,9 @@ const handleSubmit = async () => {
         originalTemplate.value.tags = [...form.value.tags]
         originalTemplate.value.models = [...form.value.models]
         originalTemplate.value.openSource = form.value.openSource
-        originalTemplate.value.size = gbToBytes(form.value.sizeGB)
-        originalTemplate.value.vram = gbToBytes(form.value.vramGB)
+        // Store rounded values (1 decimal) to match what's saved in index.json
+        originalTemplate.value.size = gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null)
+        originalTemplate.value.vram = gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null)
         originalTemplate.value.usage = form.value.usage ?? 0
         originalTemplate.value.searchRank = form.value.searchRank ?? 0
       }

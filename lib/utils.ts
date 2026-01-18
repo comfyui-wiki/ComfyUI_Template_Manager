@@ -98,15 +98,25 @@ export async function fetchHuggingFaceFileSize(url: string): Promise<number | nu
   }
 }
 
+export interface ModelSizeDetail {
+  filename: string
+  url: string
+  repoUrl: string // Repository URL (e.g., https://huggingface.co/owner/repo)
+  sizeBytes: number | null
+  sizeGB: number | null
+  status: 'success' | 'failed'
+}
+
 /**
  * Calculate total model sizes from workflow JSON
- * Returns: { totalBytes, totalGB, successCount, failedUrls }
+ * Returns: { totalBytes, totalGB, successCount, failedUrls, models }
  */
 export async function calculateWorkflowModelSizes(workflowJson: string): Promise<{
   totalBytes: number
   totalGB: number
   successCount: number
   failedUrls: string[]
+  models: ModelSizeDetail[]
 }> {
   const urls = extractModelUrlsFromWorkflow(workflowJson)
 
@@ -115,7 +125,8 @@ export async function calculateWorkflowModelSizes(workflowJson: string): Promise
       totalBytes: 0,
       totalGB: 0,
       successCount: 0,
-      failedUrls: []
+      failedUrls: [],
+      models: []
     }
   }
 
@@ -130,25 +141,70 @@ export async function calculateWorkflowModelSizes(workflowJson: string): Promise
 
   let totalBytes = 0
   const failedUrls: string[] = []
+  const modelsMap = new Map<string, ModelSizeDetail>() // Use Map to deduplicate by filename
+
+  console.log(`[Model Size Calculator] Processing ${results.length} URLs`)
 
   for (const result of results) {
+    // Extract filename from URL
+    const filename = result.url.split('/').pop()?.split('?')[0] || result.url
+
+    console.log(`[Model Size Calculator] Processing: ${filename} from ${result.url}`)
+
+    // Skip if we already have this filename (deduplicate by filename)
+    if (modelsMap.has(filename)) {
+      console.log(`[Model Size Calculator] ⚠️ Skipping duplicate filename: ${filename}`)
+      console.log(`[Model Size Calculator]   Already have: ${modelsMap.get(filename)?.url}`)
+      console.log(`[Model Size Calculator]   Skipping URL: ${result.url}`)
+      continue
+    }
+
+    // Extract repository URL (https://huggingface.co/owner/repo)
+    // Example: https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors
+    // -> https://huggingface.co/black-forest-labs/FLUX.1-dev
+    const urlParts = result.url.split('/')
+    const hfIndex = urlParts.findIndex(part => part === 'huggingface.co')
+    let repoUrl = result.url
+    if (hfIndex >= 0 && urlParts.length > hfIndex + 3) {
+      repoUrl = `${urlParts.slice(0, hfIndex + 3).join('/')}`
+    }
+
     if (result.size !== null) {
       totalBytes += result.size
+      const sizeGB = Math.round((result.size / (1024 * 1024 * 1024)) * 1000) / 1000 // 3 decimals
+      modelsMap.set(filename, {
+        filename,
+        url: result.url,
+        repoUrl,
+        sizeBytes: result.size,
+        sizeGB,
+        status: 'success'
+      })
     } else {
-      // Extract filename from URL for display
-      const filename = result.url.split('/').pop()?.split('?')[0] || result.url
       failedUrls.push(filename)
+      modelsMap.set(filename, {
+        filename,
+        url: result.url,
+        repoUrl,
+        sizeBytes: null,
+        sizeGB: null,
+        status: 'failed'
+      })
     }
   }
 
+  const models = Array.from(modelsMap.values())
+
   const totalGB = totalBytes / (1024 * 1024 * 1024)
 
-  console.log(`[Model Size Calculator] Total: ${totalGB.toFixed(2)} GB (${results.length - failedUrls.length}/${urls.length} successful)`)
+  console.log(`[Model Size Calculator] Deduplication: ${results.length} URLs → ${models.length} unique models`)
+  console.log(`[Model Size Calculator] Total: ${totalGB.toFixed(3)} GB (${results.length - failedUrls.length}/${urls.length} successful)`)
 
   return {
     totalBytes,
-    totalGB: Math.round(totalGB * 10) / 10, // Round to 1 decimal
+    totalGB: Math.round(totalGB * 1000) / 1000, // Keep 3 decimals for display
     successCount: results.length - failedUrls.length,
-    failedUrls
+    failedUrls,
+    models
   }
 }
