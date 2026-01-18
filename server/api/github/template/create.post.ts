@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
 import { resolve } from 'path'
+import { formatTemplateJson } from '~/server/utils/json-formatter'
 
 interface CreateTemplateRequest {
   repo: string
@@ -207,7 +208,7 @@ export default defineEventHandler(async (event) => {
       path: 'templates/index.json',
       mode: '100644' as const,
       type: 'blob' as const,
-      content: JSON.stringify(indexData, null, 2)
+      content: formatTemplateJson(indexData)
     })
 
     // Update bundles.json to include the new template
@@ -264,6 +265,7 @@ export default defineEventHandler(async (event) => {
         console.log(`[Create Template] Added "${templateName}" to bundle "${targetBundle}"`)
 
         // Add updated bundles.json to tree
+        // Keep bundles.json in standard format for better readability
         tree.push({
           path: 'bundles.json',
           mode: '100644' as const,
