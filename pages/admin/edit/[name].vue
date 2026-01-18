@@ -2239,6 +2239,8 @@ onMounted(async () => {
     // In create mode, skip loading existing template
     if (isCreateMode.value) {
       console.log('[Create Mode] Skipping template data load')
+      // Set default date to current date (YYYY-MM-DD)
+      form.value.date = new Date().toISOString().split('T')[0]
       loading.value = false
       return
     }

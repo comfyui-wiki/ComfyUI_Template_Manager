@@ -168,9 +168,8 @@ export default defineEventHandler(async (event) => {
     if (metadata.comfyuiVersion) {
       newTemplate.comfyuiVersion = metadata.comfyuiVersion
     }
-    if (metadata.date) {
-      newTemplate.date = metadata.date
-    }
+    // Set date: use provided date or default to current date (YYYY-MM-DD)
+    newTemplate.date = metadata.date || new Date().toISOString().split('T')[0]
     if (metadata.openSource !== undefined) {
       newTemplate.openSource = metadata.openSource
     }
