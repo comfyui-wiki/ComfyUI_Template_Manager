@@ -328,10 +328,19 @@
 
                   <!-- Display Title -->
                   <div class="space-y-2">
-                    <Label for="title" class="flex items-center gap-1">
-                      Display Title
-                      <span class="text-red-500">*</span>
-                    </Label>
+                    <div class="flex items-center justify-between">
+                      <Label for="title" class="flex items-center gap-1">
+                        Display Title
+                        <span class="text-red-500">*</span>
+                      </Label>
+                      <AIAssistant
+                        field-type="title"
+                        field-label="Title"
+                        :context="aiContext"
+                        :disabled="!canEditCurrentRepo"
+                        @suggestion="handleAITitleSuggestion"
+                      />
+                    </div>
                     <Input
                       id="title"
                       v-model="form.title"
@@ -346,10 +355,19 @@
 
                   <!-- Description -->
                   <div class="space-y-2">
-                    <Label for="description" class="flex items-center gap-1">
-                      Description
-                      <span class="text-red-500">*</span>
-                    </Label>
+                    <div class="flex items-center justify-between">
+                      <Label for="description" class="flex items-center gap-1">
+                        Description
+                        <span class="text-red-500">*</span>
+                      </Label>
+                      <AIAssistant
+                        field-type="description"
+                        field-label="Description"
+                        :context="aiContext"
+                        :disabled="!canEditCurrentRepo"
+                        @suggestion="handleAIDescriptionSuggestion"
+                      />
+                    </div>
                     <Textarea
                       id="description"
                       v-model="form.description"
@@ -409,7 +427,17 @@
 
                   <!-- Tags Multi-Select -->
                   <div class="space-y-2">
-                    <Label for="tags">Tags (optional)</Label>
+                    <div class="flex items-center justify-between">
+                      <Label for="tags">Tags (optional)</Label>
+                      <AIAssistant
+                        field-type="tags"
+                        field-label="Tags"
+                        :context="aiContext"
+                        :available-tags="availableTags"
+                        :disabled="!canEditCurrentRepo"
+                        @suggestion="handleAITagsSuggestion"
+                      />
+                    </div>
 
                     <!-- Selected Tags Display -->
                     <div v-if="form.tags.length > 0" class="flex flex-wrap gap-1.5 mb-2 p-2 border rounded-md bg-muted/30">
@@ -926,6 +954,7 @@ import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
+import AIAssistant from '~/components/AIAssistant.vue'
 import { calculateWorkflowModelSizes } from '~/lib/utils'
 
 const route = useRoute()
@@ -1104,6 +1133,41 @@ const addCustomTag = () => {
 const removeTag = (tag: string) => {
   form.value.tags = form.value.tags.filter(t => t !== tag)
 }
+
+// AI Assistant Handlers
+const handleAITagsSuggestion = (suggestion: string | string[]) => {
+  if (Array.isArray(suggestion)) {
+    // Add new tags from AI (avoiding duplicates)
+    suggestion.forEach(tag => {
+      if (!form.value.tags.includes(tag)) {
+        form.value.tags.push(tag)
+      }
+    })
+    console.log('[AI Tags] Added tags:', suggestion)
+  }
+}
+
+const handleAITitleSuggestion = (suggestion: string | string[]) => {
+  if (typeof suggestion === 'string') {
+    form.value.title = suggestion
+    console.log('[AI Title] Updated title:', suggestion)
+  }
+}
+
+const handleAIDescriptionSuggestion = (suggestion: string | string[]) => {
+  if (typeof suggestion === 'string') {
+    form.value.description = suggestion
+    console.log('[AI Description] Updated description:', suggestion)
+  }
+}
+
+// Computed: Context for AI assistant
+const aiContext = computed(() => ({
+  title: form.value.title,
+  description: form.value.description,
+  tags: form.value.tags,
+  models: form.value.models
+}))
 
 // Select existing model from dropdown
 const selectModel = (model: string) => {
