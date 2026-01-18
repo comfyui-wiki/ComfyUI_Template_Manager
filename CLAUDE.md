@@ -135,7 +135,70 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 ## Recent Implementations
 
-### 1. Flat Template Grid for All Categories (2026-01-16)
+### 1. GITHUB_TOKEN Removal & PR Browser Login Requirement (2026-01-18)
+**Problem**: Application used optional GITHUB_TOKEN environment variable, but most features required user authentication anyway
+**Solution**:
+- Removed all `GITHUB_TOKEN` dependencies from codebase
+- PR Browser now requires GitHub login (uses user's OAuth token)
+- Simplified configuration - only OAuth credentials needed
+- All API requests use authenticated user's token (5000 req/hour vs 60 req/hour unauthenticated)
+
+**Changes**:
+- API: `server/api/github/pr/list.get.ts` - requires authentication
+- Config: `nuxt.config.ts` - removed `github.token` from runtimeConfig
+- UI: `pages/index.vue` - Browse PRs button only shows when authenticated
+- Docs: Updated environment variables section
+
+**Benefits**:
+- ✅ Simpler setup (no server token needed)
+- ✅ Better security (no admin token stored on server)
+- ✅ Higher rate limits per user (5000/hour)
+- ✅ Clearer authentication requirements
+
+**Files**:
+- `server/api/github/pr/list.get.ts`
+- `nuxt.config.ts`
+- `pages/index.vue`
+- `composables/useGitHubRepo.ts`
+
+### 2. Bundles.json Auto-Update on Template Creation (2026-01-18)
+**Problem**: Creating new templates only updated `templates/index.json` but not `bundles.json`, requiring manual updates
+**Solution**:
+- Added automatic `bundles.json` update logic to template creation API
+- Uses category-to-bundle mapping from `config/bundle-mapping-rules.json`
+- Handles missing `bundles.json` gracefully (creates new one if needed)
+- Fixed config file path resolution issue (was using wrong directory)
+
+**Bundle Mapping**:
+- **Use cases** → `media-api`
+- **Image** → `media-image`
+- **Video** → `media-video`
+- **Audio, 3D, Utility, Getting Started** → `media-other`
+
+**Technical Details**:
+- Reads current `bundles.json` from GitHub
+- Determines target bundle based on template category
+- Adds template name to appropriate bundle array
+- Commits updated `bundles.json` atomically with other files
+
+**Files**:
+- `server/api/github/template/create.post.ts` (added bundles update logic)
+- `server/api/github/template/update.post.ts` (fixed config path)
+- `config/bundle-mapping-rules.json` (mapping rules)
+
+### 3. Fixed Workflow Filename Display in Create Mode (2026-01-18)
+**Problem**: After uploading workflow JSON in create mode, filename still showed "workflow.json" instead of actual filename
+**Solution**:
+- Updated filename display logic to use `extractedTemplateName` when available
+- Both "Workflow File" label and download function now use correct filename
+- Model Links Editor also uses correct filename for downloads
+
+**Files**:
+- `components/WorkflowFileManager.vue:14-16` (display)
+- `components/WorkflowFileManager.vue:841-845` (download)
+- `pages/admin/edit/[name].vue:869` (Model Links Editor prop)
+
+### 4. Flat Template Grid for All Categories (2026-01-16)
 **Problem**: In "All Templates" mode, templates were still grouped by category, preventing proper sorting
 **Solution**:
 - Changed display logic to always show flat grid regardless of category selection
@@ -1009,5 +1072,5 @@ For issues, check:
 
 ---
 
-**Last Updated**: 2026-01-16
-**Version**: 1.2.0
+**Last Updated**: 2026-01-18
+**Version**: 1.3.0
