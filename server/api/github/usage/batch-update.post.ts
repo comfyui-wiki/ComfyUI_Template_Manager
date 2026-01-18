@@ -22,7 +22,6 @@ export default defineEventHandler(async (event) => {
     // All index files to update (default index.json + all language-specific files)
     const indexFiles = [
       'templates/index.json',  // Default English
-      'templates/index.en.json',
       'templates/index.zh.json',
       'templates/index.zh-TW.json',
       'templates/index.ja.json',
