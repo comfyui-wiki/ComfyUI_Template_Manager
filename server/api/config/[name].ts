@@ -1,4 +1,19 @@
-export default defineEventHandler(async (event) => {
+// Import all config files directly for Vercel compatibility
+import templateNamingRules from '~/config/template-naming-rules.json'
+import workflowModelConfig from '~/config/workflow-model-config.json'
+import bundleMappingRules from '~/config/bundle-mapping-rules.json'
+import i18nConfig from '~/config/i18n-config.json'
+import aiAssistantPrompts from '~/config/ai-assistant-prompts.json'
+
+const configs: Record<string, any> = {
+  'template-naming-rules.json': templateNamingRules,
+  'workflow-model-config.json': workflowModelConfig,
+  'bundle-mapping-rules.json': bundleMappingRules,
+  'i18n-config.json': i18nConfig,
+  'ai-assistant-prompts.json': aiAssistantPrompts
+}
+
+export default defineEventHandler((event) => {
   const name = getRouterParam(event, 'name')
 
   if (!name) {
@@ -8,34 +23,16 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Only allow specific config files
-  const allowedConfigs = ['template-naming-rules.json', 'workflow-model-config.json', 'bundle-mapping-rules.json', 'i18n-config.json', 'ai-assistant-prompts.json']
-
-  if (!allowedConfigs.includes(name)) {
+  // Check if config exists
+  if (!configs[name]) {
     throw createError({
       statusCode: 404,
       message: 'Config not found'
     })
   }
 
-  try {
-    // Use Nitro's storage API for serverless compatibility
-    const storage = useStorage('assets:server')
-    const content = await storage.getItem(name)
+  // Set cache headers
+  setHeader(event, 'Cache-Control', 'public, max-age=60')
 
-    if (!content) {
-      throw new Error(`Config file not found: ${name}`)
-    }
-
-    // Set cache headers
-    setHeader(event, 'Cache-Control', 'public, max-age=60')
-
-    // Parse if string, otherwise return as-is (already parsed)
-    return typeof content === 'string' ? JSON.parse(content) : content
-  } catch (error) {
-    throw createError({
-      statusCode: 500,
-      message: `Failed to read config: ${error instanceof Error ? error.message : 'Unknown error'}`
-    })
-  }
+  return configs[name]
 })

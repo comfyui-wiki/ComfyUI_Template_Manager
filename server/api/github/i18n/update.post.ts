@@ -1,8 +1,7 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import i18nConfig from '~/config/i18n-config.json'
 
 interface I18nData {
   _status: any
@@ -43,41 +42,8 @@ export default defineEventHandler(async (event) => {
     const [owner, repoName] = repo.split('/')
     const octokit = new Octokit({ auth: session.accessToken })
 
-    // Read i18n config to get the correct path
-    let config: any
-
-    try {
-      // Try to read from server assets (production)
-      const storage = useStorage('assets:server')
-      const configContent = await storage.getItem('i18n-config.json')
-
-      if (configContent) {
-        config = typeof configContent === 'string'
-          ? JSON.parse(configContent)
-          : configContent
-        console.log('[Update i18n] Loaded config from server assets')
-      }
-    } catch (error) {
-      console.log('[Update i18n] Server assets not available, trying file system fallback:', error)
-    }
-
-    // Fallback to file system (development)
-    if (!config) {
-      try {
-        const configPath = join(process.cwd(), 'config', 'i18n-config.json')
-        const configContent = readFileSync(configPath, 'utf-8')
-        config = JSON.parse(configContent)
-        console.log('[Update i18n] Loaded config from file system')
-      } catch (error) {
-        console.error('[Update i18n] Failed to load config from file system:', error)
-        throw createError({
-          statusCode: 500,
-          statusMessage: 'Failed to load i18n configuration'
-        })
-      }
-    }
-
-    const i18nPath = config.i18nDataPath?.default || 'scripts/i18n.json'
+    // Use directly imported config (works in both dev and production/Vercel)
+    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/i18n.json'
 
     console.log('[Update i18n] Starting translation update and sync...')
     console.log('[Update i18n] i18n.json path:', i18nPath)

@@ -74,13 +74,4 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
-
-  // Nitro configuration for serverless deployment
-  nitro: {
-    serverAssets: [
-      {
-        dir: './config'
-      }
-    ]
-  },
 })
