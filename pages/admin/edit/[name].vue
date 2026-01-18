@@ -103,14 +103,14 @@
           <div v-if="canEditCurrentRepo">
             <div class="flex items-center justify-between mb-1">
               <div class="text-xs font-medium">
-                <span>Completion</span>
+                <span>Required Fields</span>
                 <span class="ml-2 text-muted-foreground">
-                  {{ completionStatus.completed }}/{{ completionStatus.total }} fields
+                  {{ completionStatus.completed }}/{{ completionStatus.total }}
                 </span>
               </div>
               <div class="text-xs font-semibold" :class="{
-                'text-green-600': completionStatus.percentage === 100,
-                'text-amber-600': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+                'text-green-600': completionStatus.allRequiredComplete,
+                'text-amber-600': completionStatus.percentage >= 50 && !completionStatus.allRequiredComplete,
                 'text-red-600': completionStatus.percentage < 50
               }">
                 {{ completionStatus.percentage }}%
@@ -120,16 +120,36 @@
               <div
                 class="h-2 rounded-full transition-all duration-300"
                 :class="{
-                  'bg-green-500': completionStatus.percentage === 100,
-                  'bg-amber-500': completionStatus.percentage >= 50 && completionStatus.percentage < 100,
+                  'bg-green-500': completionStatus.allRequiredComplete,
+                  'bg-amber-500': completionStatus.percentage >= 50 && !completionStatus.allRequiredComplete,
                   'bg-red-500': completionStatus.percentage < 50
                 }"
                 :style="{ width: `${completionStatus.percentage}%` }"
               ></div>
             </div>
+
             <!-- Missing Fields Hint -->
             <div v-if="missingFields.length > 0" class="mt-1 text-xs text-red-600">
               ⚠️ Required: {{ missingFields.join(', ') }}
+            </div>
+
+            <!-- Encouragement Message for Optional Fields -->
+            <div v-else-if="completionStatus.allRequiredComplete && completionStatus.optionalCompleted > 0" class="mt-1 text-xs text-green-600 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>
+                Excellent! All required fields complete + {{ completionStatus.optionalCompleted }} bonus field{{ completionStatus.optionalCompleted > 1 ? 's' : '' }}
+                ({{ completionStatus.optionalFields.join(', ') }})
+              </span>
+            </div>
+
+            <!-- All Required Complete, but No Optional -->
+            <div v-else-if="completionStatus.allRequiredComplete" class="mt-1 text-xs text-green-600 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>All required fields complete! Consider adding optional fields like Tutorial URL, VRAM, or ComfyUI Version.</span>
             </div>
           </div>
         </div>
@@ -413,7 +433,10 @@
 
                   <!-- Date -->
                   <div class="space-y-2">
-                    <Label for="date">Date (optional)</Label>
+                    <Label for="date" class="flex items-center gap-1">
+                      Date
+                      <span class="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="date"
                       v-model="form.date"
@@ -428,7 +451,10 @@
                   <!-- Tags Multi-Select -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <Label for="tags">Tags (optional)</Label>
+                      <Label for="tags" class="flex items-center gap-1">
+                        Tags
+                        <span class="text-red-500">*</span>
+                      </Label>
                       <AIAssistant
                         field-type="tags"
                         field-label="Tags"
@@ -460,12 +486,13 @@
                     <!-- Tag Input with Suggestions -->
                     <div class="relative">
                       <Input
+                        ref="tagInputRef"
                         id="tags"
                         v-model="tagSearchInput"
                         placeholder="Type to add new tag or select existing..."
                         @keydown.enter.prevent="addCustomTag"
                         @focus="isTagsDropdownOpen = true"
-                        @blur="() => setTimeout(() => isTagsDropdownOpen = false, 200)"
+                        @blur="isTagsDropdownOpen = false"
                       />
 
                       <!-- Dropdown suggestions -->
@@ -477,7 +504,7 @@
                         <div
                           v-if="tagSearchInput.trim()"
                           class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
-                          @mousedown.prevent="addCustomTag"
+                          @mousedown="addCustomTag"
                         >
                           <span class="text-muted-foreground">Press Enter to add:</span>
                           <span class="font-medium ml-1">"{{ tagSearchInput.trim() }}"</span>
@@ -488,7 +515,7 @@
                           v-for="tag in filteredAvailableTags"
                           :key="tag"
                           class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
-                          @mousedown.prevent="selectTag(tag)"
+                          @mousedown="selectTag(tag)"
                         >
                           <span>{{ tag }}</span>
                           <span v-if="form.tags.includes(tag)" class="text-primary text-xs">✓</span>
@@ -510,7 +537,10 @@
 
                   <!-- Models Multi-Select -->
                   <div class="space-y-2">
-                    <Label for="models">Models (optional)</Label>
+                    <Label for="models" class="flex items-center gap-1">
+                      Models
+                      <span class="text-red-500">*</span>
+                    </Label>
 
                     <!-- Selected Models Display -->
                     <div v-if="form.models.length > 0" class="flex flex-wrap gap-1.5 mb-2 p-2 border rounded-md bg-muted/30">
@@ -533,12 +563,13 @@
                     <!-- Model Input with Suggestions -->
                     <div class="relative">
                       <Input
+                        ref="modelInputRef"
                         id="models"
                         v-model="modelSearchInput"
                         placeholder="Type to add new model or select existing..."
                         @keydown.enter.prevent="addCustomModel"
                         @focus="isModelsDropdownOpen = true"
-                        @blur="() => setTimeout(() => isModelsDropdownOpen = false, 200)"
+                        @blur="isModelsDropdownOpen = false"
                       />
 
                       <!-- Dropdown suggestions -->
@@ -550,7 +581,7 @@
                         <div
                           v-if="modelSearchInput.trim()"
                           class="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b"
-                          @mousedown.prevent="addCustomModel"
+                          @mousedown="addCustomModel"
                         >
                           <span class="text-muted-foreground">Press Enter to add:</span>
                           <span class="font-medium ml-1">"{{ modelSearchInput.trim() }}"</span>
@@ -561,7 +592,7 @@
                           v-for="model in filteredAvailableModels"
                           :key="model"
                           class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
-                          @mousedown.prevent="selectModel(model)"
+                          @mousedown="selectModel(model)"
                         >
                           <span>{{ model }}</span>
                           <span v-if="form.models.includes(model)" class="text-primary text-xs">✓</span>
@@ -756,7 +787,10 @@
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-2">
                       <div class="flex items-center justify-between">
-                        <Label for="sizeGB">Model Size (GB, optional)</Label>
+                        <Label for="sizeGB" class="flex items-center gap-1">
+                          Model Size (GB)
+                          <span class="text-red-500">*</span>
+                        </Label>
                         <Button
                           type="button"
                           variant="outline"
@@ -781,10 +815,10 @@
                         type="number"
                         step="0.1"
                         min="0"
-                        placeholder="0"
+                        placeholder="Enter model size in GB"
                       />
                       <p class="text-xs text-muted-foreground">
-                        Total size of models in GB
+                        Total size of models in GB (can be 0 if no models needed)
                       </p>
                       <!-- Show suggested value in edit mode -->
                       <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0" class="text-xs text-green-600 font-medium">
@@ -807,7 +841,7 @@
                         type="number"
                         step="0.1"
                         min="0"
-                        placeholder="0"
+                        placeholder="Enter VRAM requirement (optional)"
                       />
                       <p class="text-xs text-muted-foreground">
                         Minimum VRAM needed in GB
@@ -832,7 +866,7 @@
                         v-model.number="form.usage"
                         type="number"
                         min="0"
-                        placeholder="0"
+                        placeholder="Leave empty if unknown"
                       />
                       <p class="text-xs text-muted-foreground">
                         Number of times this template has been used
@@ -846,7 +880,7 @@
                         v-model.number="form.searchRank"
                         type="number"
                         min="0"
-                        placeholder="0"
+                        placeholder="Leave empty for default"
                       />
                       <p class="text-xs text-muted-foreground">
                         Higher rank = better search visibility
@@ -941,7 +975,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
@@ -1069,10 +1103,10 @@ const form = ref({
   date: '',
   openSource: null as boolean | null, // Required field, no default selection
   includeOnDistributions: [] as string[], // Platform availability: ['cloud', 'desktop', 'local'] or empty for all
-  sizeGB: 0, // Size in GB (will be converted to bytes when saving)
-  vramGB: 0, // VRAM in GB (will be converted to bytes when saving)
-  usage: 0,
-  searchRank: 0
+  sizeGB: null as number | null, // Size in GB (will be converted to bytes when saving), null means not filled yet
+  vramGB: null as number | null, // VRAM in GB (optional, null means not filled)
+  usage: null as number | null, // Usage count (optional, null means not filled)
+  searchRank: null as number | null // Search rank (optional, null means not filled)
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
@@ -1085,6 +1119,10 @@ const customNodeSearchInput = ref('')
 const isTagsDropdownOpen = ref(false)
 const isModelsDropdownOpen = ref(false)
 const isCustomNodesDropdownOpen = ref(false)
+
+// Refs for input elements
+const tagInputRef = ref<HTMLInputElement | null>(null)
+const modelInputRef = ref<HTMLInputElement | null>(null)
 
 // Computed: Filter available tags based on search
 const filteredAvailableTags = computed(() => {
@@ -1116,7 +1154,10 @@ const selectTag = (tag: string) => {
     form.value.tags.push(tag)
   }
   tagSearchInput.value = ''
-  isTagsDropdownOpen.value = false
+  // Immediately refocus input to keep dropdown open
+  if (tagInputRef.value) {
+    tagInputRef.value.focus()
+  }
 }
 
 // Add custom tag (when pressing Enter)
@@ -1126,7 +1167,10 @@ const addCustomTag = () => {
     form.value.tags.push(tag)
   }
   tagSearchInput.value = ''
-  isTagsDropdownOpen.value = false
+  // When pressing Enter, input is already focused, just need to keep it open
+  if (tagInputRef.value) {
+    tagInputRef.value.focus()
+  }
 }
 
 // Remove a tag from the selection
@@ -1175,7 +1219,10 @@ const selectModel = (model: string) => {
     form.value.models.push(model)
   }
   modelSearchInput.value = ''
-  isModelsDropdownOpen.value = false
+  // Immediately refocus input to keep dropdown open
+  if (modelInputRef.value) {
+    modelInputRef.value.focus()
+  }
 }
 
 // Add custom model (when pressing Enter)
@@ -1185,7 +1232,10 @@ const addCustomModel = () => {
     form.value.models.push(model)
   }
   modelSearchInput.value = ''
-  isModelsDropdownOpen.value = false
+  // When pressing Enter, input is already focused, just need to keep it open
+  if (modelInputRef.value) {
+    modelInputRef.value.focus()
+  }
 }
 
 // Remove a model from the selection
@@ -1269,8 +1319,9 @@ const bytesToGB = (bytes: number): number => {
 }
 
 // Utility: Convert GB to bytes
-const gbToBytes = (gb: number): number => {
-  if (!gb || gb === 0) return 0
+const gbToBytes = (gb: number | null): number => {
+  if (gb === null || gb === undefined) return 0
+  if (gb === 0) return 0
   return Math.round(gb * 1024 * 1024 * 1024)
 }
 
@@ -1289,8 +1340,8 @@ const hasFormChanges = computed(() => {
     form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
     gbToBytes(form.value.sizeGB) !== (originalTemplate.value.size || 0) ||
     gbToBytes(form.value.vramGB) !== (originalTemplate.value.vram || 0) ||
-    form.value.usage !== (originalTemplate.value.usage || 0) ||
-    form.value.searchRank !== (originalTemplate.value.searchRank || 0) ||
+    (form.value.usage ?? 0) !== (originalTemplate.value.usage || 0) ||
+    (form.value.searchRank ?? 0) !== (originalTemplate.value.searchRank || 0) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
     JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort()) ||
     JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort()) ||
@@ -1349,38 +1400,105 @@ const missingFields = computed(() => {
     missing.push(`Thumbnail ${thumbnailFiles.value.length + 1}`)
   }
 
+  // Required: Tags (at least one)
+  if (form.value.tags.length === 0) {
+    missing.push('Tags')
+  }
+
+  // Required: Models (at least one)
+  if (form.value.models.length === 0) {
+    missing.push('Models')
+  }
+
+  // Required: Date
+  if (!form.value.date?.trim()) {
+    missing.push('Date')
+  }
+
+  // Required: Model Size (null means not filled yet, 0 is acceptable if explicitly set)
+  if (form.value.sizeGB === null || form.value.sizeGB === undefined) {
+    missing.push('Model Size')
+  }
+
+  // Required: Open Source Status
+  if (form.value.openSource === null || form.value.openSource === undefined) {
+    missing.push('Open Source Status')
+  }
+
   return missing
 })
 
-// Computed: Completion status
+// Computed: Completion status with required vs optional fields
 const completionStatus = computed(() => {
-  // In create mode: 7 fields (add Workflow), in edit mode: 6 fields
-  const totalFields = isCreateMode.value ? 7 : 6
-  let completedFields = 0
+  // Required fields count
+  // In create mode: 10 required (title, description, category, thumbnails, workflow, tags, models, date, sizeGB, openSource)
+  // In edit mode: 9 required (same but no workflow)
+  const totalRequired = isCreateMode.value ? 10 : 9
+  let completedRequired = 0
 
-  if (form.value.title?.trim()) completedFields++
-  if (form.value.description?.trim()) completedFields++
-  if (form.value.category?.trim()) completedFields++
+  // Required fields
+  if (form.value.title?.trim()) completedRequired++
+  if (form.value.description?.trim()) completedRequired++
+  if (form.value.category?.trim()) completedRequired++
 
-  // Thumbnails
+  // Thumbnails (required)
   const requiredCount = requiredThumbnailCount.value
-  if (thumbnailFiles.value.length >= requiredCount) completedFields++
+  if (thumbnailFiles.value.length >= requiredCount) completedRequired++
 
-  // Workflow file (required in create mode, auto-extracts template name)
+  // Workflow file (required in create mode only)
   if (isCreateMode.value) {
-    if (updatedWorkflowContent.value) completedFields++
+    if (updatedWorkflowContent.value) completedRequired++
   }
 
-  // Tags (optional but counts toward completion)
-  if (form.value.tags.length > 0) completedFields++
+  // Tags (now required)
+  if (form.value.tags.length > 0) completedRequired++
 
-  // Models (optional but counts toward completion)
-  if (form.value.models.length > 0) completedFields++
+  // Models (now required)
+  if (form.value.models.length > 0) completedRequired++
+
+  // Date (now required)
+  if (form.value.date?.trim()) completedRequired++
+
+  // Model Size (now required, null means not filled, 0 is acceptable)
+  if (form.value.sizeGB !== null && form.value.sizeGB !== undefined) completedRequired++
+
+  // Open Source Status (now required)
+  if (form.value.openSource !== null && form.value.openSource !== undefined) completedRequired++
+
+  // Optional fields
+  let completedOptional = 0
+  const optionalFields = []
+
+  if (form.value.tutorialUrl?.trim()) {
+    completedOptional++
+    optionalFields.push('Tutorial URL')
+  }
+  if (form.value.vramGB && form.value.vramGB > 0) {
+    completedOptional++
+    optionalFields.push('VRAM')
+  }
+  if (form.value.comfyuiVersion?.trim()) {
+    completedOptional++
+    optionalFields.push('ComfyUI Version')
+  }
+  if (form.value.requiresCustomNodes.length > 0) {
+    completedOptional++
+    optionalFields.push('Custom Nodes')
+  }
+  if (form.value.includeOnDistributions.length > 0) {
+    completedOptional++
+    optionalFields.push('Platform Availability')
+  }
+
+  const allRequiredComplete = completedRequired === totalRequired
 
   return {
-    completed: completedFields,
-    total: totalFields,
-    percentage: Math.round((completedFields / totalFields) * 100)
+    completed: completedRequired,
+    total: totalRequired,
+    percentage: Math.round((completedRequired / totalRequired) * 100),
+    allRequiredComplete,
+    optionalCompleted: completedOptional,
+    optionalFields
   }
 })
 
@@ -2298,10 +2416,10 @@ onMounted(async () => {
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
     form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
     // Convert bytes to GB for display
-    form.value.sizeGB = bytesToGB(foundTemplate.size || 0)
-    form.value.vramGB = bytesToGB(foundTemplate.vram || 0)
-    form.value.usage = foundTemplate.usage || 0
-    form.value.searchRank = foundTemplate.searchRank || 0
+    form.value.sizeGB = foundTemplate.size ? bytesToGB(foundTemplate.size) : null
+    form.value.vramGB = foundTemplate.vram ? bytesToGB(foundTemplate.vram) : null
+    form.value.usage = foundTemplate.usage || null
+    form.value.searchRank = foundTemplate.searchRank || null
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
@@ -2516,11 +2634,11 @@ const handleSubmit = async () => {
           date: form.value.date,
           openSource: form.value.openSource,
           includeOnDistributions: form.value.includeOnDistributions,
-          // Convert GB to bytes for storage
+          // Convert GB to bytes for storage (null becomes 0)
           size: gbToBytes(form.value.sizeGB),
           vram: gbToBytes(form.value.vramGB),
-          usage: form.value.usage,
-          searchRank: form.value.searchRank
+          usage: form.value.usage ?? 0,
+          searchRank: form.value.searchRank ?? 0
         },
         templateOrder,
         files: Object.keys(filesData).length > 0 ? filesData : undefined
@@ -2589,6 +2707,10 @@ const handleSubmit = async () => {
         originalTemplate.value.tags = [...form.value.tags]
         originalTemplate.value.models = [...form.value.models]
         originalTemplate.value.openSource = form.value.openSource
+        originalTemplate.value.size = gbToBytes(form.value.sizeGB)
+        originalTemplate.value.vram = gbToBytes(form.value.vramGB)
+        originalTemplate.value.usage = form.value.usage ?? 0
+        originalTemplate.value.searchRank = form.value.searchRank ?? 0
       }
 
       // Reset template order changes (computed property will auto-update)
