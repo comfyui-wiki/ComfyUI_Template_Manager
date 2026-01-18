@@ -30,6 +30,20 @@
 
               <Button
                 v-if="status === 'authenticated' && isMounted"
+                @click="showUsageUpdateModal = true"
+                size="sm"
+                variant="outline"
+                :disabled="!canEditCurrentRepo || isViewingPR"
+                :title="isViewingPR ? 'Cannot update usage while browsing PR' : (canEditCurrentRepo ? 'Batch update template usage from CSV' : 'Select a branch with write access to update usage')"
+              >
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Update Usage
+              </Button>
+
+              <Button
+                v-if="status === 'authenticated' && isMounted"
                 @click="navigateTo('/admin/edit/new')"
                 size="sm"
                 :disabled="!canEditCurrentRepo || isViewingPR"
@@ -523,6 +537,15 @@
     <TranslationManager
       v-model:open="showTranslationManager"
     />
+
+    <!-- Usage Update Modal -->
+    <UsageUpdateModal
+      v-if="isMounted"
+      v-model:open="showUsageUpdateModal"
+      :repo="selectedRepo"
+      :branch="selectedBranch"
+      @updated="handleUsageUpdated"
+    />
   </div>
 </template>
 
@@ -537,6 +560,7 @@ import TemplateCard from '~/components/TemplateCard.vue'
 import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
 import PRBrowser from '~/components/PRBrowser.vue'
 import TranslationManager from '~/components/TranslationManager.vue'
+import UsageUpdateModal from '~/components/UsageUpdateModal.vue'
 
 const { status } = useAuth()
 const route = useRoute()
@@ -578,6 +602,7 @@ const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
 const sortBy = ref('default')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
+const showUsageUpdateModal = ref(false)
 const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
 
@@ -843,6 +868,12 @@ const refreshTemplates = async () => {
     }
     await loadTemplates(owner, name, selectedBranch.value, true) // Force refresh
   }
+}
+
+// Handle usage data updated
+const handleUsageUpdated = async () => {
+  console.log('[Usage Update] Templates updated, refreshing data...')
+  await refreshTemplates()
 }
 
 // Computed
