@@ -60,6 +60,15 @@ export default defineNuxtConfig({
   // Server-side rendering
   ssr: true,
 
+  // Nitro server configuration
+  nitro: {
+    experimental: {
+      // Increase body size limit to handle large file uploads (100MB)
+      // This allows uploading workflow files, thumbnails, and input assets
+      bodySizeLimit: 100 * 1024 * 1024 // 100MB in bytes
+    }
+  },
+
   // Vite configuration for FFmpeg
   vite: {
     optimizeDeps: {
