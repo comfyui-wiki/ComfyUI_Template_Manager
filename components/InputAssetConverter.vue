@@ -65,9 +65,9 @@
           <SelectValue placeholder="Select format" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="webp">WebP (Best compression, recommended)</SelectItem>
+          <SelectItem value="png">PNG (Lossless, default)</SelectItem>
+          <SelectItem value="webp">WebP (Best compression)</SelectItem>
           <SelectItem value="jpeg">JPEG (Good compression, wide support)</SelectItem>
-          <SelectItem value="png">PNG (Lossless, larger files)</SelectItem>
         </SelectContent>
       </Select>
       <div class="text-xs text-muted-foreground">
@@ -245,8 +245,8 @@ const emit = defineEmits<{
 
 // State
 const sourceFile = ref<File | null>(null)
-const targetFormat = ref<'webp' | 'jpeg' | 'png'>('webp')
-const originalFormat = ref<'webp' | 'jpeg' | 'png'>('webp')  // Track original format
+const targetFormat = ref<'webp' | 'jpeg' | 'png'>('png')
+const originalFormat = ref<'webp' | 'jpeg' | 'png'>('png')  // Track original format
 const resizeMode = ref<'none' | 'percentage' | 'dimensions' | 'maxDimension'>('none')
 const resizePercentage = ref(100)
 const targetWidth = ref(800)
@@ -329,9 +329,9 @@ const getSizeWarningClass = () => {
   const sizeMB = convertedFileSizeBytes.value / (1024 * 1024)
   const isImage = targetFormat.value !== 'webp' || sourceFile.value?.type.startsWith('image/')
 
-  if (isImage && sizeMB > 2) {
+  if (isImage && sizeMB > 20) {
     return 'bg-red-50 border border-red-200 text-red-800'
-  } else if (isImage && sizeMB > 1) {
+  } else if (isImage && sizeMB > 10) {
     return 'bg-amber-50 border border-amber-200 text-amber-800'
   } else {
     return 'bg-green-50 border border-green-200 text-green-800'
@@ -342,10 +342,10 @@ const getSizeWarning = () => {
   const sizeMB = convertedFileSizeBytes.value / (1024 * 1024)
   const isImage = targetFormat.value !== 'webp' || sourceFile.value?.type.startsWith('image/')
 
-  if (isImage && sizeMB > 2) {
-    return '⚠️ File is too large (> 2MB). Consider reducing quality or dimensions.'
-  } else if (isImage && sizeMB > 1) {
-    return '⚠️ File is larger than recommended (> 1MB). Consider reducing quality.'
+  if (isImage && sizeMB > 20) {
+    return '⚠️ File is too large (> 20MB). Consider reducing quality or dimensions.'
+  } else if (isImage && sizeMB > 10) {
+    return '⚠️ File is larger than recommended (> 10MB). Consider reducing quality.'
   }
   return ''
 }
