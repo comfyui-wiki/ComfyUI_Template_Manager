@@ -32,11 +32,15 @@ export default defineEventHandler(async (event) => {
     console.log(`[i18n read API] Reading i18n.json from: ${i18nPath}`)
 
     try {
+      // Add cache busting to force fresh data from GitHub API
       const { data } = await octokit.repos.getContent({
         owner,
         repo: repoName,
         path: i18nPath,
-        ref: branch as string
+        ref: branch as string,
+        headers: {
+          'If-None-Match': '' // Disable GitHub API caching
+        }
       })
 
       if ('content' in data && data.content) {
