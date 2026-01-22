@@ -80,6 +80,8 @@ export async function loadI18nConfig(
 ): Promise<I18nConfig> {
   const [owner, repoName] = repo.split('/')
 
+  console.log(`[i18n-sync] Loading i18n config from repo: ${owner}/${repoName}, branch: ${branch}`)
+
   try {
     // Try to read from GitHub repo (workflow_templates/config/i18n-config.json)
     const { data } = await octokit.repos.getContent({
@@ -91,22 +93,27 @@ export async function loadI18nConfig(
 
     if ('content' in data && data.content) {
       const content = Buffer.from(data.content, 'base64').toString('utf-8')
-      return JSON.parse(content)
+      const config = JSON.parse(content)
+      console.log(`[i18n-sync] ✓ Loaded i18n config from GitHub repo`)
+      return config
     }
-  } catch (error) {
-    console.error('Failed to load i18n config from repo:', error)
+  } catch (error: any) {
+    console.warn(`[i18n-sync] Failed to load i18n config from repo: ${error.message}`)
   }
 
   // Fallback to local config
+  console.log(`[i18n-sync] Falling back to local i18n config...`)
   const fs = await import('fs/promises')
   const path = await import('path')
   const configPath = path.join(process.cwd(), 'config', 'i18n-config.json')
 
   try {
     const content = await fs.readFile(configPath, 'utf-8')
-    return JSON.parse(content)
+    const config = JSON.parse(content)
+    console.log(`[i18n-sync] ✓ Loaded local i18n config from: ${configPath}`)
+    return config
   } catch (error) {
-    console.error('Failed to load local i18n config:', error)
+    console.error('[i18n-sync] ✗ Failed to load local i18n config:', error)
     throw new Error('Could not load i18n configuration')
   }
 }
@@ -538,27 +545,39 @@ export async function syncUpdatedTemplateToAllLocales(
   categoryIndex: number,
   templateData: TemplateData
 ): Promise<FileUpdate[]> {
+  console.log(`[i18n-sync] syncUpdatedTemplateToAllLocales called for template: ${templateData.name}`)
+  console.log(`[i18n-sync] Category index: ${categoryIndex}`)
+
   const config = await loadI18nConfig(octokit, repo, branch)
+  console.log(`[i18n-sync] Loaded config with ${config.supportedLocales.length} locales`)
+
   const i18nData = await readI18nJson(octokit, repo, branch, config)
+  console.log(`[i18n-sync] Loaded i18n.json with ${Object.keys(i18nData.templates || {}).length} templates`)
+
   const fileUpdates: FileUpdate[] = []
 
   // Process each locale
   for (const locale of config.supportedLocales) {
     const indexPath = `templates/${locale.indexFile}`
+    console.log(`[i18n-sync] Processing locale: ${locale.code} (${indexPath})`)
 
     // Read current locale file
     const localeData = await readJsonFromGitHub(octokit, repo, branch, indexPath)
 
     if (!localeData || !Array.isArray(localeData)) {
-      console.warn(`Skipping ${locale.code}: invalid or missing data`)
+      console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: invalid or missing data`)
       continue
     }
 
+    console.log(`[i18n-sync] Loaded ${locale.code} with ${localeData.length} categories`)
+
     // Make sure category exists
     if (!localeData[categoryIndex]) {
-      console.warn(`Skipping ${locale.code}: category ${categoryIndex} doesn't exist`)
+      console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: category ${categoryIndex} doesn't exist (only ${localeData.length} categories found)`)
       continue
     }
+
+    console.log(`[i18n-sync] Category ${categoryIndex} in ${locale.code} has ${localeData[categoryIndex].templates?.length || 0} templates`)
 
     // Find existing template
     const existingIndex = localeData[categoryIndex].templates.findIndex(
@@ -566,6 +585,8 @@ export async function syncUpdatedTemplateToAllLocales(
     )
 
     if (existingIndex >= 0) {
+      console.log(`[i18n-sync] Found template at index ${existingIndex} in ${locale.code}`)
+
       const existingTemplate = localeData[categoryIndex].templates[existingIndex]
 
       // Update auto-sync fields only (preserve translations)
@@ -603,11 +624,12 @@ export async function syncUpdatedTemplateToAllLocales(
         content: formattedContent
       })
 
-      console.log(`✓ Updated template in ${locale.code}: ${locale.indexFile}`)
+      console.log(`[i18n-sync] ✓ Updated template in ${locale.code}: ${locale.indexFile}`)
     } else {
-      console.warn(`Template ${templateData.name} not found in ${locale.code}`)
+      console.warn(`[i18n-sync] ✗ Template ${templateData.name} not found in ${locale.code} category ${categoryIndex}`)
     }
   }
 
+  console.log(`[i18n-sync] syncUpdatedTemplateToAllLocales completed with ${fileUpdates.length} file updates`)
   return fileUpdates
 }

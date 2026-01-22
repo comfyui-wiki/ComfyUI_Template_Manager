@@ -88,6 +88,9 @@ export default defineEventHandler(async (event) => {
     // Prepare tree items (files to update)
     const tree: any[] = []
 
+    // Track i18n sync warnings
+    let i18nSyncWarnings: string[] = []
+
     // 1. Update index.json with new metadata
     const { data: indexFile } = await octokit.repos.getContent({
       owner,
@@ -344,11 +347,20 @@ export default defineEventHandler(async (event) => {
 
       // Sync updated template to all locale files (i18n)
       try {
-        console.log('[Update Template] Syncing updated template to all locale files...')
+        console.log('[i18n] Starting multi-language sync for template:', templateName)
+        console.log('[i18n] Repo:', repo, 'Branch:', branch)
 
         // Check if English title/description changed and track outdated translations
         // Also sync new tags and categories to i18n.json
         if (metadata.title || metadata.description || metadata.tags || metadata.category) {
+          console.log('[i18n] Checking for outdated translations...')
+          console.log('[i18n] Metadata changes:', {
+            title: metadata.title ? 'updated' : 'no change',
+            description: metadata.description ? 'updated' : 'no change',
+            tags: metadata.tags ? 'updated' : 'no change',
+            category: metadata.category ? 'updated' : 'no change'
+          })
+
           // Use updated category if provided, otherwise use current category
           const categoryToSync = metadata.category || currentCategoryTitle
 
@@ -371,8 +383,12 @@ export default defineEventHandler(async (event) => {
               type: 'blob' as const,
               content: i18nUpdate.content
             })
-            console.log('[Update Template] Marked English updates in i18n.json for translation review')
+            console.log('[i18n] ✓ Added i18n.json update to commit tree:', i18nUpdate.path)
+          } else {
+            console.log('[i18n] No i18n.json changes needed')
           }
+        } else {
+          console.log('[i18n] Skipping i18n.json update (no metadata changes detected)')
         }
 
         // Determine the final category index (after potential move)
@@ -380,7 +396,17 @@ export default defineEventHandler(async (event) => {
           ? indexData.findIndex((cat: any) => cat.title === metadata.category)
           : oldCategoryIndex
 
+        console.log('[i18n] Final category index:', finalCategoryIndex)
+        console.log('[i18n] Template data to sync:', {
+          name: templateData.name,
+          title: templateData.title,
+          hasDescription: !!templateData.description,
+          tagCount: templateData.tags?.length || 0,
+          modelCount: templateData.models?.length || 0
+        })
+
         // Sync template to all locale index files
+        console.log('[i18n] Calling syncUpdatedTemplateToAllLocales...')
         const localeFileUpdates = await syncUpdatedTemplateToAllLocales(
           octokit,
           repo,
@@ -388,6 +414,8 @@ export default defineEventHandler(async (event) => {
           finalCategoryIndex,
           templateData
         )
+
+        console.log('[i18n] Received', localeFileUpdates.length, 'locale file updates')
 
         // Add locale file updates to tree
         for (const update of localeFileUpdates) {
@@ -397,9 +425,17 @@ export default defineEventHandler(async (event) => {
             type: 'blob' as const,
             content: update.content
           })
+          console.log('[i18n] ✓ Added locale file to commit tree:', update.path)
         }
 
-        console.log(`[Update Template] Synced template to ${localeFileUpdates.length} locale file(s)`)
+        console.log(`[i18n] ✓ Successfully synced template to ${localeFileUpdates.length} locale file(s)`)
+
+        // Warn if no locale files were updated
+        if (localeFileUpdates.length === 0) {
+          const warning = 'No locale files were updated. Multi-language files may not exist in repository.'
+          console.warn('[i18n] WARNING:', warning)
+          i18nSyncWarnings.push(warning)
+        }
 
       } catch (error: any) {
         console.error('[Update Template] Failed to sync i18n files:', error)
@@ -408,6 +444,8 @@ export default defineEventHandler(async (event) => {
           status: error.status,
           stack: error.stack
         })
+        // Collect error message for user feedback
+        i18nSyncWarnings.push(`i18n sync failed: ${error.message || 'Unknown error'}`)
         // Don't fail the entire operation if i18n sync fails
       }
     }
@@ -650,7 +688,8 @@ export default defineEventHandler(async (event) => {
       commit: {
         sha: newCommit.sha,
         url: `https://github.com/${owner}/${repoName}/commit/${newCommit.sha}`
-      }
+      },
+      warnings: i18nSyncWarnings.length > 0 ? i18nSyncWarnings : undefined
     }
 
   } catch (error: any) {
