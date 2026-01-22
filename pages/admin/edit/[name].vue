@@ -2379,7 +2379,7 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
     return
   }
 
-  // In edit mode, just reload the category templates
+  // In edit mode, reload the category templates and add current template
   try {
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
     const branch = selectedBranch.value || 'main'
@@ -2406,6 +2406,40 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
 
     // Update category templates
     categoryTemplates.value = newCategoryData.templates || []
+
+    // Find if current template already exists in the new category
+    const currentTemplateName = route.params.name as string
+    const templateExistsIndex = categoryTemplates.value.findIndex((t: any) => t.name === currentTemplateName)
+
+    if (templateExistsIndex === -1) {
+      // Current template doesn't exist in new category, add it
+      // Create a temporary template object with current form data
+      const currentTemplate = {
+        name: currentTemplateName,
+        title: form.value.title || currentTemplateName,
+        description: form.value.description || '',
+        thumbnailVariant: form.value.thumbnailVariant === 'none' ? undefined : form.value.thumbnailVariant,
+        tags: form.value.tags || [],
+        models: form.value.models || [],
+        requiresCustomNodes: form.value.requiresCustomNodes?.length ? form.value.requiresCustomNodes : undefined,
+        tutorialUrl: form.value.tutorialUrl || undefined,
+        comfyuiVersion: form.value.comfyuiVersion || undefined,
+        date: form.value.date || undefined,
+        openSource: form.value.openSource,
+        includeOnDistributions: form.value.includeOnDistributions?.length ? form.value.includeOnDistributions : undefined,
+        size: form.value.size,
+        vram: form.value.vram,
+        usage: form.value.usage,
+        searchRank: form.value.searchRank
+      }
+
+      // Add current template to the end of the list
+      categoryTemplates.value.push(currentTemplate)
+      console.log('[Category Change] Added current template to new category:', currentTemplateName)
+    } else {
+      console.log('[Category Change] Current template already exists in new category at index:', templateExistsIndex)
+    }
+
     originalCategoryTemplates.value = [...categoryTemplates.value]
 
     console.log('[Category Change] Loaded templates for new category:', newCategory, categoryTemplates.value.length)
@@ -2540,11 +2574,11 @@ onMounted(async () => {
     form.value.date = foundTemplate.date || ''
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
     form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
-    // Convert bytes to GB for display
-    form.value.sizeGB = foundTemplate.size ? bytesToGB(foundTemplate.size) : null
-    form.value.vramGB = foundTemplate.vram ? bytesToGB(foundTemplate.vram) : null
-    form.value.usage = foundTemplate.usage || null
-    form.value.searchRank = foundTemplate.searchRank || null
+    // Convert bytes to GB for display (use !== undefined to preserve 0 values)
+    form.value.sizeGB = foundTemplate.size !== undefined ? bytesToGB(foundTemplate.size) : null
+    form.value.vramGB = foundTemplate.vram !== undefined ? bytesToGB(foundTemplate.vram) : null
+    form.value.usage = foundTemplate.usage !== undefined ? foundTemplate.usage : null
+    form.value.searchRank = foundTemplate.searchRank !== undefined ? foundTemplate.searchRank : null
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)

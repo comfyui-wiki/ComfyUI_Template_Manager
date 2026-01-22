@@ -207,15 +207,22 @@ export default defineEventHandler(async (event) => {
 
       // Reorder templates if templateOrder is provided
       if (templateOrder && Array.isArray(templateOrder)) {
+        // Use the correct category index: if category changed, use new category; otherwise use old category
+        const targetCategoryIndex = categoryChanged
+          ? indexData.findIndex((cat: any) => cat.title === metadata.category)
+          : oldCategoryIndex
+
         console.log('[Update Template] Reordering templates in category:', {
-          category: indexData[oldCategoryIndex].title,
-          oldOrder: indexData[oldCategoryIndex].templates.map((t: any) => t.name),
+          category: indexData[targetCategoryIndex].title,
+          categoryChanged,
+          targetCategoryIndex,
+          oldOrder: indexData[targetCategoryIndex].templates.map((t: any) => t.name),
           newOrder: templateOrder
         })
 
         // Create a map of templates by name for quick lookup
         const templatesMap = new Map()
-        indexData[oldCategoryIndex].templates.forEach((t: any) => {
+        indexData[targetCategoryIndex].templates.forEach((t: any) => {
           templatesMap.set(t.name, t)
         })
 
@@ -228,7 +235,7 @@ export default defineEventHandler(async (event) => {
         }
 
         // Update the category with reordered templates
-        indexData[oldCategoryIndex].templates = reorderedTemplates
+        indexData[targetCategoryIndex].templates = reorderedTemplates
         console.log('[Update Template] Templates reordered successfully')
       }
 
