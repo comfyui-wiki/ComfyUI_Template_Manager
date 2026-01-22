@@ -397,6 +397,9 @@ export default defineEventHandler(async (event) => {
           : oldCategoryIndex
 
         console.log('[i18n] Final category index:', finalCategoryIndex)
+        if (categoryChanged) {
+          console.log('[i18n] Old category index:', oldCategoryIndex)
+        }
         console.log('[i18n] Template data to sync:', {
           name: templateData.name,
           title: templateData.title,
@@ -412,7 +415,8 @@ export default defineEventHandler(async (event) => {
           repo,
           branch,
           finalCategoryIndex,
-          templateData
+          templateData,
+          categoryChanged ? oldCategoryIndex : undefined
         )
 
         console.log('[i18n] Received', localeFileUpdates.length, 'locale file updates')
