@@ -9,14 +9,27 @@
   >
     <!-- Default/No Effect -->
     <div v-if="variant === 'none' || variant === '' || !variant" class="h-full w-full">
-      <img 
+      <!-- Image -->
+      <img
         v-if="images.length > 0 && images[0].type.startsWith('image/')"
-        :src="getFileUrl(images[0])" 
+        :src="getFileUrl(images[0])"
         :alt="'Thumbnail preview'"
         class="transform-gpu transition-transform duration-300 ease-out w-full h-full object-cover"
         :style="isHovered ? { transform: `scale(${1 + hoverZoom / 100})` } : undefined"
         draggable="false"
       />
+      <!-- Audio -->
+      <div
+        v-else-if="images.length > 0 && images[0].type.startsWith('audio/')"
+        class="flex h-full w-full items-center justify-center p-4"
+        :style="{
+          backgroundImage: 'url(/assets/images/default-template.png)',
+          backgroundRepeat: 'round'
+        }"
+      >
+        <audio controls class="relative w-full" :src="getFileUrl(images[0])" @click.stop />
+      </div>
+      <!-- Empty state -->
       <div v-else class="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
         No Preview
       </div>
@@ -81,14 +94,27 @@
 
     <!-- Zoom Hover Effect -->
     <div v-else-if="variant === 'zoomHover'" class="h-full w-full">
-      <img 
+      <!-- Image -->
+      <img
         v-if="images.length > 0 && images[0].type.startsWith('image/')"
-        :src="getFileUrl(images[0])" 
+        :src="getFileUrl(images[0])"
         :alt="'Thumbnail preview'"
         class="transform-gpu transition-transform duration-300 ease-out w-full h-full object-cover"
         :style="isHovered ? { transform: `scale(${1 + hoverZoom / 100})` } : undefined"
         draggable="false"
       />
+      <!-- Audio -->
+      <div
+        v-else-if="images.length > 0 && images[0].type.startsWith('audio/')"
+        class="flex h-full w-full items-center justify-center p-4"
+        :style="{
+          backgroundImage: 'url(/assets/images/default-template.png)',
+          backgroundRepeat: 'round'
+        }"
+      >
+        <audio controls class="relative w-full" :src="getFileUrl(images[0])" @click.stop />
+      </div>
+      <!-- Empty state -->
       <div v-else class="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
         No Preview
       </div>

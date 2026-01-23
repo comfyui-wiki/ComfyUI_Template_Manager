@@ -231,7 +231,7 @@
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form @submit.prevent="handleSubmit" class="space-y-6">
+                <form @submit.prevent="() => {}" class="space-y-6">
                   <!-- Thumbnail Files Management - TOP PRIORITY -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
@@ -258,13 +258,24 @@
                           <!-- Thumbnail Preview - 64px Small -->
                           <div class="flex-shrink-0">
                             <div class="border rounded overflow-hidden bg-muted/30 flex items-center justify-center" style="width: 64px; height: 64px; min-width: 64px; min-height: 64px; max-width: 64px; max-height: 64px;">
+                              <!-- Image preview -->
                               <img
-                                v-if="getThumbnailPreview(index)"
+                                v-if="getThumbnailPreview(index) && !isThumbnailAudio(index)"
                                 :src="getThumbnailPreview(index)"
                                 :alt="getThumbnailLabel(index)"
                                 class="w-full h-full object-cover"
                                 style="width: 64px; height: 64px;"
                               />
+                              <!-- Audio preview - Show icon in small thumbnail -->
+                              <div
+                                v-else-if="getThumbnailPreview(index) && isThumbnailAudio(index)"
+                                class="flex h-full w-full items-center justify-center bg-muted"
+                              >
+                                <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                </svg>
+                              </div>
+                              <!-- Empty state -->
                               <div v-else class="text-center text-muted-foreground">
                                 <svg class="w-6 h-6 mx-auto opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1007,8 +1018,8 @@
                     :tutorial-url="form.tutorialUrl"
                     :filename="templateName"
                     :category="currentCategoryTitle"
-                    :media-type="originalTemplate?.mediaType || 'image'"
-                    :media-subtype="originalTemplate?.mediaSubtype || 'webp'"
+                    :media-type="form.mediaType"
+                    :media-subtype="form.mediaSubtype"
                     :has-workflow="true"
                     :model-count="form.models.length"
                     :comfyui-version="form.comfyuiVersion"
@@ -1201,6 +1212,8 @@ const form = ref({
   description: '',
   category: '',
   thumbnailVariant: 'none',
+  mediaType: 'image' as string, // Media type: image, video, audio
+  mediaSubtype: 'webp' as string, // Media subtype: webp, mp3, mp4, etc.
   tutorialUrl: '',
   tags: [] as string[],
   models: [] as string[],
@@ -1682,7 +1695,9 @@ watch(() => form.value.thumbnailVariant, async (newVariant, oldVariant) => {
           const response = await fetch(url)
           if (response.ok) {
             const blob = await response.blob()
-            const file = new File([blob], `${templateName}-${i}.${mediaSubtype}`, { type: blob.type })
+            // Use correct MIME type based on file extension
+            const correctMimeType = getMimeTypeFromExtension(mediaSubtype)
+            const file = new File([blob], `${templateName}-${i}.${mediaSubtype}`, { type: correctMimeType })
 
             // Add to array
             const newFiles = [...thumbnailFiles.value]
@@ -1793,6 +1808,101 @@ const getThumbnailPreview = (index: number): string | undefined => {
   }
 
   return undefined
+}
+
+// Check if thumbnail is audio file
+const isThumbnailAudio = (index: number): boolean => {
+  // Check reuploaded files first
+  if (reuploadedThumbnails.value.has(index)) {
+    const file = reuploadedThumbnails.value.get(index)
+    return file?.type.startsWith('audio/') || false
+  }
+
+  // Check loaded files
+  const file = thumbnailFiles.value[index - 1]
+  return file?.type.startsWith('audio/') || false
+}
+
+// Get MIME type from file extension
+const getMimeTypeFromExtension = (extension: string): string => {
+  const ext = extension.toLowerCase()
+  const mimeTypes: Record<string, string> = {
+    // Images
+    'webp': 'image/webp',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    // Audio
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    'aac': 'audio/aac',
+    'm4a': 'audio/mp4',
+    // Video
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
+    'mov': 'video/quicktime',
+    'avi': 'video/x-msvideo'
+  }
+  return mimeTypes[ext] || 'application/octet-stream'
+}
+
+// Auto-detect mediaType and mediaSubtype from thumbnail file
+const detectMediaTypeFromFile = (file: File): { mediaType: string; mediaSubtype: string } => {
+  const mimeType = file.type
+  console.log('[detectMediaType] File:', file.name, 'MIME:', mimeType)
+
+  // Extract main type and subtype from MIME type (e.g., "image/webp" -> "image", "webp")
+  const [mainType, subType] = mimeType.split('/')
+  console.log('[detectMediaType] Parsed:', { mainType, subType })
+
+  // Map MIME types to our mediaType categories
+  let mediaType = 'image' // default
+  if (mainType === 'audio') {
+    mediaType = 'audio'
+  } else if (mainType === 'video') {
+    mediaType = 'video'
+  } else if (mainType === 'image') {
+    mediaType = 'image'
+  }
+
+  // Get file extension from filename as fallback
+  const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'webp'
+
+  // Use subType from MIME or file extension
+  const mediaSubtype = subType || fileExtension
+
+  console.log('[detectMediaType] Result:', { mediaType, mediaSubtype })
+  return { mediaType, mediaSubtype }
+}
+
+// Update form mediaType/mediaSubtype when thumbnail is uploaded
+const updateMediaTypeFromThumbnail = () => {
+  // Check if we have any thumbnail files
+  const firstThumbnail = thumbnailFiles.value[0] || reuploadedThumbnails.value.get(1)
+
+  if (!firstThumbnail) {
+    console.log('[Media Type] No thumbnail found, keeping current values:', {
+      mediaType: form.value.mediaType,
+      mediaSubtype: form.value.mediaSubtype
+    })
+    return
+  }
+
+  const oldMediaType = form.value.mediaType
+  const oldMediaSubtype = form.value.mediaSubtype
+
+  const { mediaType, mediaSubtype } = detectMediaTypeFromFile(firstThumbnail)
+
+  // Only update if values changed
+  if (oldMediaType !== mediaType || oldMediaSubtype !== mediaSubtype) {
+    form.value.mediaType = mediaType
+    form.value.mediaSubtype = mediaSubtype
+    console.log(`[Media Type] Updated: ${oldMediaType}/${oldMediaSubtype} → ${mediaType}/${mediaSubtype}`)
+  } else {
+    console.log(`[Media Type] No change needed: ${mediaType}/${mediaSubtype}`)
+  }
 }
 
 // Format file size
@@ -2136,9 +2246,23 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
     const previewUrl = URL.createObjectURL(file)
     thumbnailPreviewUrls.value.set(index, previewUrl)
 
+    // Auto-detect and update mediaType/mediaSubtype
+    const oldMediaType = form.value.mediaType
+    const oldMediaSubtype = form.value.mediaSubtype
+    updateMediaTypeFromThumbnail()
+
+    let message = `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)})`
+
+    // Add media type change notification if it changed
+    if (oldMediaType !== form.value.mediaType || oldMediaSubtype !== form.value.mediaSubtype) {
+      message += ` | Media type auto-updated: ${form.value.mediaType}/${form.value.mediaSubtype}`
+    }
+
+    message += '. Click "Save Changes" to apply.'
+
     thumbnailReuploadStatus.value = {
       success: true,
-      message: `✓ ${getThumbnailLabel(index)} updated: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
+      message
     }
 
     // Clear the file input
@@ -2180,14 +2304,28 @@ const handleConvertedThumbnail = async (file: File) => {
   const previewUrl = URL.createObjectURL(file)
   thumbnailPreviewUrls.value.set(index, previewUrl)
 
+  // Auto-detect and update mediaType/mediaSubtype
+  const oldMediaType = form.value.mediaType
+  const oldMediaSubtype = form.value.mediaSubtype
+  updateMediaTypeFromThumbnail()
+
   // Clear initial file and close dialog
   converterInitialFile.value = null
   isConverterDialogOpen.value = false
 
+  let message = `✓ ${getThumbnailLabel(index)} converted: ${file.name} (${formatFileSize(file.size)})`
+
+  // Add media type change notification if it changed
+  if (oldMediaType !== form.value.mediaType || oldMediaSubtype !== form.value.mediaSubtype) {
+    message += ` | Media type auto-updated: ${form.value.mediaType}/${form.value.mediaSubtype}`
+  }
+
+  message += '. Click "Save Changes" to apply.'
+
   // Show success message
   thumbnailReuploadStatus.value = {
     success: true,
-    message: `✓ ${getThumbnailLabel(index)} converted: ${file.name} (${formatFileSize(file.size)}). Click "Save Changes" to apply.`
+    message
   }
 }
 
@@ -2339,8 +2477,8 @@ const updateCategoryTemplatesForCreate = async () => {
       name: form.value.templateName,
       title: form.value.title || form.value.templateName,
       description: form.value.description || '',
-      mediaType: 'image',
-      mediaSubtype: 'webp'
+      mediaType: form.value.mediaType,
+      mediaSubtype: form.value.mediaSubtype
     }
 
     // Add new template at the first position
@@ -2566,6 +2704,8 @@ onMounted(async () => {
       availableCategories: availableCategories.value.length
     })
     form.value.thumbnailVariant = foundTemplate.thumbnailVariant || 'none'
+    form.value.mediaType = foundTemplate.mediaType || 'image'
+    form.value.mediaSubtype = foundTemplate.mediaSubtype || 'webp'
     form.value.tutorialUrl = foundTemplate.tutorialUrl || ''
     form.value.tags = foundTemplate.tags || []
     form.value.models = foundTemplate.models || []
@@ -2649,7 +2789,10 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
         const response = await fetch(url)
         if (response.ok) {
           const blob = await response.blob()
-          const file = new File([blob], `${templateName}-${i}.${mediaSubtype}`, { type: blob.type })
+          // Use correct MIME type based on file extension, not blob.type
+          const correctMimeType = getMimeTypeFromExtension(mediaSubtype)
+          const file = new File([blob], `${templateName}-${i}.${mediaSubtype}`, { type: correctMimeType })
+          console.log(`[loadThumbnails] Created file ${i}:`, file.name, 'type:', file.type)
           files.push(file)
 
           // Calculate file info
@@ -2663,6 +2806,11 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
     thumbnailFiles.value = files
     console.log('[loadThumbnails] Loaded files:', files.length, 'thumbnails')
     console.log('[loadThumbnails] thumbnailFiles.value now has', thumbnailFiles.value.length, 'items')
+
+    // Auto-detect and update mediaType/mediaSubtype after loading thumbnails
+    if (files.length > 0) {
+      updateMediaTypeFromThumbnail()
+    }
   } catch (err) {
     console.error('Error loading thumbnails:', err)
   }
@@ -2670,6 +2818,15 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
 
 const handleSubmit = async () => {
   if (isSubmitting.value) return
+
+  // Auto-detect and fix mediaType/mediaSubtype before saving
+  // This ensures previously incorrect values are corrected
+  console.log('[Save] Validating mediaType/mediaSubtype before save...')
+  updateMediaTypeFromThumbnail()
+  console.log('[Save] Current mediaType/mediaSubtype:', {
+    mediaType: form.value.mediaType,
+    mediaSubtype: form.value.mediaSubtype
+  })
 
   // Validate required fields
   if (form.value.openSource === null) {
@@ -2785,6 +2942,8 @@ const handleSubmit = async () => {
           description: form.value.description,
           category: form.value.category,
           thumbnailVariant: form.value.thumbnailVariant,
+          mediaType: form.value.mediaType,
+          mediaSubtype: form.value.mediaSubtype,
           tags: form.value.tags,
           models: form.value.models,
           requiresCustomNodes: form.value.requiresCustomNodes,

@@ -39,7 +39,7 @@ const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
 const saveError = ref<string | null>(null)
 const i18nData = ref<any>(null)
 const activeLanguage = ref('all') // Default to "all" to show all languages
-const filterMode = ref<'all' | 'outdated' | 'untranslated'>('untranslated')
+const filterMode = ref<'all' | 'outdated' | 'untranslated' | 'modified' | 'new'>('untranslated')
 const searchQuery = ref('')
 const editingCell = ref<{ key: string; lang: string } | null>(null)
 const editValue = ref('')
@@ -244,6 +244,20 @@ const filteredItems = computed(() => {
       // In single language mode, show items untranslated for that language
       items = items.filter(item => item.untranslatedLangs.includes(activeLanguage.value))
     }
+  } else if (filterMode.value === 'modified') {
+    // Show items that have been modified in current session
+    items = items.filter(item => {
+      // Check if any language cell for this item is modified
+      return visibleLanguages.value.some(lang =>
+        modifiedCells.value.has(`${item.key}:${lang.code}`)
+      )
+    })
+  } else if (filterMode.value === 'new') {
+    // Show items that are completely new (all non-English languages are untranslated)
+    items = items.filter(item => {
+      const nonEnglishLangs = languages.filter(l => l.code !== 'en').length
+      return item.untranslatedLangs.length === nonEnglishLangs
+    })
   }
 
   // Apply search query
@@ -267,7 +281,20 @@ const stats = computed(() => {
     ? translationItems.value.filter(item => item.untranslatedLangs.length > 0).length
     : translationItems.value.filter(item => item.untranslatedLangs.includes(activeLanguage.value)).length
 
-  return { total, outdated, untranslated }
+  // Count modified items (items with modified cells in current session)
+  const modified = translationItems.value.filter(item => {
+    return visibleLanguages.value.some(lang =>
+      modifiedCells.value.has(`${item.key}:${lang.code}`)
+    )
+  }).length
+
+  // Count new items (completely untranslated in all languages)
+  const nonEnglishLangs = languages.filter(l => l.code !== 'en').length
+  const newItems = translationItems.value.filter(item =>
+    item.untranslatedLangs.length === nonEnglishLangs
+  ).length
+
+  return { total, outdated, untranslated, modified, new: newItems }
 })
 
 // Start editing a cell
@@ -954,9 +981,11 @@ const saveAllChanges = async () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All ({{ stats.total }})</SelectItem>
-                <SelectItem value="outdated">Outdated ({{ stats.outdated }})</SelectItem>
+                <SelectItem value="new">🆕 New ({{ stats.new }})</SelectItem>
+                <SelectItem value="modified">✏️ Modified ({{ stats.modified }})</SelectItem>
+                <SelectItem value="outdated">⚠️ Outdated ({{ stats.outdated }})</SelectItem>
                 <SelectItem value="untranslated">
-                  Untranslated ({{ stats.untranslated }})
+                  🌐 Untranslated ({{ stats.untranslated }})
                 </SelectItem>
               </SelectContent>
             </Select>
