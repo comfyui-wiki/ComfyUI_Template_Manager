@@ -1437,20 +1437,13 @@ const handlePRCreated = async (pr: any) => {
     // Don't fail the whole process if update fails
   }
 
-  const viewLink = `${window.location.origin}/?pr=${pr.number}`
-
-  alert(`Pull request created successfully!\n\nPR #${pr.number}: ${pr.title}\n\nView in Template Manager: ${viewLink}`)
+  alert(`Pull request created successfully!\n\nPR #${pr.number}: ${pr.title}`)
 
   // Refresh PR status
   await checkPRStatus()
 
   // Open GitHub PR in new tab
   window.open(pr.url, '_blank')
-
-  // Also open Template Manager view in new tab (slight delay to avoid popup blocker)
-  setTimeout(() => {
-    window.open(viewLink, '_blank')
-  }, 100)
 }
 
 // Handle Update Branch (pull new commits from PR)
