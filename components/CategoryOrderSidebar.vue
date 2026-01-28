@@ -1,9 +1,11 @@
 <template>
-  <div class="w-80 border-r bg-muted/30 min-h-[calc(100vh-140px)] sticky top-[140px] overflow-y-auto">
-    <div class="p-4">
+  <div class="w-80 border-r bg-muted/30 h-[calc(100vh-140px)] sticky top-[140px] flex flex-col overflow-hidden">
+    <div class="p-4 flex-shrink-0">
       <h2 class="text-sm font-semibold mb-2">Category Order</h2>
       <p class="text-xs text-muted-foreground mb-4">{{ categoryTitle }}</p>
+    </div>
 
+    <div class="flex-1 overflow-y-auto px-4 pb-4">
       <div class="space-y-2">
         <div
           v-for="(template, index) in templates"
