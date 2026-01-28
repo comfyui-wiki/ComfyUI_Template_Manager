@@ -139,7 +139,7 @@
             <div v-if="nodeInfo.modelFiles.length > 0" class="mb-3">
               <Label class="text-xs">Model File Path</Label>
               <Input
-                v-model="nodeInfo.modelFiles[0]"
+                :value="nodeInfo.modelFiles[0]"
                 @input="updateWidgetsValue(nodeInfo, 0, $event.target.value)"
                 placeholder="Model file path"
                 class="font-mono text-xs"
