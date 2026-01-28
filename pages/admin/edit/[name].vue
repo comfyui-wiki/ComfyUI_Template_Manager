@@ -3024,7 +3024,15 @@ const handleSubmit = async () => {
         originalTemplate.value.date = form.value.date
         originalTemplate.value.tags = [...form.value.tags]
         originalTemplate.value.models = [...form.value.models]
+        // Store requiresCustomNodes (empty array means field should be deleted, so store undefined)
+        originalTemplate.value.requiresCustomNodes = form.value.requiresCustomNodes.length > 0
+          ? [...form.value.requiresCustomNodes]
+          : undefined
         originalTemplate.value.openSource = form.value.openSource
+        // Store includeOnDistributions (empty array means field should be deleted, so store undefined)
+        originalTemplate.value.includeOnDistributions = form.value.includeOnDistributions.length > 0
+          ? [...form.value.includeOnDistributions]
+          : undefined
         // Store rounded values (1 decimal) to match what's saved in index.json
         originalTemplate.value.size = gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null)
         originalTemplate.value.vram = gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null)

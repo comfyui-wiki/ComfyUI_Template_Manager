@@ -652,6 +652,13 @@ export async function syncUpdatedTemplateToAllLocales(
         if (field in templateData) {
           updatedTemplate[field] = templateData[field]
           updatedFields.push(field)
+        } else {
+          // If field doesn't exist in templateData, remove it from locale file
+          // This handles deletion of optional fields (e.g., empty includeOnDistributions)
+          if (field in updatedTemplate) {
+            delete updatedTemplate[field]
+            updatedFields.push(`-${field}`)
+          }
         }
       }
 
