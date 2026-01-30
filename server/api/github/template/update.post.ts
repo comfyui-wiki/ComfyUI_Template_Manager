@@ -59,6 +59,16 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<UpdateTemplateRequest>(event)
     const { repo, branch, templateName, metadata, templateOrder, files } = body
 
+    // Log received templateOrder for debugging
+    console.log('[Update Template] Request received:', {
+      templateName,
+      hasTemplateOrder: !!templateOrder,
+      templateOrderLength: templateOrder?.length || 0
+    })
+    if (templateOrder) {
+      console.log('[Update Template] templateOrder:', templateOrder.join(', '))
+    }
+
     if (!repo || !branch || !templateName) {
       throw createError({
         statusCode: 400,
@@ -87,6 +97,9 @@ export default defineEventHandler(async (event) => {
 
     // Prepare tree items (files to update)
     const tree: any[] = []
+
+    // Track if category order was updated (for commit message)
+    let orderUpdated = false
 
     // Track i18n sync warnings
     let i18nSyncWarnings: string[] = []
@@ -231,14 +244,46 @@ export default defineEventHandler(async (event) => {
 
         // Reorder templates array based on templateOrder
         const reorderedTemplates = []
+        const processedNames = new Set<string>()
+
+        // First, add templates in the order specified by templateOrder
         for (const name of templateOrder) {
           if (templatesMap.has(name)) {
             reorderedTemplates.push(templatesMap.get(name))
+            processedNames.add(name)
+          } else {
+            console.warn(`[Update Template] Template "${name}" in templateOrder not found in category`)
           }
         }
 
+        // Then, append any templates that weren't in templateOrder (e.g., newly added by other users)
+        // This prevents data loss if the frontend's categoryTemplates is outdated
+        const missingTemplates: any[] = []
+        for (const [name, template] of templatesMap.entries()) {
+          if (!processedNames.has(name)) {
+            missingTemplates.push(template)
+            reorderedTemplates.push(template)
+          }
+        }
+
+        // Log warning if there were missing templates
+        if (missingTemplates.length > 0) {
+          console.warn('[Update Template] Some templates were not in templateOrder and were appended to the end:', {
+            count: missingTemplates.length,
+            names: missingTemplates.map(t => t.name)
+          })
+        }
+
+        // Log info about reordering
+        console.log('[Update Template] Templates reordered:', {
+          totalCount: reorderedTemplates.length,
+          orderedCount: processedNames.size,
+          appendedCount: missingTemplates.length
+        })
+
         // Update the category with reordered templates
         indexData[targetCategoryIndex].templates = reorderedTemplates
+        orderUpdated = true
         console.log('[Update Template] Templates reordered successfully')
       }
 
@@ -416,7 +461,8 @@ export default defineEventHandler(async (event) => {
           branch,
           finalCategoryIndex,
           templateData,
-          categoryChanged ? oldCategoryIndex : undefined
+          categoryChanged ? oldCategoryIndex : undefined,
+          indexData // Pass updated indexData to preserve template order
         )
 
         console.log('[i18n] Received', localeFileUpdates.length, 'locale file updates')
@@ -669,11 +715,14 @@ export default defineEventHandler(async (event) => {
       base_tree: currentTreeSha
     })
 
-    // Create commit
+    // Create commit (mention reorder in message when only/mostly order changed)
+    const commitSubject = orderUpdated
+      ? `Update template: ${templateName} (reorder)`
+      : `Update template: ${templateName}`
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
       repo: repoName,
-      message: `Update template: ${templateName}\n\nUpdated via ComfyUI Template Manager`,
+      message: `${commitSubject}\n\nUpdated via ComfyUI Template Manager`,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })

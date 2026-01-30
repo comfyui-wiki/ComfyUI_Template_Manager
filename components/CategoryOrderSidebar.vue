@@ -31,7 +31,7 @@
           @dragover="onDragOver($event, index)"
           @drop="onDrop($event, index)"
           @dragend="onDragEnd"
-          class="p-2 rounded-lg cursor-move transition-all relative"
+          class="group p-2 rounded-lg cursor-move transition-all relative"
           :class="{
             'bg-primary/5 border-2 border-primary/20': template.name === currentTemplateName,
             'bg-background hover:bg-accent hover:shadow border border-transparent': template.name !== currentTemplateName,
@@ -103,6 +103,32 @@
                 </svg>
                 <span>{{ Math.abs(positionChanges.get(template.name)!.change) }}</span>
               </div>
+            </div>
+
+            <!-- Quick move up/down (visible on hover) -->
+            <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+                :disabled="index === 0"
+                :aria-label="'Move up'"
+                @click.stop="moveUp(index)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+                :disabled="index === templates.length - 1"
+                :aria-label="'Move down'"
+                @click.stop="moveDown(index)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
             </div>
           </div>
           <!-- Usage bar: relative to max in category -->
@@ -299,6 +325,21 @@ const sortByUsage = () => {
 // Restore templates to original (saved) order
 const restoreOrder = () => {
   emit('reorder', [...originalTemplates.value])
+}
+
+// Move template up/down by one position
+const moveUp = (index: number) => {
+  if (index <= 0) return
+  const newTemplates = [...props.templates]
+  ;[newTemplates[index - 1], newTemplates[index]] = [newTemplates[index], newTemplates[index - 1]]
+  emit('reorder', newTemplates)
+}
+
+const moveDown = (index: number) => {
+  if (index >= props.templates.length - 1) return
+  const newTemplates = [...props.templates]
+  ;[newTemplates[index], newTemplates[index + 1]] = [newTemplates[index + 1], newTemplates[index]]
+  emit('reorder', newTemplates)
 }
 
 // Expose method to reset original templates (called after save)

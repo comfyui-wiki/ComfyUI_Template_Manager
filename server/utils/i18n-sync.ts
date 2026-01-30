@@ -545,7 +545,8 @@ export async function syncUpdatedTemplateToAllLocales(
   branch: string,
   categoryIndex: number,
   templateData: TemplateData,
-  oldCategoryIndex?: number
+  oldCategoryIndex?: number,
+  masterIndexData?: any[] // Add parameter to pass updated index data
 ): Promise<FileUpdate[]> {
   console.log(`[i18n-sync] syncUpdatedTemplateToAllLocales called for template: ${templateData.name}`)
   console.log(`[i18n-sync] New category index: ${categoryIndex}`)
@@ -561,8 +562,17 @@ export async function syncUpdatedTemplateToAllLocales(
 
   // Load master (English) file to get correct template order
   const [owner, repoName] = repo.split('/')
-  const masterIndexPath = 'templates/index.json'
-  const masterData = await readJsonFromGitHub(octokit, repo, branch, masterIndexPath)
+  let masterData: any[]
+
+  // Use provided masterIndexData if available, otherwise fetch from GitHub
+  if (masterIndexData) {
+    console.log(`[i18n-sync] Using provided masterIndexData (already updated in memory)`)
+    masterData = masterIndexData
+  } else {
+    console.log(`[i18n-sync] Fetching masterData from GitHub`)
+    const masterIndexPath = 'templates/index.json'
+    masterData = await readJsonFromGitHub(octokit, repo, branch, masterIndexPath)
+  }
 
   if (!masterData || !Array.isArray(masterData) || !masterData[categoryIndex]) {
     console.error(`[i18n-sync] Failed to load master index.json or category ${categoryIndex} not found`)
