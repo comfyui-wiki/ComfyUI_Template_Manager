@@ -2683,7 +2683,50 @@ onMounted(async () => {
     }
 
     if (!foundTemplate) {
-      throw new Error(`Template "${templateName}" not found`)
+      // Template not found - might be a newly created template where GitHub cache hasn't updated yet
+      // Try one more time with a delay and force refresh
+      console.warn(`[Edit Page] Template "${templateName}" not found on first load, retrying in 2s...`)
+
+      // Wait 2 seconds for GitHub to update
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Retry loading with force refresh (stronger cache-busting)
+      try {
+        console.log('[Edit Page] Retrying template load...')
+        const retryUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?nocache=${Date.now()}&r=${Math.random()}`
+        const retryResponse = await fetch(retryUrl, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        })
+
+        if (retryResponse.ok) {
+          const retryIndexData = await retryResponse.json()
+
+          // Search again in retry data
+          if (Array.isArray(retryIndexData)) {
+            for (const category of retryIndexData) {
+              const found = category.templates?.find((t: any) => t.name === templateName)
+              if (found) {
+                foundTemplate = found
+                foundCategoryTitle = category.title
+                foundCategoryTemplates = category.templates || []
+                console.log('[Edit Page] ✓ Template found on retry!')
+                break
+              }
+            }
+          }
+        }
+      } catch (retryError) {
+        console.error('[Edit Page] Retry failed:', retryError)
+      }
+
+      // If still not found after retry, show error
+      if (!foundTemplate) {
+        throw new Error(`Template "${templateName}" not found. If you just created this template, please wait a moment and refresh the page.`)
+      }
     }
 
     originalTemplate.value = foundTemplate
