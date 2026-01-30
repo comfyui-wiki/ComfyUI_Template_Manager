@@ -820,13 +820,19 @@ const generateNote = () => {
   // Model links
   note += template.modelLinksHeader
 
-  // Group by directory
+  // Group by directory, deduplicate by URL (same model can be used by multiple nodes)
   const modelsByDir: Record<string, any[]> = {}
+  const seenUrlByDir: Record<string, Set<string>> = {}
   for (const nodeInfo of modelNodes.value) {
     for (const model of nodeInfo.existingModels) {
       if (!model.url) continue
       const dir = model.directory || 'unknown'
-      if (!modelsByDir[dir]) modelsByDir[dir] = []
+      if (!modelsByDir[dir]) {
+        modelsByDir[dir] = []
+        seenUrlByDir[dir] = new Set()
+      }
+      if (seenUrlByDir[dir].has(model.url)) continue
+      seenUrlByDir[dir].add(model.url)
       modelsByDir[dir].push(model)
     }
   }
@@ -840,13 +846,20 @@ const generateNote = () => {
     note += '\n'
   }
 
-  // Add custom nodes section (models without URLs)
+  // Add custom nodes section (models without URLs), deduplicate by dir+name
   const customNodeModels: Record<string, any[]> = {}
+  const seenCustomByDir: Record<string, Set<string>> = {}
   for (const nodeInfo of modelNodes.value) {
     if (nodeInfo.isCustomNode) {
       for (const model of nodeInfo.existingModels) {
         const dir = model.directory || 'unknown'
-        if (!customNodeModels[dir]) customNodeModels[dir] = []
+        if (!customNodeModels[dir]) {
+          customNodeModels[dir] = []
+          seenCustomByDir[dir] = new Set()
+        }
+        const key = `${dir}:${model.name}`
+        if (seenCustomByDir[dir].has(key)) continue
+        seenCustomByDir[dir].add(key)
         customNodeModels[dir].push({ ...model, nodeType: nodeInfo.node.type })
       }
     }
@@ -863,12 +876,23 @@ const generateNote = () => {
     }
   }
 
-  // Storage location
+  // Storage location (├── for branch, └── for last/only)
   note += template.storageLocationHeader
-  for (const dir in modelsByDir) {
-    note += `│   ├── 📂 ${dir}/\n`
-    for (const model of modelsByDir[dir]) {
-      note += `│   │   ├── ${model.name}\n`
+  const dirs = Object.keys(modelsByDir)
+  const lastDirIndex = dirs.length - 1
+  for (let i = 0; i < dirs.length; i++) {
+    const dir = dirs[i]
+    const isLastDir = i === lastDirIndex
+    const dirBranch = isLastDir ? '└──' : '├──'
+    note += `│   ${dirBranch} 📂 ${dir}/\n`
+    const models = modelsByDir[dir]
+    const lastModelIndex = models.length - 1
+    const modelIndent = isLastDir ? '│       ' : '│   │   '
+    for (let j = 0; j < models.length; j++) {
+      const model = models[j]
+      const isLastModel = j === lastModelIndex
+      const modelBranch = isLastModel ? '└──' : '├──'
+      note += `${modelIndent}${modelBranch} ${model.name}\n`
     }
   }
   note += template.storageLocationFooter
