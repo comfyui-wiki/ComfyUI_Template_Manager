@@ -2,7 +2,23 @@
   <div class="w-80 border-r bg-muted/30 h-[calc(100vh-140px)] sticky top-[140px] flex flex-col overflow-hidden">
     <div class="p-4 flex-shrink-0">
       <h2 class="text-sm font-semibold mb-2">Category Order</h2>
-      <p class="text-xs text-muted-foreground mb-4">{{ categoryTitle }}</p>
+      <p class="text-xs text-muted-foreground mb-3">{{ categoryTitle }}</p>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 text-xs py-1.5 px-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+          @click="sortByUsage"
+        >
+          Sort by usage
+        </button>
+        <button
+          type="button"
+          class="flex-1 text-xs py-1.5 px-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+          @click="restoreOrder"
+        >
+          Restore order
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 pb-4">
@@ -89,6 +105,22 @@
               </div>
             </div>
           </div>
+          <!-- Usage bar: relative to max in category -->
+          <div
+            v-if="maxUsageInCategory > 0"
+            class="mt-1.5 flex items-center gap-2"
+          >
+            <span class="text-[10px] text-muted-foreground flex-shrink-0">usage</span>
+            <div class="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-0">
+              <div
+                class="h-full rounded-full bg-primary/60 transition-[width] duration-300"
+                :style="{ width: `${getUsagePercent(template)}%` }"
+              />
+            </div>
+            <span class="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
+              {{ formatUsage(template.usage) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -103,6 +135,7 @@ interface Template {
   title?: string
   thumbnailVariant?: string
   mediaSubtype?: string
+  usage?: number
 }
 
 interface Props {
@@ -129,18 +162,17 @@ const originalTemplates = ref<Template[]>([...props.templates])
 watch(
   () => props.templates,
   (newTemplates, oldTemplates) => {
-    // Only update if it's a new category or initial load
-    // Don't update if user is reordering
+    // Only update if it's a new category or initial load (set of templates changed)
+    // Don't update if user is reordering or sort-by-usage (same set, different order)
     if (draggedIndex.value === null) {
-      // Check if this is a genuine external update (not from our own emit)
-      // by comparing template names - if the set of templates changed, it's external
-      const oldNames = oldTemplates?.map(t => t.name).join(',') || ''
-      const newNames = newTemplates.map(t => t.name).join(',')
+      const oldSet = new Set((oldTemplates ?? []).map(t => t.name))
+      const newSet = new Set(newTemplates.map(t => t.name))
+      const setChanged =
+        oldSet.size !== newSet.size || [...newSet].some((n) => !oldSet.has(n))
 
-      // Only reset originalTemplates if the set of templates actually changed
-      // (e.g., switched category, added/removed templates)
-      // Don't reset if it's just a reorder (same templates, different order)
-      if (oldNames !== newNames) {
+      // Only reset originalTemplates when the set of templates changed
+      // (e.g. switched category, added/removed template), not on reorder/sort
+      if (setChanged) {
         originalTemplates.value = [...newTemplates]
       }
     }
@@ -169,6 +201,27 @@ watch(
     }
   }
 )
+
+// Max usage in current category (for progress bar 100%)
+const maxUsageInCategory = computed(() => {
+  if (!props.templates.length) return 0
+  return Math.max(...props.templates.map(t => t.usage ?? 0), 0)
+})
+
+// Usage as percentage of category max (0–100)
+const getUsagePercent = (template: Template): number => {
+  const u = template.usage ?? 0
+  if (maxUsageInCategory.value <= 0 || u <= 0) return 0
+  return Math.round((u / maxUsageInCategory.value) * 100)
+}
+
+// Format usage count for display (e.g. 1.2k, 1.5M)
+const formatUsage = (usage?: number): string => {
+  const n = usage ?? 0
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
 
 // Computed: Calculate position changes
 const positionChanges = computed(() => {
@@ -235,6 +288,17 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
 const onDragEnd = () => {
   console.log('[CategoryOrderSidebar] Drag ended')
   draggedIndex.value = null
+}
+
+// Sort templates by usage (high to low) and emit new order
+const sortByUsage = () => {
+  const sorted = [...props.templates].sort((a, b) => (b.usage ?? 0) - (a.usage ?? 0))
+  emit('reorder', sorted)
+}
+
+// Restore templates to original (saved) order
+const restoreOrder = () => {
+  emit('reorder', [...originalTemplates.value])
 }
 
 // Expose method to reset original templates (called after save)
