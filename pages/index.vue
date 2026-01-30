@@ -428,8 +428,9 @@
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Default (from index.json)</SelectItem>
                 <SelectItem value="latest">Latest First</SelectItem>
+                <SelectItem value="usage">Usage (High to Low)</SelectItem>
+                <SelectItem value="default">Default (from index.json)</SelectItem>
                 <SelectItem value="oldest">Oldest First</SelectItem>
                 <SelectItem value="name">Name (A-Z)</SelectItem>
               </SelectContent>
@@ -693,7 +694,7 @@ const selectedModel = ref('all')
 const selectedTag = ref('all')
 const selectedRunsOn = ref('all') // all, api, opensource
 const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
-const sortBy = ref('default')
+const sortBy = ref('latest')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
 const showUsageUpdateModal = ref(false)
@@ -1132,6 +1133,12 @@ const filteredTemplates = computed(() => {
       const dateA = new Date(a.date || 0).getTime()
       const dateB = new Date(b.date || 0).getTime()
       return dateA - dateB
+    })
+  } else if (sortBy.value === 'usage') {
+    templates.sort((a, b) => {
+      const usageA = a.usage || 0
+      const usageB = b.usage || 0
+      return usageB - usageA
     })
   } else if (sortBy.value === 'name') {
     templates.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
