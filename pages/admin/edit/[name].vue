@@ -623,6 +623,14 @@
                     </p>
                   </div>
 
+                  <!-- Provider Logos -->
+                  <LogosEditor
+                    v-model="form.logos"
+                    :available-providers="availableProviders"
+                    :logo-mapping="logoMapping"
+                    :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo}@${selectedBranch}/templates`"
+                  />
+
                   <!-- Tutorial URL -->
                   <div class="space-y-2">
                     <Label for="tutorialUrl">Tutorial URL (optional)</Label>
@@ -1015,6 +1023,9 @@
                     :thumbnail-images="thumbnailFiles"
                     :thumbnail-variant="form.thumbnailVariant"
                     :tags="form.tags"
+                    :logos="form.logos"
+                    :logo-mapping="logoMapping"
+                    :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo}@${selectedBranch}/templates`"
                     :tutorial-url="form.tutorialUrl"
                     :filename="templateName"
                     :category="currentCategoryTitle"
@@ -1094,6 +1105,7 @@ import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 import AIAssistant from '~/components/AIAssistant.vue'
+import LogosEditor from '~/components/LogosEditor.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
@@ -1217,6 +1229,13 @@ const form = ref({
   tutorialUrl: '',
   tags: [] as string[],
   models: [] as string[],
+  logos: [] as Array<{
+    provider: string | string[]
+    label?: string
+    gap?: number
+    position?: string
+    opacity?: number
+  }>,
   requiresCustomNodes: [] as string[],
   comfyuiVersion: '',
   date: '',
@@ -1232,6 +1251,8 @@ const availableCategories = ref<Array<{ moduleName: string; title: string }>>([]
 const availableTags = ref<string[]>([])
 const availableModels = ref<string[]>([])
 const availableCustomNodes = ref<string[]>([])
+const availableProviders = ref<string[]>([])
+const logoMapping = ref<Record<string, string>>({})
 const tagSearchInput = ref('')
 const modelSearchInput = ref('')
 const customNodeSearchInput = ref('')
@@ -1652,6 +1673,7 @@ watch(
     form.value.date,
     form.value.tags.length,
     form.value.models.length,
+    form.value.logos.length,
     reuploadedThumbnails.value.size,
     updatedWorkflowContent.value,
     hasWorkflowChanged.value,
@@ -2651,6 +2673,20 @@ onMounted(async () => {
       availableCustomNodes.value = Array.from(customNodesSet).sort()
     }
 
+    // Load logo configuration from index_logo.json
+    try {
+      const logoUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index_logo.json`
+      const logoResponse = await fetch(logoUrl)
+      if (logoResponse.ok) {
+        const logoData = await logoResponse.json()
+        logoMapping.value = logoData
+        availableProviders.value = Object.keys(logoData).sort()
+        console.log('[Edit Page] Loaded logo providers:', availableProviders.value.length)
+      }
+    } catch (err) {
+      console.warn('[Edit Page] Failed to load index_logo.json:', err)
+    }
+
     // In create mode, skip loading existing template
     if (isCreateMode.value) {
       console.log('[Create Mode] Skipping template data load')
@@ -2752,6 +2788,12 @@ onMounted(async () => {
     form.value.tutorialUrl = foundTemplate.tutorialUrl || ''
     form.value.tags = foundTemplate.tags || []
     form.value.models = foundTemplate.models || []
+    // Load logos and add UI state (isStacked, showAdvanced)
+    form.value.logos = (foundTemplate.logos || []).map((logo: any) => ({
+      ...logo,
+      isStacked: Array.isArray(logo.provider) ? 'stacked' : 'single',
+      showAdvanced: false // Default to collapsed
+    }))
     form.value.requiresCustomNodes = foundTemplate.requiresCustomNodes || []
     form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
     form.value.date = foundTemplate.date || ''
@@ -2989,6 +3031,17 @@ const handleSubmit = async () => {
           mediaSubtype: form.value.mediaSubtype,
           tags: form.value.tags,
           models: form.value.models,
+          // Clean up logos: remove internal UI state (isStacked, showAdvanced) and empty optional fields
+          logos: form.value.logos.map(logo => {
+            const { isStacked, showAdvanced, ...cleanLogo } = logo as any
+            // Remove undefined/empty optional fields
+            const result: any = { provider: cleanLogo.provider }
+            if (cleanLogo.label) result.label = cleanLogo.label
+            if (cleanLogo.gap !== undefined) result.gap = cleanLogo.gap
+            if (cleanLogo.position) result.position = cleanLogo.position
+            if (cleanLogo.opacity !== undefined) result.opacity = cleanLogo.opacity
+            return result
+          }),
           requiresCustomNodes: form.value.requiresCustomNodes,
           tutorialUrl: form.value.tutorialUrl,
           comfyuiVersion: form.value.comfyuiVersion,

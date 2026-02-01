@@ -1082,9 +1082,9 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
   const needsConversion = (isImage && !isWebP) || (isVideo && !isMP4)
 
   if (needsConversion) {
-    // Show info message about auto-opening converter
+    // Show info message - user can manually click Convert button
     inputFileWarnings.value.set(originalFilename,
-      `${sizeWarning ? sizeWarning + ' ' : ''}✨ File uploaded: ${file.name} (${fileSizeMB.toFixed(2)}MB). Opening converter to optimize format and size...`
+      `${sizeWarning ? sizeWarning + ' ' : ''}✨ File uploaded: ${file.name} (${fileSizeMB.toFixed(2)}MB). Click "Convert" button to optimize format and size.`
     )
 
     // Store file for conversion
@@ -1096,10 +1096,7 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     // Reset input
     input.value = ''
 
-    // Auto-trigger converter after a short delay to let UI update
-    setTimeout(() => {
-      emit('openConverter', file, originalFilename, false)
-    }, 500)
+    // Note: Auto-trigger removed - user needs to manually click Convert button
 
     return
   }

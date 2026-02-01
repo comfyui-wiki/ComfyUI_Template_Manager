@@ -81,6 +81,7 @@
       "mediaSubtype",
       "tutorialUrl",
       "thumbnailVariant",
+      "logos",
       "includeOnDistributions",
       "requiresCustomNodes",
       "usage",

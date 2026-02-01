@@ -23,17 +23,46 @@
             <div class="text-xs">Upload thumbnail</div>
           </div>
         </div>
-        
+
+        <!-- Logos overlay -->
+        <div
+          v-for="(logo, logoIndex) in logos"
+          :key="`logo-${logoIndex}`"
+          :class="['absolute flex items-center gap-1 px-2 py-1 rounded-md', logo.position || 'top-2 left-2']"
+          :style="{
+            backgroundColor: `rgba(0, 0, 0, ${logo.opacity || 0.85})`,
+          }"
+        >
+          <!-- Single or Stacked Provider Logos -->
+          <div class="flex items-center" :style="{ gap: `${logo.gap || -6}px` }">
+            <img
+              v-for="(provider, providerIndex) in getProviderArray(logo)"
+              :key="`provider-${providerIndex}`"
+              :src="getLogoPath(provider)"
+              :alt="provider"
+              class="w-5 h-5 rounded-sm object-contain bg-white/10"
+              :style="{
+                marginLeft: providerIndex > 0 ? `${logo.gap || -6}px` : '0',
+                zIndex: getProviderArray(logo).length - providerIndex
+              }"
+            />
+          </div>
+          <!-- Label -->
+          <span v-if="logo.label || getProviderArray(logo).length > 0" class="text-[10px] font-medium text-white ml-1">
+            {{ logo.label || getProviderArray(logo).join(' & ') }}
+          </span>
+        </div>
+
         <!-- Tags overlay (bottom right) -->
         <div v-if="tags.length > 0" class="absolute bottom-2 right-2 flex flex-wrap gap-1 max-w-[60%]">
-          <span 
-            v-for="tag in tags.slice(0, 3)" 
+          <span
+            v-for="tag in tags.slice(0, 3)"
             :key="tag"
             class="inline-flex items-center px-2 py-1 text-xs font-medium bg-black/70 text-white rounded"
           >
             {{ tag }}
           </span>
-          <span 
+          <span
             v-if="tags.length > 3"
             class="inline-flex items-center px-2 py-1 text-xs font-medium bg-black/70 text-white rounded"
           >
@@ -144,12 +173,23 @@
 </template>
 
 <script setup lang="ts">
+interface LogoInfo {
+  provider: string | string[]
+  label?: string
+  gap?: number
+  position?: string
+  opacity?: number
+}
+
 interface Props {
   title: string
   description: string
   thumbnailImages: File[]
   thumbnailVariant: string
   tags: string[]
+  logos: LogoInfo[]
+  logoMapping: Record<string, string>
+  repoBaseUrl: string
   tutorialUrl: string
   filename: string
   category: string
@@ -166,6 +206,9 @@ const props = withDefaults(defineProps<Props>(), {
   thumbnailImages: () => [],
   thumbnailVariant: 'none',
   tags: () => [],
+  logos: () => [],
+  logoMapping: () => ({}),
+  repoBaseUrl: '',
   tutorialUrl: '',
   filename: '',
   category: '',
@@ -177,6 +220,20 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const isHovered = ref(false)
+
+// Helper functions for logos
+const getProviderArray = (logo: LogoInfo): string[] => {
+  if (Array.isArray(logo.provider)) {
+    return logo.provider
+  }
+  return logo.provider ? [logo.provider] : []
+}
+
+const getLogoPath = (provider: string): string => {
+  const logoPath = props.logoMapping[provider]
+  if (!logoPath || !props.repoBaseUrl) return ''
+  return `${props.repoBaseUrl}/${logoPath}`
+}
 
 // Calculate completion progress
 const completedFields = computed(() => {
