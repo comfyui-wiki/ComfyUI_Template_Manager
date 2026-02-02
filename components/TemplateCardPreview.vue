@@ -28,9 +28,9 @@
         <div
           v-for="(logo, logoIndex) in logos"
           :key="`logo-${logoIndex}`"
-          :class="['absolute flex items-center gap-1 px-2 py-1 rounded-md', logo.position || 'top-2 left-2']"
+          :class="['absolute flex items-center gap-1.5 px-2.5 py-1.5 rounded-full', logo.position || 'top-2 left-2']"
           :style="{
-            backgroundColor: `rgba(0, 0, 0, ${logo.opacity || 0.85})`,
+            backgroundColor: `rgba(0, 0, 0, ${logo.opacity || 0.25})`,
           }"
         >
           <!-- Single or Stacked Provider Logos -->
@@ -40,7 +40,7 @@
               :key="`provider-${providerIndex}`"
               :src="getLogoPath(provider)"
               :alt="provider"
-              class="w-5 h-5 rounded-sm object-contain bg-white/10"
+              class="w-6 h-6 rounded-full object-contain bg-white/10"
               :style="{
                 marginLeft: providerIndex > 0 ? `${logo.gap || -6}px` : '0',
                 zIndex: getProviderArray(logo).length - providerIndex
@@ -48,7 +48,7 @@
             />
           </div>
           <!-- Label -->
-          <span v-if="logo.label || getProviderArray(logo).length > 0" class="text-[10px] font-medium text-white ml-1">
+          <span v-if="logo.label || getProviderArray(logo).length > 0" class="text-xs font-medium text-white ml-0.5">
             {{ logo.label || getProviderArray(logo).join(' & ') }}
           </span>
         </div>

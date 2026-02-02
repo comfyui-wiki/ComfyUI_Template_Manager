@@ -624,12 +624,31 @@
                   </div>
 
                   <!-- Provider Logos -->
-                  <LogosEditor
-                    v-model="form.logos"
-                    :available-providers="availableProviders"
-                    :logo-mapping="logoMapping"
-                    :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo}@${selectedBranch}/templates`"
-                  />
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between mb-2">
+                      <Label class="text-base font-semibold">Provider Logos</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="isLogoManagerOpen = true"
+                        class="h-8 text-xs"
+                        title="Manage all provider logos"
+                      >
+                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Manage Logos
+                      </Button>
+                    </div>
+                    <LogosEditor
+                      v-model="form.logos"
+                      :available-providers="availableProviders"
+                      :logo-mapping="logoMapping"
+                      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo}@${selectedBranch}/templates`"
+                    />
+                  </div>
 
                   <!-- Tutorial URL -->
                   <div class="space-y-2">
@@ -1086,6 +1105,16 @@
       :workflow-filename="`${displayTemplateName}.json`"
       @workflow-updated="handleModelLinksWorkflowUpdated"
     />
+
+    <!-- Logo Manager Dialog -->
+    <LogoManager
+      v-model:open="isLogoManagerOpen"
+      :logo-mapping="logoMapping"
+      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo}@${selectedBranch}/templates`"
+      :repo="selectedRepo"
+      :branch="selectedBranch"
+      @refresh="handleLogoManagerRefresh"
+    />
   </div>
   <!-- Close min-h-screen container -->
 </template>
@@ -1106,6 +1135,7 @@ import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 import AIAssistant from '~/components/AIAssistant.vue'
 import LogosEditor from '~/components/LogosEditor.vue'
+import LogoManager from '~/components/LogoManager.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
@@ -1259,6 +1289,7 @@ const customNodeSearchInput = ref('')
 const isTagsDropdownOpen = ref(false)
 const isModelsDropdownOpen = ref(false)
 const isCustomNodesDropdownOpen = ref(false)
+const isLogoManagerOpen = ref(false)
 
 // Refs for input elements
 const tagInputRef = ref<HTMLInputElement | null>(null)
@@ -2608,6 +2639,32 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
   }
 })
 
+// Load logo configuration from index_logo.json
+const loadLogoConfiguration = async (owner: string, repoName: string, branch: string) => {
+  try {
+    // Add timestamp to bypass cache
+    const logoUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index_logo.json?t=${Date.now()}`
+    const logoResponse = await fetch(logoUrl)
+    if (logoResponse.ok) {
+      const logoData = await logoResponse.json()
+      logoMapping.value = logoData
+      availableProviders.value = Object.keys(logoData).sort()
+      console.log('[Edit Page] Loaded logo providers:', availableProviders.value.length)
+    }
+  } catch (err) {
+    console.warn('[Edit Page] Failed to load index_logo.json:', err)
+  }
+}
+
+// Refresh logo data (called after Logo Manager saves)
+const handleLogoManagerRefresh = async () => {
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  const [owner, repoName] = repo.split('/')
+  await loadLogoConfiguration(owner, repoName, branch)
+  console.log('[Logo Manager] Refreshed logo data')
+}
+
 // Watch for permission changes (both create and edit modes)
 watch(canEditCurrentRepo, async (hasPermission) => {
   if (!hasPermission) {
@@ -2674,18 +2731,7 @@ onMounted(async () => {
     }
 
     // Load logo configuration from index_logo.json
-    try {
-      const logoUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index_logo.json`
-      const logoResponse = await fetch(logoUrl)
-      if (logoResponse.ok) {
-        const logoData = await logoResponse.json()
-        logoMapping.value = logoData
-        availableProviders.value = Object.keys(logoData).sort()
-        console.log('[Edit Page] Loaded logo providers:', availableProviders.value.length)
-      }
-    } catch (err) {
-      console.warn('[Edit Page] Failed to load index_logo.json:', err)
-    }
+    await loadLogoConfiguration(owner, repoName, branch)
 
     // In create mode, skip loading existing template
     if (isCreateMode.value) {

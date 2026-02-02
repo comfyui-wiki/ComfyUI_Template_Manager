@@ -94,6 +94,35 @@
         </span>
       </div>
 
+      <!-- Logos overlay -->
+      <div
+        v-for="(logo, logoIndex) in template.logos"
+        :key="`logo-${logoIndex}`"
+        :class="['absolute flex items-center gap-1.5 px-2.5 py-1.5 rounded-full', logo.position || 'top-2 left-2']"
+        :style="{
+          backgroundColor: `rgba(0, 0, 0, ${logo.opacity || 0.25})`,
+        }"
+      >
+        <!-- Single or Stacked Provider Logos -->
+        <div class="flex items-center" :style="{ gap: `${logo.gap || -6}px` }">
+          <img
+            v-for="(provider, providerIndex) in getProviderArray(logo)"
+            :key="`provider-${providerIndex}`"
+            :src="getLogoPath(provider)"
+            :alt="provider"
+            class="w-6 h-6 rounded-full object-contain bg-white/10"
+            :style="{
+              marginLeft: providerIndex > 0 ? `${logo.gap || -6}px` : '0',
+              zIndex: getProviderArray(logo).length - providerIndex
+            }"
+          />
+        </div>
+        <!-- Label -->
+        <span v-if="logo.label || getProviderArray(logo).length > 0" class="text-xs font-medium text-white ml-0.5">
+          {{ logo.label || getProviderArray(logo).join(' & ') }}
+        </span>
+      </div>
+
       <!-- Media Type Badge -->
       <div class="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
@@ -252,6 +281,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button'
 import TemplateDetailsModal from '@/components/TemplateDetailsModal.vue'
 
+interface LogoInfo {
+  provider: string | string[]
+  label?: string
+  gap?: number
+  position?: string
+  opacity?: number
+}
+
 const props = defineProps<{
   template: any
   category?: string
@@ -261,6 +298,8 @@ const props = defineProps<{
   cacheBust?: number // Optional timestamp to force fresh images
   commitSha?: string // Optional commit SHA for stronger cache busting
   prTemplates?: string[] // List of templates changed in a PR (for highlighting)
+  logoMapping?: Record<string, string>
+  repoBaseUrl?: string
 }>()
 
 defineEmits(['edit', 'view'])
@@ -340,6 +379,21 @@ const onImageError = () => {
 const openInCloud = () => {
   const cloudUrl = `https://cloud.comfy.org/?template=${props.template.name}`
   window.open(cloudUrl, '_blank')
+}
+
+// Helper functions for logos
+const getProviderArray = (logo: LogoInfo): string[] => {
+  if (Array.isArray(logo.provider)) {
+    return logo.provider
+  }
+  return logo.provider ? [logo.provider] : []
+}
+
+const getLogoPath = (provider: string): string => {
+  if (!props.logoMapping || !props.repoBaseUrl) return ''
+  const logoPath = props.logoMapping[provider]
+  if (!logoPath) return ''
+  return `${props.repoBaseUrl}/${logoPath}`
 }
 
 // Update slider position based on mouse position (hover-based)

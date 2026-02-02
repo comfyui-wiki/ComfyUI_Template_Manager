@@ -595,6 +595,8 @@
               :cache-bust="cacheBustTimestamp"
               :commit-sha="latestCommitSha"
               :pr-templates="prDetails?.templates.changed"
+              :logo-mapping="logoMapping"
+              :repo-base-url="repoBaseUrl"
               @edit="editTemplate"
               @view="viewTemplate"
             />
@@ -702,6 +704,9 @@ const showCreatePRModal = ref(false)
 const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
 
+// Logo configuration
+const logoMapping = ref<Record<string, string>>({})
+
 // PR Status
 const prStatus = ref<any>(null)
 const showPRBrowser = ref(false)
@@ -723,13 +728,32 @@ const isUpdatingBranch = ref(false)
 const viewingPRBranch = ref<string | null>(null)
 
 // Load templates from selected repository and branch
+// Load logo configuration
+const loadLogoConfiguration = async (owner: string, repo: string, branch: string) => {
+  try {
+    // Add timestamp to bypass cache
+    const logoUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index_logo.json?t=${Date.now()}`
+    const logoResponse = await fetch(logoUrl)
+    if (logoResponse.ok) {
+      const logoData = await logoResponse.json()
+      logoMapping.value = logoData
+      console.log('[Index] Loaded logo providers:', Object.keys(logoData).length)
+    }
+  } catch (err) {
+    console.warn('[Index] Failed to load index_logo.json:', err)
+    // Not critical, just means no logos will be displayed
+    logoMapping.value = {}
+  }
+}
+
 const loadTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
   console.log(`[LoadTemplates] Loading from ${owner}/${repo}/${branch}`, forceRefresh ? '(force refresh)' : '')
   loading.value = true
   try {
-    // Check branch permission in parallel with loading templates
+    // Check branch permission in parallel with loading templates and logo configuration
     await Promise.all([
       loadCurrentTemplates(owner, repo, branch, forceRefresh),
+      loadLogoConfiguration(owner, repo, branch),
       status.value === 'authenticated' ? checkBranchPermission(owner, repo, branch) : Promise.resolve()
     ])
     console.log('[LoadTemplates] Templates loaded successfully')
@@ -1031,6 +1055,12 @@ const categories = computed(() => {
 // Check if we're viewing a PR branch (browsing mode, editing disabled)
 const isViewingPR = computed(() => {
   return viewingPRBranch.value !== null
+})
+
+// Repo base URL for logos
+const repoBaseUrl = computed(() => {
+  if (!selectedRepo.value || !selectedBranch.value) return ''
+  return `https://raw.githubusercontent.com/${selectedRepo.value}/${selectedBranch.value}/templates`
 })
 
 const categoryTitle = computed(() => {
