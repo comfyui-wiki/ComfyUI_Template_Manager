@@ -14,8 +14,17 @@ interface UpdateTemplateRequest {
     description?: string
     category?: string
     thumbnailVariant?: string
+    mediaType?: string
+    mediaSubtype?: string
     tags?: string[]
     models?: string[]
+    logos?: Array<{
+      provider: string | string[]
+      label?: string
+      gap?: number
+      position?: string
+      opacity?: number
+    }>
     requiresCustomNodes?: string[]
     tutorialUrl?: string
     comfyuiVersion?: string
@@ -153,8 +162,17 @@ export default defineEventHandler(async (event) => {
           templateData.thumbnailVariant = metadata.thumbnailVariant
         }
       }
+      if (metadata.mediaType) templateData.mediaType = metadata.mediaType
+      if (metadata.mediaSubtype) templateData.mediaSubtype = metadata.mediaSubtype
       if (metadata.tags) templateData.tags = metadata.tags
       if (metadata.models) templateData.models = metadata.models
+      if (metadata.logos !== undefined) {
+        if (metadata.logos.length === 0) {
+          delete templateData.logos
+        } else {
+          templateData.logos = metadata.logos
+        }
+      }
       if (metadata.requiresCustomNodes !== undefined) {
         if (metadata.requiresCustomNodes.length === 0) {
           delete templateData.requiresCustomNodes

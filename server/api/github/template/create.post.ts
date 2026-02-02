@@ -14,12 +14,27 @@ interface CreateTemplateRequest {
     description: string
     category: string
     thumbnailVariant?: string
+    mediaType?: string
+    mediaSubtype?: string
     tags?: string[]
     models?: string[]
+    logos?: Array<{
+      provider: string | string[]
+      label?: string
+      gap?: number
+      position?: string
+      opacity?: number
+    }>
+    requiresCustomNodes?: string[]
     tutorialUrl?: string
     comfyuiVersion?: string
     date?: string
     openSource?: boolean
+    includeOnDistributions?: string[]
+    size?: number
+    vram?: number
+    usage?: number
+    searchRank?: number
   }
   templateOrder?: string[]  // Array of template names in desired order
   files: {
@@ -149,8 +164,8 @@ export default defineEventHandler(async (event) => {
       name: templateName,
       title: metadata.title,
       description: metadata.description,
-      mediaType: 'image', // default
-      mediaSubtype
+      mediaType: metadata.mediaType || 'image', // Use provided value or default to 'image'
+      mediaSubtype: metadata.mediaSubtype || mediaSubtype // Use provided value or detected from thumbnail
     }
 
     if (metadata.thumbnailVariant && metadata.thumbnailVariant !== 'none') {
@@ -162,6 +177,12 @@ export default defineEventHandler(async (event) => {
     if (metadata.models && metadata.models.length > 0) {
       newTemplate.models = metadata.models
     }
+    if (metadata.logos && metadata.logos.length > 0) {
+      newTemplate.logos = metadata.logos
+    }
+    if (metadata.requiresCustomNodes && metadata.requiresCustomNodes.length > 0) {
+      newTemplate.requiresCustomNodes = metadata.requiresCustomNodes
+    }
     if (metadata.tutorialUrl) {
       newTemplate.tutorialUrl = metadata.tutorialUrl
     }
@@ -172,6 +193,22 @@ export default defineEventHandler(async (event) => {
     newTemplate.date = metadata.date || new Date().toISOString().split('T')[0]
     if (metadata.openSource !== undefined) {
       newTemplate.openSource = metadata.openSource
+    }
+    if (metadata.includeOnDistributions && metadata.includeOnDistributions.length > 0) {
+      newTemplate.includeOnDistributions = metadata.includeOnDistributions
+    }
+    // Add size, vram, usage, searchRank (support 0 values)
+    if (metadata.size !== undefined) {
+      newTemplate.size = metadata.size
+    }
+    if (metadata.vram !== undefined) {
+      newTemplate.vram = metadata.vram
+    }
+    if (metadata.usage !== undefined) {
+      newTemplate.usage = metadata.usage
+    }
+    if (metadata.searchRank !== undefined) {
+      newTemplate.searchRank = metadata.searchRank
     }
 
     // Add template to category

@@ -2618,10 +2618,11 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
         date: form.value.date || undefined,
         openSource: form.value.openSource,
         includeOnDistributions: form.value.includeOnDistributions?.length ? form.value.includeOnDistributions : undefined,
-        size: form.value.size,
-        vram: form.value.vram,
-        usage: form.value.usage,
-        searchRank: form.value.searchRank
+        // Round to 1 decimal before converting to bytes for storage (same as submit logic)
+        size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
+        vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
+        usage: form.value.usage ?? 0,
+        searchRank: form.value.searchRank ?? 0
       }
 
       // Add current template to the end of the list
@@ -2757,7 +2758,12 @@ onMounted(async () => {
             moduleName: category.moduleName,
             title: category.title,
             templateName: templateName,
-            templateCount: foundCategoryTemplates.length
+            templateCount: foundCategoryTemplates.length,
+            // Debug: Check size/vram values immediately after finding template
+            templateSize: found.size,
+            templateVram: found.vram,
+            hasSizeField: 'size' in found,
+            hasVramField: 'vram' in found
           })
           break
         }
@@ -2846,8 +2852,20 @@ onMounted(async () => {
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
     form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
     // Convert bytes to GB for display (use !== undefined to preserve 0 values)
+    console.log('[Load Template] Size/VRAM values from index.json:', {
+      size: foundTemplate.size,
+      vram: foundTemplate.vram,
+      sizeType: typeof foundTemplate.size,
+      vramType: typeof foundTemplate.vram,
+      sizeIsUndefined: foundTemplate.size === undefined,
+      vramIsUndefined: foundTemplate.vram === undefined
+    })
     form.value.sizeGB = foundTemplate.size !== undefined ? bytesToGB(foundTemplate.size) : null
     form.value.vramGB = foundTemplate.vram !== undefined ? bytesToGB(foundTemplate.vram) : null
+    console.log('[Load Template] Converted to GB:', {
+      sizeGB: form.value.sizeGB,
+      vramGB: form.value.vramGB
+    })
     form.value.usage = foundTemplate.usage !== undefined ? foundTemplate.usage : null
     form.value.searchRank = foundTemplate.searchRank !== undefined ? foundTemplate.searchRank : null
 
