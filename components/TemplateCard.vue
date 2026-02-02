@@ -123,10 +123,10 @@
         </span>
       </div>
 
-      <!-- Media Type Badge -->
+      <!-- Category Badge -->
       <div class="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
-          {{ template.mediaType || 'image' }}
+          {{ category || template.categoryTitle || 'Uncategorized' }}
         </span>
         <!-- PR Badge -->
         <span v-if="isInPR" class="px-2 py-1 text-xs font-bold bg-blue-500 text-white rounded shadow-lg" title="In Pull Request">

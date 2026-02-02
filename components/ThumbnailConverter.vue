@@ -123,8 +123,9 @@
               :src="sourcePreviewUrl"
               class="absolute inset-0 w-full h-full object-contain"
               muted
-              loop
               autoplay
+              @loadedmetadata="onCropVideoLoaded"
+              @timeupdate="onVideoTimeUpdate"
             />
 
             <!-- Mask overlay with hole for crop box -->
@@ -175,7 +176,16 @@
         <div class="flex gap-3 items-start">
           <div class="w-24 h-24 bg-muted rounded flex items-center justify-center overflow-hidden flex-shrink-0">
             <img v-if="isImage" :src="sourcePreviewUrl" alt="Source" class="w-full h-full object-cover" />
-            <video v-else-if="isVideo" :src="sourcePreviewUrl" class="w-full h-full object-cover" muted loop autoplay />
+            <video 
+              v-else-if="isVideo" 
+              ref="sourceInfoVideo"
+              :src="sourcePreviewUrl" 
+              class="w-full h-full object-cover" 
+              muted 
+              autoplay
+              @loadedmetadata="onSourceInfoVideoLoaded"
+              @timeupdate="onSourceInfoVideoTimeUpdate"
+            />
           </div>
           <div class="flex-1 space-y-1 text-xs">
             <div><strong>Name:</strong> {{ sourceFile.name }}</div>
@@ -220,11 +230,146 @@
           <p class="text-xs text-muted-foreground">Higher quality = larger file size</p>
         </div>
 
-        <!-- Video Duration -->
-        <div v-if="isVideo" class="space-y-2">
-          <Label>Max Duration ({{ videoMaxDuration }}s)</Label>
-          <input type="range" v-model.number="videoMaxDuration" min="1" max="5" step="0.5" class="w-full" />
-          <p class="text-xs text-muted-foreground">Video will be trimmed to this duration</p>
+        <!-- Video Timeline Trimming -->
+        <div v-if="isVideo && videoDuration" class="space-y-3">
+          <Label>Video Timeline</Label>
+          
+          <!-- Timeline Visualization -->
+          <div class="space-y-2">
+            <div class="relative h-12 bg-muted rounded-lg overflow-hidden border border-border">
+              <!-- Timeline track -->
+              <div class="absolute inset-0 bg-gradient-to-r from-blue-100 to-blue-200"></div>
+              
+              <!-- Time tick marks -->
+              <div class="absolute inset-0">
+                <div 
+                  v-for="i in Math.min(Math.floor(videoDuration), 20)" 
+                  :key="i"
+                  class="absolute top-0 bottom-0 w-px bg-gray-300 opacity-50"
+                  :style="{ left: (i / videoDuration * 100) + '%' }"
+                ></div>
+              </div>
+              
+              <!-- Selected range highlight -->
+              <div 
+                class="absolute top-0 bottom-0 bg-blue-500 opacity-30"
+                :style="{
+                  left: (videoStartTime / videoDuration * 100) + '%',
+                  width: ((videoEndTime - videoStartTime) / videoDuration * 100) + '%'
+                }"
+              ></div>
+              
+              <!-- Time markers -->
+              <div class="absolute inset-0 flex items-center justify-between px-2 text-xs font-mono text-gray-600">
+                <span>0:00</span>
+                <span>{{ formatTime(videoDuration) }}</span>
+              </div>
+              
+              <!-- Start handle -->
+              <div
+                class="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize hover:w-2 transition-all z-10"
+                :style="{ left: (videoStartTime / videoDuration * 100) + '%' }"
+                @mousedown="startDragTimelineHandle('start', $event)"
+              >
+                <div class="absolute top-1/2 -translate-y-1/2 -left-2 w-4 h-8 bg-green-500 rounded shadow-lg flex items-center justify-center">
+                  <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M5 10l5-5v10l-5-5z" />
+                  </svg>
+                </div>
+              </div>
+              
+              <!-- End handle -->
+              <div
+                class="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize hover:w-2 transition-all z-10"
+                :style="{ left: (videoEndTime / videoDuration * 100) + '%' }"
+                @mousedown="startDragTimelineHandle('end', $event)"
+              >
+                <div class="absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-8 bg-red-500 rounded shadow-lg flex items-center justify-center">
+                  <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M15 10l-5 5V5l5 5z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Timeline info -->
+            <div class="flex items-center justify-between text-xs text-muted-foreground">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1">
+                  <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Start: {{ formatTime(videoStartTime) }}
+                </span>
+                <span class="inline-flex items-center gap-1">
+                  <span class="w-2 h-2 bg-red-500 rounded-full"></span>
+                  End: {{ formatTime(videoEndTime) }}
+                </span>
+              </div>
+              <span class="font-semibold text-blue-600">
+                Duration: {{ formatTime(videoEndTime - videoStartTime) }}
+              </span>
+            </div>
+          </div>
+          
+          <!-- Manual time inputs -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <Label class="text-xs">Start Time (seconds)</Label>
+              <Input 
+                type="number" 
+                v-model.number="videoStartTime" 
+                :min="0" 
+                :max="Math.max(0, videoDuration - 0.5)"
+                step="0.1"
+                class="h-8 text-sm"
+                @input="constrainTimeRange"
+              />
+            </div>
+            <div class="space-y-1">
+              <Label class="text-xs">End Time (seconds)</Label>
+              <Input 
+                type="number" 
+                v-model.number="videoEndTime" 
+                :min="Math.min(videoStartTime + 0.5, videoDuration)"
+                :max="videoDuration"
+                step="0.1"
+                class="h-8 text-sm"
+                @input="constrainTimeRange"
+              />
+            </div>
+          </div>
+          
+          <!-- Quick duration presets -->
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-muted-foreground">Quick select:</span>
+            <Button 
+              v-for="preset in [1, 2, 3, 5]" 
+              :key="preset"
+              variant="outline" 
+              size="sm" 
+              class="h-6 px-2 text-xs"
+              :disabled="preset > videoDuration"
+              @click="applyDurationPreset(preset)"
+            >
+              {{ preset }}s
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              class="h-6 px-2 text-xs"
+              @click="resetTimeline"
+            >
+              Reset
+            </Button>
+          </div>
+          
+          <p class="text-xs text-muted-foreground">
+            🎬 Drag the green and red handles to select the video segment to keep
+          </p>
+          
+          <!-- Duration warning -->
+          <div v-if="(videoEndTime - videoStartTime) > 5" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+            ⚠️ Video duration exceeds 5 seconds. Consider shortening it to reduce file size.
+          </div>
         </div>
 
         <!-- FPS for video -->
@@ -278,12 +423,14 @@
               />
               <video
                 v-else-if="isVideo"
+                ref="beforeComparisonVideo"
                 :src="sourcePreviewUrl"
                 class="w-full h-full select-none"
                 :style="beforePreviewStyle"
                 @mousedown="startDragBeforePreview"
+                @loadedmetadata="onBeforeComparisonVideoLoaded"
+                @timeupdate="onBeforeComparisonVideoTimeUpdate"
                 muted
-                loop
                 autoplay
                 playsinline
               />
@@ -388,8 +535,10 @@ const videoDuration = ref<number | null>(null)
 
 const fitMode = ref('crop')
 const quality = ref(95)
-const videoMaxDuration = ref(3)
+const videoMaxDuration = ref(3) // Kept for backward compatibility, but now derived from timeline
 const videoFps = ref(15)
+const videoStartTime = ref(0)
+const videoEndTime = ref(3)
 
 const isConverting = ref(false)
 const conversionProgress = ref('Converting...')
@@ -412,6 +561,8 @@ const imagePreviewHeight = ref(500)
 // Crop area state for videos
 const videoContainer = ref<HTMLDivElement>()
 const cropVideoPreview = ref<HTMLVideoElement>()
+const sourceInfoVideo = ref<HTMLVideoElement>()
+const beforeComparisonVideo = ref<HTMLVideoElement>()
 const cropBoxX = ref(0)
 const cropBoxY = ref(0)
 const cropBoxSize = ref(0)
@@ -427,6 +578,11 @@ const beforePreviewOffsetY = ref(0)
 const isDraggingBeforePreview = ref(false)
 const beforeDragStartX = ref(0)
 const beforeDragStartY = ref(0)
+
+// Timeline drag state
+const isDraggingTimeline = ref(false)
+const timelineDragHandle = ref<'start' | 'end' | null>(null)
+const timelineElement = ref<HTMLElement | null>(null)
 
 
 // FFmpeg instance
@@ -641,6 +797,182 @@ const endDragBeforePreview = () => {
   isDraggingBeforePreview.value = false
 }
 
+// Timeline drag handlers
+const startDragTimelineHandle = (handle: 'start' | 'end', e: MouseEvent) => {
+  e.preventDefault()
+  e.stopPropagation()
+  isDraggingTimeline.value = true
+  timelineDragHandle.value = handle
+  
+  // Find timeline element
+  const target = e.currentTarget as HTMLElement
+  timelineElement.value = target.closest('.relative') as HTMLElement
+}
+
+const updateDragTimeline = (e: MouseEvent) => {
+  if (!isDraggingTimeline.value || !timelineElement.value || !videoDuration.value) return
+  
+  const rect = timelineElement.value.getBoundingClientRect()
+  const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
+  const percentage = x / rect.width
+  const newTime = percentage * videoDuration.value
+  
+  if (timelineDragHandle.value === 'start') {
+    // Ensure start time doesn't exceed end time (leave at least 0.5s gap)
+    videoStartTime.value = Math.max(0, Math.min(newTime, videoEndTime.value - 0.5))
+    
+    // Update video preview in real-time while dragging
+    if (cropVideoPreview.value) cropVideoPreview.value.currentTime = videoStartTime.value
+    if (sourceInfoVideo.value) sourceInfoVideo.value.currentTime = videoStartTime.value
+    if (beforeComparisonVideo.value) beforeComparisonVideo.value.currentTime = videoStartTime.value
+  } else if (timelineDragHandle.value === 'end') {
+    // Ensure end time doesn't go below start time (leave at least 0.5s gap)
+    videoEndTime.value = Math.max(videoStartTime.value + 0.5, Math.min(newTime, videoDuration.value))
+    
+    // Update video preview to show end time while dragging end handle
+    if (cropVideoPreview.value) cropVideoPreview.value.currentTime = videoEndTime.value
+    if (sourceInfoVideo.value) sourceInfoVideo.value.currentTime = videoEndTime.value
+    if (beforeComparisonVideo.value) beforeComparisonVideo.value.currentTime = videoEndTime.value
+  }
+  
+  // Round to 2 decimal places for cleaner values
+  videoStartTime.value = Math.round(videoStartTime.value * 100) / 100
+  videoEndTime.value = Math.round(videoEndTime.value * 100) / 100
+  
+  // Update videoMaxDuration for compatibility
+  videoMaxDuration.value = videoEndTime.value - videoStartTime.value
+}
+
+const endDragTimeline = () => {
+  isDraggingTimeline.value = false
+  timelineDragHandle.value = null
+  timelineElement.value = null
+  
+  // After dragging ends, reset video previews to start time and resume playing
+  if (cropVideoPreview.value) {
+    cropVideoPreview.value.currentTime = videoStartTime.value
+    cropVideoPreview.value.play().catch(() => {})
+  }
+  if (sourceInfoVideo.value) {
+    sourceInfoVideo.value.currentTime = videoStartTime.value
+    sourceInfoVideo.value.play().catch(() => {})
+  }
+  if (beforeComparisonVideo.value) {
+    beforeComparisonVideo.value.currentTime = videoStartTime.value
+    beforeComparisonVideo.value.play().catch(() => {})
+  }
+}
+
+// Timeline utility methods
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60)
+  const secs = (seconds % 60).toFixed(1)
+  return `${mins}:${secs.padStart(4, '0')}`
+}
+
+const constrainTimeRange = () => {
+  if (!videoDuration.value) return
+  
+  // Constrain start time
+  videoStartTime.value = Math.max(0, Math.min(videoStartTime.value, videoDuration.value - 0.5))
+  
+  // Constrain end time
+  videoEndTime.value = Math.max(videoStartTime.value + 0.5, Math.min(videoEndTime.value, videoDuration.value))
+  
+  // Update videoMaxDuration for compatibility
+  videoMaxDuration.value = videoEndTime.value - videoStartTime.value
+}
+
+const applyDurationPreset = (duration: number) => {
+  if (!videoDuration.value) return
+  
+  // Start from current start time, or reset to 0
+  const start = videoStartTime.value
+  const end = Math.min(start + duration, videoDuration.value)
+  
+  videoStartTime.value = start
+  videoEndTime.value = end
+  constrainTimeRange()
+}
+
+const resetTimeline = () => {
+  if (!videoDuration.value) return
+  
+  videoStartTime.value = 0
+  videoEndTime.value = Math.min(3, videoDuration.value)
+  constrainTimeRange()
+}
+
+// Video preview time sync
+const onCropVideoLoaded = () => {
+  if (cropVideoPreview.value) {
+    cropVideoPreview.value.currentTime = videoStartTime.value
+  }
+}
+
+const updateVideoPreviewTime = () => {
+  if (!isDraggingTimeline.value) {
+    // Set all video previews to start time when not dragging
+    if (cropVideoPreview.value) {
+      cropVideoPreview.value.currentTime = videoStartTime.value
+    }
+    if (sourceInfoVideo.value) {
+      sourceInfoVideo.value.currentTime = videoStartTime.value
+    }
+    if (beforeComparisonVideo.value) {
+      beforeComparisonVideo.value.currentTime = videoStartTime.value
+    }
+  }
+}
+
+const onVideoTimeUpdate = () => {
+  if (!cropVideoPreview.value) return
+  
+  // Loop the selected segment: if video reaches end time, jump back to start
+  if (cropVideoPreview.value.currentTime >= videoEndTime.value) {
+    cropVideoPreview.value.currentTime = videoStartTime.value
+  } else if (cropVideoPreview.value.currentTime < videoStartTime.value) {
+    // Also ensure we're not before start time
+    cropVideoPreview.value.currentTime = videoStartTime.value
+  }
+}
+
+// Source info video preview time sync
+const onSourceInfoVideoLoaded = () => {
+  if (sourceInfoVideo.value) {
+    sourceInfoVideo.value.currentTime = videoStartTime.value
+  }
+}
+
+const onSourceInfoVideoTimeUpdate = () => {
+  if (!sourceInfoVideo.value) return
+  
+  // Loop the selected segment
+  if (sourceInfoVideo.value.currentTime >= videoEndTime.value) {
+    sourceInfoVideo.value.currentTime = videoStartTime.value
+  } else if (sourceInfoVideo.value.currentTime < videoStartTime.value) {
+    sourceInfoVideo.value.currentTime = videoStartTime.value
+  }
+}
+
+// Before comparison video preview time sync
+const onBeforeComparisonVideoLoaded = () => {
+  if (beforeComparisonVideo.value) {
+    beforeComparisonVideo.value.currentTime = videoStartTime.value
+  }
+}
+
+const onBeforeComparisonVideoTimeUpdate = () => {
+  if (!beforeComparisonVideo.value) return
+  
+  // Loop the selected segment
+  if (beforeComparisonVideo.value.currentTime >= videoEndTime.value) {
+    beforeComparisonVideo.value.currentTime = videoStartTime.value
+  } else if (beforeComparisonVideo.value.currentTime < videoStartTime.value) {
+    beforeComparisonVideo.value.currentTime = videoStartTime.value
+  }
+}
+
 // Computed style for before preview with drag offset
 const beforePreviewStyle = computed(() => {
   return {
@@ -658,6 +990,8 @@ onMounted(() => {
   document.addEventListener('mouseup', endDragCropBox)
   document.addEventListener('mousemove', updateDragBeforePreview)
   document.addEventListener('mouseup', endDragBeforePreview)
+  document.addEventListener('mousemove', updateDragTimeline)
+  document.addEventListener('mouseup', endDragTimeline)
 })
 
 // Load file programmatically (for initial file prop)
@@ -702,6 +1036,12 @@ const loadVideoDimensions = (file: File): Promise<void> => {
     video.onloadedmetadata = () => {
       sourceDimensions.value = { width: video.videoWidth, height: video.videoHeight }
       videoDuration.value = video.duration
+      
+      // Initialize timeline values
+      videoStartTime.value = 0
+      videoEndTime.value = Math.min(3, video.duration)
+      videoMaxDuration.value = videoEndTime.value - videoStartTime.value
+      
       initializeVideoCropBox()
       resolve()
     }
@@ -720,6 +1060,11 @@ const clearFile = () => {
   sourceImage.value = undefined
   beforePreviewOffsetX.value = 0
   beforePreviewOffsetY.value = 0
+  
+  // Reset timeline values
+  videoStartTime.value = 0
+  videoEndTime.value = 3
+  videoMaxDuration.value = 3
 
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -832,7 +1177,8 @@ const convertVideoToWebP = async () => {
 
   try {
     const size = parseInt(targetSize.value)
-    const duration = videoMaxDuration.value
+    const startTime = videoStartTime.value
+    const duration = videoEndTime.value - videoStartTime.value
     const fps = videoFps.value
     const inputFileName = 'input' + sourceFile.value.name.substring(sourceFile.value.name.lastIndexOf('.'))
     const outputFileName = 'output.webp'
@@ -863,9 +1209,11 @@ const convertVideoToWebP = async () => {
       videoFilter = `fps=${fps},scale=${size}:${size}:flags=lanczos:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=black`
     }
 
-    await ffmpeg.value.exec([
+    // Build FFmpeg command with start time (-ss) and duration (-t)
+    const ffmpegArgs = [
+      '-ss', startTime.toString(), // Seek to start time
       '-i', inputFileName,
-      '-t', duration.toString(),
+      '-t', duration.toString(), // Duration to extract
       '-vf', videoFilter,
       '-vcodec', 'libwebp',
       '-lossless', '0',
@@ -876,7 +1224,10 @@ const convertVideoToWebP = async () => {
       '-an',
       '-vsync', '0',
       outputFileName
-    ])
+    ]
+
+    console.log('[Video Conversion] FFmpeg command:', ffmpegArgs.join(' '))
+    await ffmpeg.value.exec(ffmpegArgs)
 
     conversionProgress.value = 'Reading output...'
 
@@ -940,7 +1291,7 @@ watch(fitMode, () => {
 })
 
 // Watch for other settings changes
-watch([quality, videoMaxDuration, videoFps], () => {
+watch([quality, videoStartTime, videoEndTime, videoFps], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
@@ -955,4 +1306,9 @@ watch(() => props.initialFile, async (file) => {
     await loadFile(file)
   }
 }, { immediate: true })
+
+// Watch for video timeline changes and update preview
+watch([videoStartTime, videoEndTime], () => {
+  updateVideoPreviewTime()
+})
 </script>
