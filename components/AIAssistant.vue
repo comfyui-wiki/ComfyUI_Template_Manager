@@ -121,23 +121,6 @@
             </div>
           </div>
 
-          <!-- User Prompt (shown after getting suggestion) -->
-          <div v-if="showPrompts && userPrompt" class="space-y-2 border border-blue-200 rounded-md p-3 bg-blue-50/30">
-            <Label class="text-sm font-medium text-blue-700">
-              <svg class="inline w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-              Complete User Prompt (sent to AI)
-            </Label>
-
-            <div class="bg-white p-3 rounded text-xs font-mono text-gray-700 border border-blue-100 max-h-40 overflow-y-auto">
-              <pre class="whitespace-pre-wrap break-words">{{ userPrompt }}</pre>
-            </div>
-
-            <div class="text-xs text-blue-600 italic">
-              This shows the complete prompt built from your template context and additional input.
-            </div>
-          </div>
 
           <!-- User Input -->
           <div class="space-y-2">
@@ -217,19 +200,34 @@
               </svg>
               Get AI Suggestion
             </Button>
-            <Button
-              v-else
-              @click="applyResult"
-              variant="default"
-              :disabled="fieldType === 'tags' && Array.isArray(result) && result.length === 0"
-            >
-              <template v-if="fieldType === 'tags' && Array.isArray(result) && result.length === 0">
-                Close (No Changes)
-              </template>
-              <template v-else>
-                Apply
-              </template>
-            </Button>
+            <template v-else>
+              <Button
+                variant="outline"
+                @click="regenerateSuggestion"
+                :disabled="loading"
+              >
+                <svg v-if="loading" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Regenerate
+              </Button>
+              <Button
+                @click="applyResult"
+                variant="default"
+                :disabled="fieldType === 'tags' && Array.isArray(result) && result.length === 0"
+              >
+                <template v-if="fieldType === 'tags' && Array.isArray(result) && result.length === 0">
+                  Close (No Changes)
+                </template>
+                <template v-else>
+                  Apply
+                </template>
+              </Button>
+            </template>
           </div>
           </div>
         </div>
@@ -431,6 +429,11 @@ const getSuggestion = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const regenerateSuggestion = async () => {
+  // Keep the current inputs but regenerate the suggestion
+  await getSuggestion()
 }
 
 const applyResult = () => {
