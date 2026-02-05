@@ -135,15 +135,20 @@
               </div>
             </div>
 
-            <!-- Model File Path -->
-            <div v-if="nodeInfo.modelFiles.length > 0" class="mb-3">
-              <Label class="text-xs">Model File Path</Label>
-              <Input
-                :value="nodeInfo.modelFiles[0]"
-                @input="updateWidgetsValue(nodeInfo, 0, $event.target.value)"
-                placeholder="Model file path"
-                class="font-mono text-xs"
-              />
+            <!-- Model File Paths -->
+            <div v-if="nodeInfo.modelFiles.length > 0" class="mb-3 space-y-2">
+              <Label class="text-xs">Model File Path{{ nodeInfo.modelFiles.length > 1 ? 's' : '' }}</Label>
+              <div v-for="(filePath, fileIndex) in nodeInfo.modelFiles" :key="`file-${fileIndex}`">
+                <div class="flex items-center gap-2">
+                  <span v-if="nodeInfo.modelFiles.length > 1" class="text-xs text-muted-foreground min-w-[20px]">{{ fileIndex + 1 }}.</span>
+                  <Input
+                    :value="filePath"
+                    @input="updateWidgetsValue(nodeInfo, fileIndex, $event.target.value)"
+                    :placeholder="`Model file path ${nodeInfo.modelFiles.length > 1 ? (fileIndex + 1) : ''}`"
+                    class="font-mono text-xs flex-1"
+                  />
+                </div>
+              </div>
             </div>
 
             <!-- Models List -->
@@ -341,17 +346,21 @@
         <Button variant="outline" @click="isOpen = false">
           Close
         </Button>
-        <Button
-          v-if="workflowData"
-          @click="saveWorkflow"
-          :disabled="stats.errorFormats > 0"
-          class="gap-2"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Download Updated JSON
-        </Button>
+        <div v-if="workflowData" class="flex flex-col gap-2 w-full sm:w-auto">
+          <Button
+            @click="saveWorkflow"
+            class="gap-2"
+            :variant="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0 ? 'destructive' : 'default'"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download Updated JSON
+          </Button>
+          <p v-if="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0" class="text-xs text-orange-600 text-center">
+            ⚠️ There are {{ stats.errorFormats + stats.missingLinks + stats.invalidLinks }} issue(s), but you can still download
+          </p>
+        </div>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -648,9 +657,16 @@ const extractModelFiles = (node: any): string[] => {
 
 // Validate model
 const validateModel = (model: any, nodeInfo: any) => {
-  // Validate name
-  const fileName = nodeInfo.modelFiles[0]?.split(/[\\\/]/).pop() || ''
-  model.nameValid = fileName && model.name ? model.name === fileName : null
+  // Validate name - match against any of the model files
+  let nameMatched = false
+  for (const filePath of nodeInfo.modelFiles) {
+    const fileName = filePath.split(/[\\\/]/).pop() || ''
+    if (fileName && model.name && model.name === fileName) {
+      nameMatched = true
+      break
+    }
+  }
+  model.nameValid = model.name ? (nameMatched || null) : null
 
   // Validate URL
   if (!model.url) {

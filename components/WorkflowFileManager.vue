@@ -693,22 +693,37 @@ const checkDuplicateTemplateName = async (templateName: string): Promise<{ exist
 const extractCustomNodesFromWorkflow = (workflowJson: string): string[] => {
   try {
     const data = JSON.parse(workflowJson)
-    const nodes = data.nodes || []
     const customNodesSet = new Set<string>()
 
-    for (const node of nodes) {
-      if (!node || typeof node !== 'object') continue
+    // Recursive function to search for all cnr_id values in the JSON
+    const findCnrIds = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return
 
-      // Extract cnr_id from node properties
-      const properties = node.properties
-      if (properties && typeof properties === 'object') {
-        const cnrId = properties.cnr_id
+      // Check if current object has cnr_id property
+      if ('cnr_id' in obj) {
+        const cnrId = obj.cnr_id
         // Only include custom nodes (exclude comfy-core and empty/null values)
         if (cnrId && typeof cnrId === 'string' && cnrId !== 'comfy-core') {
           customNodesSet.add(cnrId)
         }
       }
+
+      // Recursively search in all properties/array elements
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          findCnrIds(item)
+        }
+      } else {
+        for (const key in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            findCnrIds(obj[key])
+          }
+        }
+      }
     }
+
+    // Start recursive search from the root
+    findCnrIds(data)
 
     return Array.from(customNodesSet).sort()
   } catch (error) {

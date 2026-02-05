@@ -194,37 +194,6 @@
       </div>
     </div>
 
-    <!-- Permission Update Notice Banner -->
-    <div v-if="isMounted && status === 'authenticated' && showPermissionUpdateNotice" class="border-b bg-blue-50">
-      <div class="container mx-auto px-4 py-3">
-        <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div class="flex-1">
-            <p class="text-sm text-blue-900 font-medium">🔒 Safe & Secure Permissions</p>
-            <p class="text-xs text-blue-800 mt-1">
-              To enable branch reset features, please re-authenticate.
-              <strong>We only access your public repositories</strong> - your private repositories are never touched.
-            </p>
-            <Button
-              @click="handleReauthenticate"
-              size="sm"
-              variant="outline"
-              class="mt-2 h-7 text-xs bg-white hover:bg-blue-50"
-            >
-              Re-authenticate (Public Repos Only)
-            </Button>
-          </div>
-          <button @click="dismissPermissionNotice" class="text-blue-600 hover:text-blue-800">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- PR Login Required Banner -->
     <div v-if="prId && status !== 'authenticated'" class="border-b bg-yellow-50">
       <div class="container mx-auto px-4 py-3">
@@ -473,9 +442,6 @@ const route = useRoute()
 // Error message from redirects
 const errorMessage = ref<string | null>(null)
 
-// Permission update notice
-const showPermissionUpdateNotice = ref(false)
-
 // PR query parameter
 const prId = computed(() => route.query.pr as string | undefined)
 const prDetails = ref<any>(null)
@@ -637,14 +603,6 @@ onMounted(async () => {
 
   // Mark as mounted to enable client-only rendering
   isMounted.value = true
-
-  // Check if we should show permission update notice
-  if (process.client && status.value === 'authenticated') {
-    const dismissed = localStorage.getItem('permission_notice_dismissed')
-    if (!dismissed) {
-      showPermissionUpdateNotice.value = true
-    }
-  }
 
   // Initialize GitHub repo/branch management (checks permissions and fork status)
   if (status.value === 'authenticated') {
@@ -1060,18 +1018,6 @@ const scrollToSidebar = () => {
 
 const dismissNotice = () => {
   noticeDismissed.value = true
-}
-
-const dismissPermissionNotice = () => {
-  showPermissionUpdateNotice.value = false
-  if (process.client) {
-    localStorage.setItem('permission_notice_dismissed', 'true')
-  }
-}
-
-const handleReauthenticate = async () => {
-  const { signOut } = useAuth()
-  await signOut({ callbackUrl: '/' })
 }
 
 // PR Status Management
