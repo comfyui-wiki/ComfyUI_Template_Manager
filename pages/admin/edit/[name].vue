@@ -1115,6 +1115,17 @@
       :branch="selectedBranch"
       @refresh="handleLogoManagerRefresh"
     />
+
+    <!-- Main Branch Warning Dialog -->
+    <MainBranchWarningDialog
+      v-model:open="showMainBranchWarning"
+      :repo="selectedRepo"
+      :branch="selectedBranch"
+      :timing="warningTiming"
+      action-type="Commit"
+      @confirm="handleConfirmMainBranchSubmit"
+      @cancel="handleCancelMainBranchSubmit"
+    />
   </div>
   <!-- Close min-h-screen container -->
 </template>
@@ -1136,6 +1147,7 @@ import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 import AIAssistant from '~/components/AIAssistant.vue'
 import LogosEditor from '~/components/LogosEditor.vue'
 import LogoManager from '~/components/LogoManager.vue'
+import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
@@ -1190,6 +1202,11 @@ const converterTargetInputFilename = ref<string>('')
 const converterIsExistingFile = ref(false)
 const workflowFileManagerRef = ref<any>(null)
 const categoryOrderSidebarRef = ref<any>(null)
+
+// Main branch warning dialog state
+const showMainBranchWarning = ref(false)
+const pendingSubmit = ref(false)
+const warningTiming = ref<'opening' | 'saving'>('opening')
 
 // Model links editor state
 const isModelLinksEditorOpen = ref(false)
@@ -2965,8 +2982,41 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
   }
 }
 
+// Handle main branch warning confirmation
+const handleConfirmMainBranchSubmit = () => {
+  showMainBranchWarning.value = false
+  pendingSubmit.value = true
+  // Trigger submit again with confirmation
+  handleSubmit()
+}
+
+// Handle main branch warning cancellation
+const handleCancelMainBranchSubmit = () => {
+  showMainBranchWarning.value = false
+  pendingSubmit.value = false
+
+  // If user cancels on opening warning, go back to homepage
+  if (warningTiming.value === 'opening') {
+    navigateTo('/')
+  }
+}
+
 const handleSubmit = async () => {
   if (isSubmitting.value) return
+
+  // Check if committing to main branch and show warning if needed
+  const branch = selectedBranch.value || 'main'
+  const isMainBranch = branch === 'main' || branch === 'master'
+
+  // If on main branch and haven't confirmed yet, show warning dialog
+  if (isMainBranch && !pendingSubmit.value) {
+    warningTiming.value = 'saving'
+    showMainBranchWarning.value = true
+    return
+  }
+
+  // Reset pending submit flag after proceeding
+  pendingSubmit.value = false
 
   // Auto-detect and fix mediaType/mediaSubtype before saving
   // This ensures previously incorrect values are corrected
@@ -2987,7 +3037,6 @@ const handleSubmit = async () => {
     isSubmitting.value = true
 
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
-    const branch = selectedBranch.value || 'main'
 
     // Prepare files data if there are reuploaded files
     const filesData: any = {}
@@ -3237,6 +3286,18 @@ const fileToBase64 = (file: File): Promise<string> => {
     reader.readAsDataURL(file)
   })
 }
+
+// Check for main branch on page load
+onMounted(() => {
+  const branch = selectedBranch.value || 'main'
+  const isMainBranch = branch === 'main' || branch === 'master'
+
+  if (isMainBranch) {
+    // Show warning when opening edit page on main branch
+    warningTiming.value = 'opening'
+    showMainBranchWarning.value = true
+  }
+})
 
 useHead({
   title: `Edit ${templateName} - ComfyUI Template Manager`

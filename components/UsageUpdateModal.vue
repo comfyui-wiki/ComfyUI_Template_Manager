@@ -165,6 +165,17 @@ Total Events of execution_start,image_qwen_Image_2512,1847
       </div>
     </DialogScrollContent>
   </Dialog>
+
+  <!-- Main Branch Warning Dialog -->
+  <MainBranchWarningDialog
+    v-model:open="showMainBranchWarning"
+    :repo="repo"
+    :branch="branch"
+    :timing="warningTiming"
+    action-type="Update Usage Data"
+    @confirm="handleConfirmMainBranchSubmit"
+    @cancel="handleCancelMainBranchSubmit"
+  />
 </template>
 
 <script setup lang="ts">
@@ -172,6 +183,7 @@ import { ref, computed, watch } from 'vue'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 
 interface Props {
   open: boolean
@@ -193,8 +205,24 @@ const success = ref('')
 const isSubmitting = ref(false)
 const updateProgress = ref({ current: 0, total: 0 })
 
+// Main branch warning dialog state
+const showMainBranchWarning = ref(false)
+const pendingSubmit = ref(false)
+const warningTiming = ref<'opening' | 'saving'>('opening')
+
 watch(() => props.open, (value) => {
   isOpen.value = value
+
+  // Check for main branch when opening dialog
+  if (value) {
+    const isMainBranch = props.branch === 'main' || props.branch === 'master'
+
+    if (isMainBranch) {
+      // Show warning when opening usage updater on main branch
+      warningTiming.value = 'opening'
+      showMainBranchWarning.value = true
+    }
+  }
 })
 
 watch(isOpen, (value) => {
@@ -287,9 +315,38 @@ const closeModal = () => {
   isOpen.value = false
 }
 
+// Handle main branch warning confirmation
+const handleConfirmMainBranchSubmit = () => {
+  pendingSubmit.value = true
+  handleSubmit()
+}
+
+// Handle main branch warning cancellation
+const handleCancelMainBranchSubmit = () => {
+  pendingSubmit.value = false
+
+  // If user cancels on opening warning, close usage modal
+  if (warningTiming.value === 'opening') {
+    isOpen.value = false
+  }
+}
+
 // Handle submit
 const handleSubmit = async () => {
   if (!parsedData.value) return
+
+  // Check if committing to main branch and show warning if needed
+  const isMainBranch = props.branch === 'main' || props.branch === 'master'
+
+  // If on main branch and haven't confirmed yet, show warning dialog
+  if (isMainBranch && !pendingSubmit.value) {
+    warningTiming.value = 'saving'
+    showMainBranchWarning.value = true
+    return
+  }
+
+  // Reset pending submit flag after proceeding
+  pendingSubmit.value = false
 
   error.value = ''
   success.value = ''

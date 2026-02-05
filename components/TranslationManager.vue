@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 
 const props = defineProps<{
   open: boolean
@@ -65,6 +66,11 @@ const defaultSystemPrompt = ref('') // Store default prompt from config
 // Translation sections
 type TranslationSection = 'templates' | 'tags' | 'categories'
 const activeSection = ref<TranslationSection>('templates')
+
+// Main branch warning dialog state
+const showMainBranchWarning = ref(false)
+const pendingSave = ref(false)
+const warningTiming = ref<'opening' | 'saving'>('opening')
 
 // Visible languages (for table columns)
 const visibleLanguages = computed(() => {
@@ -127,6 +133,17 @@ const loadDefaultPrompt = async () => {
 // Watch dialog open state
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
+    // Check for main branch when opening dialog
+    const { selectedBranch } = useGitHubRepo()
+    const branch = selectedBranch.value || 'main'
+    const isMainBranch = branch === 'main' || branch === 'master'
+
+    if (isMainBranch) {
+      // Show warning when opening translation manager on main branch
+      warningTiming.value = 'opening'
+      showMainBranchWarning.value = true
+    }
+
     if (!i18nData.value) {
       loadI18nData()
     }
@@ -858,18 +875,48 @@ const closeBatchDialog = () => {
   }
 }
 
+// Handle main branch warning confirmation
+const handleConfirmMainBranchSave = () => {
+  pendingSave.value = true
+  saveAllChanges()
+}
+
+// Handle main branch warning cancellation
+const handleCancelMainBranchSave = () => {
+  pendingSave.value = false
+
+  // If user cancels on opening warning, close translation manager
+  if (warningTiming.value === 'opening') {
+    emit('update:open', false)
+  }
+}
+
 // Save all changes
 const saveAllChanges = async () => {
   if (!i18nData.value) return
+
+  const { selectedRepo, selectedBranch } = useGitHubRepo()
+  const branch = selectedBranch.value
+
+  // Check if committing to main branch and show warning if needed
+  const isMainBranch = branch === 'main' || branch === 'master'
+
+  // If on main branch and haven't confirmed yet, show warning dialog
+  if (isMainBranch && !pendingSave.value) {
+    warningTiming.value = 'saving'
+    showMainBranchWarning.value = true
+    return
+  }
+
+  // Reset pending save flag after proceeding
+  pendingSave.value = false
 
   saving.value = true
   saveSuccess.value = null
   saveError.value = null
 
   try {
-    const { selectedRepo, selectedBranch } = useGitHubRepo()
     const repo = selectedRepo.value
-    const branch = selectedBranch.value
 
     console.log('[TranslationManager] Saving i18n data to:', { repo, branch })
 
@@ -1387,6 +1434,17 @@ const saveAllChanges = async () => {
       </div>
     </DialogContent>
   </Dialog>
+
+  <!-- Main Branch Warning Dialog -->
+  <MainBranchWarningDialog
+    v-model:open="showMainBranchWarning"
+    :repo="useGitHubRepo().selectedRepo.value"
+    :branch="useGitHubRepo().selectedBranch.value"
+    :timing="warningTiming"
+    action-type="Save Translations"
+    @confirm="handleConfirmMainBranchSave"
+    @cancel="handleCancelMainBranchSave"
+  />
 </template>
 
 <style scoped>
