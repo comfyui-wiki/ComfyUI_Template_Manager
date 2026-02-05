@@ -67,7 +67,101 @@
           <p class="text-yellow-700 text-xs mb-2">
             Your fork is outdated. Sync to get the latest templates from upstream.
           </p>
-          <Button @click="handleSyncFork" size="sm" class="w-full" :disabled="isLoading">
+
+          <!-- Show different options based on whether fork is also ahead -->
+          <div v-if="forkCompareStatus.isAhead" class="space-y-2">
+            <p class="text-orange-700 text-xs font-medium flex items-center gap-1 mb-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Diverged: {{ forkCompareStatus.aheadBy }} ahead, {{ forkCompareStatus.behindBy }} behind
+            </p>
+
+            <!-- Main Sync Button -->
+            <Button
+              @click="handleSyncFork"
+              size="sm"
+              class="w-full"
+              :disabled="isLoading"
+              variant="default"
+            >
+              <svg v-if="!isLoading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span v-if="isLoading">Syncing...</span>
+              <span v-else>Try Merge Sync</span>
+            </Button>
+
+            <!-- Advanced Options (Collapsible) -->
+            <div class="pt-1">
+              <button
+                @click="showAdvancedSyncOptions = !showAdvancedSyncOptions"
+                class="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-800 transition-colors w-full justify-center"
+              >
+                <svg
+                  class="w-3 h-3 transition-transform"
+                  :class="{ 'rotate-180': showAdvancedSyncOptions }"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+                <span>Advanced Options</span>
+              </button>
+
+              <div v-if="showAdvancedSyncOptions" class="mt-2 space-y-1.5">
+                <!-- Option 1: Save to branch and reset -->
+                <Button
+                  @click="handleShowSaveReset"
+                  size="sm"
+                  class="w-full text-xs h-8"
+                  :disabled="isLoading || isResetting"
+                  variant="outline"
+                  title="Save your changes to a new branch, then reset main to upstream"
+                >
+                  <svg v-if="isResetting && resetOperation === 'save'" class="w-3 h-3 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <svg v-else class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12M8 12h12m-12 5h12m-6-9v12" />
+                  </svg>
+                  <span v-if="isResetting && resetOperation === 'save'">Processing...</span>
+                  <span v-else>Save & Reset</span>
+                </Button>
+
+                <!-- Option 2: Force reset -->
+                <Button
+                  @click="handleShowForceReset"
+                  size="sm"
+                  class="w-full text-xs h-8"
+                  :disabled="isLoading || isResetting"
+                  variant="destructive"
+                  title="Permanently discard your changes and force reset to upstream (CANNOT BE UNDONE)"
+                >
+                  <svg v-if="isResetting && resetOperation === 'force'" class="w-3 h-3 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <svg v-else class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span v-if="isResetting && resetOperation === 'force'">Resetting...</span>
+                  <span v-else>Force Reset</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Simple sync button if only behind (not ahead) -->
+          <Button
+            v-else
+            @click="handleSyncFork"
+            size="sm"
+            class="w-full"
+            :disabled="isLoading"
+          >
             <svg v-if="!isLoading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
@@ -343,6 +437,17 @@
       </div>
     </DialogContent>
   </Dialog>
+
+  <!-- Reset Main Branch Dialogs -->
+  <ResetMainDialog
+    ref="resetMainDialog"
+    :ahead-by="forkCompareStatus?.aheadBy || 0"
+    :suggested-branch-name="suggestedResetBranchName"
+    :fork-owner="forkOwner"
+    :fork-repo="forkRepo"
+    @create-backup="handleCreateBackup"
+    @refresh="handleRefreshAfterSync"
+  />
 </template>
 
 <script setup lang="ts">
@@ -352,6 +457,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import ResetMainDialog from '@/components/ResetMainDialog.vue'
 
 const {
   hasMainRepoAccess,
@@ -378,6 +484,10 @@ const showDebugInfo = ref(false) // Collapsed by default
 const showManageBranches = ref(false)
 const deletingBranch = ref<string | null>(null)
 const currentBranchComparison = ref<any>(null)
+const showAdvancedSyncOptions = ref(true) // Default to expanded
+const resetMainDialog = ref<InstanceType<typeof ResetMainDialog> | null>(null)
+const isResetting = ref(false)
+const resetOperation = ref<'save' | 'force' | null>(null)
 
 const suggestedBranchName = computed(() => {
   const now = new Date()
@@ -385,6 +495,23 @@ const suggestedBranchName = computed(() => {
   const date = now.toISOString().slice(0, 10).replace(/-/g, '')
   const time = now.toISOString().slice(11, 19).replace(/:/g, '')
   return `template-update-${date}-${time}`
+})
+
+const suggestedResetBranchName = computed(() => {
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const time = now.toISOString().slice(11, 19).replace(/:/g, '')
+  return `backup-main-${date}-${time}`
+})
+
+const forkOwner = computed(() => {
+  const { data: session } = useAuth()
+  return session.value?.user?.login || ''
+})
+
+const forkRepo = computed(() => {
+  const config = useRuntimeConfig()
+  return config.public.repoName
 })
 
 // Sanitize branch name to follow Git branch naming rules
@@ -565,6 +692,59 @@ const handleSyncFork = async () => {
     console.error('Failed to sync fork:', error)
     alert('Failed to sync fork. Please try again.')
   }
+}
+
+// Show save & reset dialog
+const handleShowSaveReset = () => {
+  resetMainDialog.value?.showSaveReset()
+}
+
+// Show force reset dialog
+const handleShowForceReset = () => {
+  resetMainDialog.value?.showForceReset()
+}
+
+// Handle create backup branch only
+const handleCreateBackup = async (branchName: string) => {
+  isResetting.value = true
+  resetOperation.value = 'save'
+
+  try {
+    const [owner, name] = selectedRepo.value.split('/')
+
+    const response = await $fetch('/api/github/branch/create', {
+      method: 'POST',
+      body: {
+        owner,
+        repo: name,
+        branch: branchName,
+        from: 'main'
+      }
+    })
+
+    if (response.success) {
+      // Show GitHub sync guide
+      resetMainDialog.value?.showSuccess(branchName)
+      isResetting.value = false
+      resetOperation.value = null
+    } else {
+      resetMainDialog.value?.showError('Failed to create backup branch')
+      isResetting.value = false
+      resetOperation.value = null
+    }
+  } catch (error: any) {
+    console.error('Failed to create backup branch:', error)
+    const errorMsg = error.data?.message || error.message || 'Failed to create backup branch'
+    resetMainDialog.value?.showError(errorMsg)
+    isResetting.value = false
+    resetOperation.value = null
+  }
+}
+
+// Handle refresh after user syncs on GitHub
+const handleRefreshAfterSync = async () => {
+  await initialize()
+  await loadCurrentBranchComparison()
 }
 
 // Delete a branch

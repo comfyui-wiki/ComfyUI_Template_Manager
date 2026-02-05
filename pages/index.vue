@@ -194,6 +194,37 @@
       </div>
     </div>
 
+    <!-- Permission Update Notice Banner -->
+    <div v-if="isMounted && status === 'authenticated' && showPermissionUpdateNotice" class="border-b bg-blue-50">
+      <div class="container mx-auto px-4 py-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm text-blue-900 font-medium">🔒 Safe & Secure Permissions</p>
+            <p class="text-xs text-blue-800 mt-1">
+              To enable branch reset features, please re-authenticate.
+              <strong>We only access your public repositories</strong> - your private repositories are never touched.
+            </p>
+            <Button
+              @click="handleReauthenticate"
+              size="sm"
+              variant="outline"
+              class="mt-2 h-7 text-xs bg-white hover:bg-blue-50"
+            >
+              Re-authenticate (Public Repos Only)
+            </Button>
+          </div>
+          <button @click="dismissPermissionNotice" class="text-blue-600 hover:text-blue-800">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- PR Login Required Banner -->
     <div v-if="prId && status !== 'authenticated'" class="border-b bg-yellow-50">
       <div class="container mx-auto px-4 py-3">
@@ -355,255 +386,36 @@
     </div>
 
     <!-- Main Content with Sidebar -->
-    <div class="w-full px-4 py-6">
-      <div class="flex gap-6 max-w-[1920px] mx-auto">
-        <!-- Sidebar -->
-        <aside class="w-64 flex-shrink-0 hidden lg:block" id="sidebar">
-          <div class="sticky top-6 space-y-4">
-            <!-- Repository & Branch Switcher (only when logged in) -->
-            <RepoAndBranchSwitcher v-if="isMounted && status === 'authenticated'" />
-
-            <Card>
-              <CardHeader>
-                <CardTitle class="text-base">Categories</CardTitle>
-              </CardHeader>
-              <CardContent class="p-0">
-                <div class="space-y-1">
-                  <!-- All Categories -->
-                  <button
-                    @click="selectedCategory = 'all'"
-                    :class="[
-                      'w-full flex items-center justify-between px-4 py-2 text-sm transition-colors',
-                      selectedCategory === 'all'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    ]"
-                  >
-                    <span>All Templates</span>
-                    <span class="text-xs opacity-70">{{ allTemplates.length }}</span>
-                  </button>
-
-                  <!-- Category List -->
-                  <button
-                    v-for="category in categories"
-                    :key="category.title"
-                    @click="selectedCategory = category.title"
-                    :class="[
-                      'w-full flex items-center justify-between px-4 py-2 text-sm transition-colors',
-                      selectedCategory === category.title
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    ]"
-                  >
-                    <span>{{ category.title }}</span>
-                    <span class="text-xs opacity-70">{{ category.templates?.length || 0 }}</span>
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </aside>
-
-        <!-- Main Content -->
-        <div class="flex-1 min-w-0">
-          <!-- Search and Sort -->
-          <div class="flex flex-col sm:flex-row gap-4 mb-4">
-            <!-- Search -->
-            <div class="flex-1">
-              <div class="relative">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <Input
-                  v-model="searchQuery"
-                  placeholder="Search templates..."
-                  class="pl-10"
-                />
-              </div>
-            </div>
-
-            <!-- Sort -->
-            <Select v-model="sortBy">
-              <SelectTrigger class="w-[180px]">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="latest">Latest First</SelectItem>
-                <SelectItem value="usage">Usage (High to Low)</SelectItem>
-                <SelectItem value="default">Default (from index.json)</SelectItem>
-                <SelectItem value="oldest">Oldest First</SelectItem>
-                <SelectItem value="name">Name (A-Z)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- Filters Row -->
-          <div class="flex flex-wrap gap-4 mb-6 items-center">
-            <!-- Model Filter -->
-            <Select v-model="selectedModel">
-              <SelectTrigger class="w-[200px]">
-                <SelectValue placeholder="Model Filter" />
-              </SelectTrigger>
-              <SelectContent class="max-h-[300px]">
-                <SelectItem value="all">All Models</SelectItem>
-                <SelectItem v-for="model in allModels" :key="model" :value="model">
-                  {{ model }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-
-            <!-- Tag Filter (Use Case) -->
-            <Select v-model="selectedTag">
-              <SelectTrigger class="w-[200px]">
-                <SelectValue placeholder="Use Case" />
-              </SelectTrigger>
-              <SelectContent class="max-h-[300px]">
-                <SelectItem value="all">All Tags</SelectItem>
-                <SelectItem v-for="tag in allTags" :key="tag" :value="tag">
-                  {{ tag }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-
-            <!-- Type Filter -->
-            <Select v-model="selectedRunsOn">
-              <SelectTrigger class="w-[200px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="api">API</SelectItem>
-                <SelectItem value="opensource">Open Source</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <!-- Diff Status Filter (only show when authenticated and viewing a branch) -->
-            <Select v-if="isMounted && status === 'authenticated' && selectedBranch" v-model="selectedDiffStatus">
-              <SelectTrigger class="w-[220px]">
-                <SelectValue placeholder="Changes vs Main" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Templates</SelectItem>
-                <SelectItem value="new">
-                  <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span>New vs Main</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="modified">
-                  <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-                    <span>Modified vs Main</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="deleted">
-                  <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                    <span>Deleted vs Main</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="unchanged">Identical to Main</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <!-- Clear Filters Button -->
-            <Button
-              v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || searchQuery"
-              variant="outline"
-              size="sm"
-              @click="clearFilters"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Clear Filters
-            </Button>
-          </div>
-
-          <!-- Debug Panel (only in development) -->
-          <div v-if="false" class="mb-4 p-4 bg-gray-100 rounded text-xs font-mono">
-            <div><strong>Current Repo:</strong> {{ selectedRepo }}</div>
-            <div><strong>Current Branch:</strong> {{ selectedBranch }}</div>
-            <div><strong>Categories loaded:</strong> {{ categories.length }}</div>
-            <div><strong>Diff Stats:</strong> {{ JSON.stringify(diffStats) }}</div>
-            <div><strong>Sample template diffStatus:</strong> {{ categories[0]?.templates?.[0]?.diffStatus }}</div>
-          </div>
-
-          <!-- Stats -->
-          <div class="flex items-center gap-4 text-sm text-muted-foreground mb-6">
-            <span>{{ filteredTemplates.length }} templates</span>
-            <span v-if="selectedCategory !== 'all'">in {{ categoryTitle }}</span>
-
-            <!-- Diff Stats -->
-            <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3 ml-auto">
-              <span class="text-xs">
-                <span class="font-mono">{{ selectedRepo }}</span> /
-                <span class="font-mono font-semibold">{{ selectedBranch }}</span>
-              </span>
-              <span v-if="diffStats.new > 0" class="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium" title="Templates added compared to main branch">
-                +{{ diffStats.new }} new vs main
-              </span>
-              <span v-if="diffStats.modified > 0" class="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-medium" title="Templates modified compared to main branch">
-                ~{{ diffStats.modified }} modified vs main
-              </span>
-              <span v-if="diffStats.deleted > 0" class="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs font-medium" title="Templates deleted compared to main branch">
-                -{{ diffStats.deleted }} deleted vs main
-              </span>
-              <span v-if="diffStats.new === 0 && diffStats.modified === 0 && diffStats.deleted === 0" class="text-xs text-muted-foreground">
-                ✓ Identical to main
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                @click="refreshTemplates"
-                :disabled="loading"
-                class="h-7 px-2"
-                title="Refresh and compare with main branch"
-              >
-                <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </Button>
-            </div>
-          </div>
-
-          <!-- Loading State -->
-          <div v-if="loading" class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p class="mt-4 text-muted-foreground">Loading templates...</p>
-      </div>
-
-          <!-- Empty State -->
-          <div v-else-if="filteredTemplates.length === 0" class="text-center py-12">
-            <svg class="mx-auto w-12 h-12 text-muted-foreground mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 class="text-lg font-medium mb-2">No templates found</h3>
-            <p class="text-muted-foreground mb-4">Try adjusting your search or filters</p>
-          </div>
-
-          <!-- Templates Grid - Always show flat grid for proper sorting -->
-          <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            <TemplateCard
-              v-for="template in filteredTemplates"
-              :key="template.name"
-              :template="template"
-              :category="template.categoryTitle"
-              :can-edit="isMounted && canEditCurrentRepo && !isViewingPR"
-              :repo="selectedRepo"
-              :branch="selectedBranch"
-              :cache-bust="cacheBustTimestamp"
-              :commit-sha="latestCommitSha"
-              :pr-templates="prDetails?.templates.changed"
-              :logo-mapping="logoMapping"
-              :repo-base-url="repoBaseUrl"
-              @edit="editTemplate"
-              @view="viewTemplate"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <TemplateMainContent
+      :is-mounted="isMounted"
+      :categories="categories"
+      :all-templates="allTemplates"
+      :filtered-templates="filteredTemplates"
+      :all-models="allModels"
+      :all-tags="allTags"
+      v-model:selected-category="selectedCategory"
+      v-model:selected-model="selectedModel"
+      v-model:selected-tag="selectedTag"
+      v-model:selected-runs-on="selectedRunsOn"
+      v-model:selected-diff-status="selectedDiffStatus"
+      v-model:search-query="searchQuery"
+      v-model:sort-by="sortBy"
+      :loading="loading"
+      :selected-repo="selectedRepo"
+      :selected-branch="selectedBranch"
+      :diff-stats="diffStats"
+      :can-edit-current-repo="canEditCurrentRepo"
+      :is-viewing-p-r="isViewingPR"
+      :cache-bust="cacheBustTimestamp"
+      :commit-sha="latestCommitSha"
+      :pr-templates="prDetails?.templates.changed"
+      :logo-mapping="logoMapping"
+      :repo-base-url="repoBaseUrl"
+      @clear-filters="clearFilters"
+      @refresh="refreshTemplates"
+      @edit-template="editTemplate"
+      @view-template="viewTemplate"
+    />
 
     <!-- PR Browser Dialog -->
     <PRBrowser
@@ -653,12 +465,16 @@ import PRBrowser from '~/components/PRBrowser.vue'
 import TranslationManager from '~/components/TranslationManager.vue'
 import UsageUpdateModal from '~/components/UsageUpdateModal.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
+import TemplateMainContent from '~/components/TemplateMainContent.vue'
 
 const { status } = useAuth()
 const route = useRoute()
 
 // Error message from redirects
 const errorMessage = ref<string | null>(null)
+
+// Permission update notice
+const showPermissionUpdateNotice = ref(false)
 
 // PR query parameter
 const prId = computed(() => route.query.pr as string | undefined)
@@ -821,6 +637,14 @@ onMounted(async () => {
 
   // Mark as mounted to enable client-only rendering
   isMounted.value = true
+
+  // Check if we should show permission update notice
+  if (process.client && status.value === 'authenticated') {
+    const dismissed = localStorage.getItem('permission_notice_dismissed')
+    if (!dismissed) {
+      showPermissionUpdateNotice.value = true
+    }
+  }
 
   // Initialize GitHub repo/branch management (checks permissions and fork status)
   if (status.value === 'authenticated') {
@@ -1236,6 +1060,18 @@ const scrollToSidebar = () => {
 
 const dismissNotice = () => {
   noticeDismissed.value = true
+}
+
+const dismissPermissionNotice = () => {
+  showPermissionUpdateNotice.value = false
+  if (process.client) {
+    localStorage.setItem('permission_notice_dismissed', 'true')
+  }
+}
+
+const handleReauthenticate = async () => {
+  const { signOut } = useAuth()
+  await signOut({ callbackUrl: '/' })
 }
 
 // PR Status Management

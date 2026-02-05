@@ -16,8 +16,11 @@ export default NuxtAuthHandler({
       clientSecret: useRuntimeConfig().github.clientSecret,
       authorization: {
         params: {
-          // Request these scopes
-          scope: 'read:user user:email public_repo'
+          // Request these scopes (public repositories only - no private repo access)
+          // 'public_repo' - Full control of public repositories (read/write)
+          // 'read:user' - Read user profile information
+          // 'user:email' - Read user email addresses
+          scope: 'public_repo read:user user:email'
         }
       }
     })
