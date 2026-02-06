@@ -841,8 +841,10 @@ const isViewingPR = computed(() => {
 
 // Repo base URL for logos
 const repoBaseUrl = computed(() => {
-  if (!selectedRepo.value || !selectedBranch.value) return ''
-  return `https://raw.githubusercontent.com/${selectedRepo.value}/${selectedBranch.value}/templates`
+  // Use selected repo/branch, or fallback to default (same as loadTemplates)
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  return `https://raw.githubusercontent.com/${repo}/${branch}/templates`
 })
 
 const categoryTitle = computed(() => {
