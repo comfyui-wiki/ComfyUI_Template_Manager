@@ -196,6 +196,7 @@
           :repo="selectedRepo"
           :branch="selectedBranch"
           @reorder="handleTemplateReorder"
+          @refresh="handleRefreshCategoryOrder"
         />
 
         <!-- Main Content Area -->
@@ -2504,11 +2505,82 @@ watch(isModelLinksEditorOpen, (isOpen) => {
 
 // Handle template reorder from sidebar
 const handleTemplateReorder = (reorderedTemplates: any[]) => {
+  const oldOrder = categoryTemplates.value.map(t => t.name)
+  const newOrder = reorderedTemplates.map(t => t.name)
+
   categoryTemplates.value = reorderedTemplates
   templateOrderChanged.value = true
+
   console.log('[Edit Page] Templates reordered from sidebar')
-  console.log('[Edit Page] New order:', reorderedTemplates.map(t => t.name).join(', '))
+  console.log('[Edit Page] Old order:', oldOrder.join(', '))
+  console.log('[Edit Page] New order:', newOrder.join(', '))
+  console.log('[Edit Page] Original order:', originalCategoryTemplates.value.map(t => t.name).join(', '))
   console.log('[Edit Page] hasOrderChanges:', hasOrderChanges.value)
+  console.log('[Edit Page] templateOrderChanged:', templateOrderChanged.value)
+  console.log('[Edit Page] templatePositionChanges size:', templatePositionChanges.value.size)
+}
+
+// Handle refresh category order (clear cache and reload from GitHub)
+const handleRefreshCategoryOrder = async () => {
+  if (!form.value.category) {
+    console.warn('[Edit Page] Cannot refresh: no category selected')
+    return
+  }
+
+  console.log('[Edit Page] Refreshing category order from GitHub...')
+
+  try {
+    const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+    const branch = selectedBranch.value || 'main'
+
+    console.log('[Edit Page] Fetching fresh index.json via API:', { repo, branch })
+
+    // Use server-side API to bypass CORS
+    const response = await $fetch('/api/github/index/fresh', {
+      query: {
+        repo,
+        branch
+      }
+    })
+
+    if (!response.success || !response.data) {
+      throw new Error('Failed to fetch fresh index.json')
+    }
+
+    const indexData = response.data
+
+    // Find the current category
+    const categoryData = indexData.find((cat: any) => cat.title === form.value.category)
+    if (!categoryData) {
+      console.error('[Edit Page] Category not found after refresh:', form.value.category)
+      alert(`Category "${form.value.category}" not found in refreshed data`)
+      return
+    }
+
+    const refreshedTemplates = categoryData.templates || []
+
+    // Update category templates with refreshed data
+    categoryTemplates.value = refreshedTemplates
+    originalCategoryTemplates.value = [...refreshedTemplates]
+
+    // Reset order change flags
+    templateOrderChanged.value = false
+
+    // Update sidebar component's original templates
+    if (categoryOrderSidebarRef.value) {
+      categoryOrderSidebarRef.value.resetOriginalTemplates()
+    }
+
+    console.log('[Edit Page] ✓ Category order refreshed successfully')
+    console.log('[Edit Page] Loaded', refreshedTemplates.length, 'templates')
+    console.log('[Edit Page] New order:', refreshedTemplates.map((t: any) => t.name).join(', '))
+
+    // Show success message
+    alert(`✅ Order refreshed!\nLoaded ${refreshedTemplates.length} templates from GitHub.`)
+  } catch (error: any) {
+    console.error('[Edit Page] Failed to refresh category order:', error)
+    alert(`❌ Failed to refresh order:\n\n${error.message || 'Unknown error'}`)
+  }
 }
 
 // Watch for category changes to reload templates
@@ -3118,6 +3190,16 @@ const handleSubmit = async () => {
 
     if (templateOrder) {
       console.log('[Submit] Sending template order:', templateOrder.join(', '))
+    } else {
+      console.warn('[Submit] ⚠️ Template order NOT being sent - Debug Info:', {
+        hasOrderChanges: hasOrderChanges.value,
+        templateOrderChanged: templateOrderChanged.value,
+        positionChangesSize: templatePositionChanges.value.size,
+        categoryTemplatesLength: categoryTemplates.value.length,
+        originalLength: originalCategoryTemplates.value.length,
+        currentOrder: categoryTemplates.value.map(t => t.name).join(', '),
+        originalOrder: originalCategoryTemplates.value.map(t => t.name).join(', ')
+      })
     }
 
     // Determine which API endpoint to call based on mode

@@ -1,7 +1,26 @@
 <template>
   <div class="w-80 border-r bg-muted/30 h-[calc(100vh-140px)] sticky top-[140px] flex flex-col overflow-hidden">
     <div class="p-4 flex-shrink-0">
-      <h2 class="text-sm font-semibold mb-2">Category Order</h2>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold">Category Order</h2>
+        <button
+          type="button"
+          class="p-1.5 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+          @click="refreshOrder"
+          :disabled="isRefreshing"
+          :title="isRefreshing ? 'Refreshing...' : 'Refresh order from GitHub'"
+        >
+          <svg
+            class="w-4 h-4 transition-transform"
+            :class="{ 'animate-spin': isRefreshing }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
       <p class="text-xs text-muted-foreground mb-3">{{ categoryTitle }}</p>
       <div class="flex gap-2">
         <button
@@ -38,9 +57,9 @@
             'opacity-50': draggedIndex === index
           }"
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-start gap-3">
             <!-- Drag Handle -->
-            <svg class="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 flex-shrink-0 opacity-50 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
             </svg>
 
@@ -56,7 +75,7 @@
 
             <!-- Template Info -->
             <div class="flex-1 min-w-0">
-              <div class="text-xs font-medium truncate">
+              <div class="text-xs font-medium break-words leading-tight">
                 {{ template.title || template.name }}
               </div>
             </div>
@@ -64,7 +83,7 @@
             <!-- Current Badge -->
             <div
               v-if="template.name === currentTemplateName"
-              class="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-semibold rounded-full"
+              class="flex-shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-semibold rounded-full mt-0.5"
             >
               Current
             </div>
@@ -72,7 +91,7 @@
             <!-- Position Change Indicator -->
             <div
               v-else-if="positionChanges.has(template.name)"
-              class="flex items-center gap-1 flex-shrink-0"
+              class="flex items-center gap-1 flex-shrink-0 mt-0.5"
             >
               <div
                 class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold"
@@ -106,7 +125,7 @@
             </div>
 
             <!-- Quick move up/down (visible on hover) -->
-            <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
               <button
                 type="button"
                 class="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
@@ -178,11 +197,13 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   reorder: [templates: Template[]]
+  refresh: []
 }>()
 
 // Drag and drop state
 const draggedIndex = ref<number | null>(null)
 const originalTemplates = ref<Template[]>([...props.templates])
+const isRefreshing = ref(false)
 
 // Watch for prop changes to update internal state
 watch(
@@ -340,6 +361,24 @@ const moveDown = (index: number) => {
   const newTemplates = [...props.templates]
   ;[newTemplates[index], newTemplates[index + 1]] = [newTemplates[index + 1], newTemplates[index]]
   emit('reorder', newTemplates)
+}
+
+// Refresh order from GitHub (clear cache and reload)
+const refreshOrder = async () => {
+  if (isRefreshing.value) return
+
+  isRefreshing.value = true
+  console.log('[CategoryOrderSidebar] Refreshing order from GitHub...')
+
+  try {
+    // Emit refresh event to parent component
+    emit('refresh')
+
+    // Wait a bit for the refresh to complete
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  } finally {
+    isRefreshing.value = false
+  }
 }
 
 // Expose method to reset original templates (called after save)
