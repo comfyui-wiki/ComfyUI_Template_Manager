@@ -1,5 +1,5 @@
 <template>
-  <Card class="w-full max-w-[300px] overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
+  <Card class="w-full max-w-[260px] overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
     <!-- Thumbnail - 300x300 -->
     <div class="relative w-full aspect-square bg-muted flex-shrink-0">
       <!-- Audio Player -->
@@ -134,13 +134,31 @@
         </span>
       </div>
 
+      <!-- Tags overlay at bottom -->
+      <div v-if="template.tags?.length" class="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
+        <span
+          v-for="(tag, index) in template.tags.slice(0, 3)"
+          :key="index"
+          class="inline-flex items-center px-2 py-1 text-[10px] font-medium bg-black/50 text-white rounded backdrop-blur-sm"
+          :title="tag"
+        >
+          {{ tag }}
+        </span>
+        <span
+          v-if="template.tags.length > 3"
+          class="inline-flex items-center px-2 py-1 text-[10px] font-medium bg-black/50 text-white rounded backdrop-blur-sm"
+        >
+          +{{ template.tags.length - 3 }}
+        </span>
+      </div>
+
       <!-- Tutorial URL Icon -->
       <a
         v-if="template.tutorialUrl"
         :href="template.tutorialUrl"
         target="_blank"
         rel="noopener noreferrer"
-        class="absolute bottom-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all duration-200 hover:scale-110 group"
+        class="absolute bottom-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-all duration-200 hover:scale-110 group z-10"
         :title="template.tutorialUrl"
         @click.stop
       >
@@ -163,27 +181,10 @@
         </p>
       </div>
 
-      <!-- Tags and Models metadata -->
-      <div v-if="template.tags?.length || template.models?.length" class="space-y-1.5 mb-3">
-        <!-- Tags -->
-        <div v-if="template.tags?.length" class="flex flex-wrap gap-1 items-start">
-          <svg class="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-          <div class="flex-1 flex flex-wrap gap-1">
-            <span
-              v-for="(tag, index) in template.tags"
-              :key="index"
-              class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-800 rounded max-w-[120px] truncate"
-              :title="tag"
-            >
-              {{ tag }}
-            </span>
-          </div>
-        </div>
-
+      <!-- Models metadata (keeping this but removing tags as they're now on thumbnail) -->
+      <div v-if="template.models?.length" class="space-y-1.5 mb-3">
         <!-- Models -->
-        <div v-if="template.models?.length" class="flex flex-wrap gap-1 items-start">
+        <div class="flex flex-wrap gap-1 items-start">
           <svg class="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
@@ -211,18 +212,61 @@
           </div>
         </div>
 
-        <!-- Try on Cloud button - check platform availability -->
-        <Button
-          v-if="!template.includeOnDistributions || template.includeOnDistributions.length === 0 || template.includeOnDistributions.includes('cloud')"
-          size="sm"
-          class="w-full text-xs h-9"
-          @click="openInCloud"
-        >
-          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-          </svg>
-          Try on Cloud
-        </Button>
+        <!-- Cloud buttons - check platform availability -->
+        <div v-if="!template.includeOnDistributions || template.includeOnDistributions.length === 0 || template.includeOnDistributions.includes('cloud')" class="space-y-2">
+          <div class="flex gap-2">
+            <Button
+              size="sm"
+              class="flex-1 text-xs h-9"
+              @click="openInCloud"
+            >
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+              Open in Cloud
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-9 w-9 p-0"
+              @click="copyCloudLink"
+              :title="copySuccess ? 'Copied!' : 'Copy cloud link'"
+            >
+              <svg v-if="!copySuccess" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </Button>
+          </div>
+          <div class="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              class="flex-1 text-xs h-9"
+              @click="openInLocal"
+              :title="localUrlNotice"
+            >
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Open in Local
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-9 w-9 p-0"
+              @click="openLocalSettings"
+              title="Configure local URL"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Button>
+          </div>
+        </div>
         <Button
           v-else
           size="sm"
@@ -309,6 +353,7 @@ const sliderPosition = ref(50) // For compareSlider, start at 50%
 const isHovered = ref(false)
 const compareContainer = ref<HTMLElement | null>(null)
 const showDetailsModal = ref(false)
+const copySuccess = ref(false)
 
 // Check if this template is in the PR
 const isInPR = computed(() => {
@@ -379,6 +424,47 @@ const onImageError = () => {
 const openInCloud = () => {
   const cloudUrl = `https://cloud.comfy.org/?template=${props.template.name}`
   window.open(cloudUrl, '_blank')
+}
+
+const copyCloudLink = async () => {
+  const cloudUrl = `https://cloud.comfy.org/?template=${props.template.name}`
+  try {
+    await navigator.clipboard.writeText(cloudUrl)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
+
+const localUrlNotice = computed(() => {
+  const localBaseUrl = localStorage.getItem('comfyui_local_base_url')
+  if (!localBaseUrl) {
+    return 'Configure local URL first'
+  }
+  return 'Note: This template may not be available in your local instance'
+})
+
+const openInLocal = () => {
+  // Get local base URL from localStorage
+  const localBaseUrl = localStorage.getItem('comfyui_local_base_url')
+
+  if (!localBaseUrl) {
+    // If not set, emit event to parent to open settings
+    window.dispatchEvent(new CustomEvent('open-local-settings'))
+    return
+  }
+
+  // Open template in local ComfyUI directly without confirmation
+  const localUrl = `${localBaseUrl}?template=${props.template.name}`
+  window.open(localUrl, '_blank')
+}
+
+const openLocalSettings = () => {
+  // Emit event to parent component to open settings dialog
+  window.dispatchEvent(new CustomEvent('open-local-settings'))
 }
 
 // Helper functions for logos
