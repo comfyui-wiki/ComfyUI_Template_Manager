@@ -125,6 +125,14 @@
 
       <!-- Category Badge -->
       <div class="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
+        <!-- Missing Output Files Badge -->
+        <span
+          v-if="missingOutputFilesCount > 0"
+          class="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 text-white rounded-full shadow-lg flex items-center justify-center min-w-[18px]"
+          :title="`${missingOutputFilesCount} output file${missingOutputFilesCount > 1 ? 's' : ''} missing`"
+        >
+          {{ missingOutputFilesCount }}
+        </span>
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
           {{ category || template.categoryTitle || 'Uncategorized' }}
         </span>
@@ -358,6 +366,16 @@ const copySuccess = ref(false)
 // Check if this template is in the PR
 const isInPR = computed(() => {
   return props.prTemplates?.includes(props.template.name) || false
+})
+
+// Calculate missing output files count
+const missingOutputFilesCount = computed(() => {
+  if (!props.template.io?.outputs || !Array.isArray(props.template.io.outputs)) {
+    return 0
+  }
+
+  // Count outputs that don't have a file specified
+  return props.template.io.outputs.filter((output: any) => !output.file || output.file.trim() === '').length
 })
 
 // Use VueUse to track mouse position
