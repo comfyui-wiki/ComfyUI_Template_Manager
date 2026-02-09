@@ -35,6 +35,20 @@ interface UpdateTemplateRequest {
     vram?: number
     usage?: number
     searchRank?: number
+    io?: {
+      inputs?: Array<{
+        nodeId: number
+        nodeType: string
+        file: string
+        mediaType: string
+      }>
+      outputs?: Array<{
+        nodeId: number
+        nodeType: string
+        file: string
+        mediaType: string
+      }>
+    }
   }
   templateOrder?: string[]  // Array of template names in new order
   files?: {
@@ -50,6 +64,10 @@ interface UpdateTemplateRequest {
       filename: string
       content: string // base64
       deleteOldFile?: string  // Old filename to delete if format changed
+    }>
+    outputFiles?: Array<{
+      filename: string
+      content: string // base64
     }>
   }
 }
@@ -195,6 +213,20 @@ export default defineEventHandler(async (event) => {
       if (metadata.vram !== undefined) templateData.vram = metadata.vram
       if (metadata.usage !== undefined) templateData.usage = metadata.usage
       if (metadata.searchRank !== undefined) templateData.searchRank = metadata.searchRank
+
+      // Update io field if provided
+      if (metadata.io !== undefined) {
+        if (metadata.io && (metadata.io.inputs?.length > 0 || metadata.io.outputs?.length > 0)) {
+          templateData.io = metadata.io
+          console.log('[Update Template] Updated io field:', {
+            inputs: metadata.io.inputs?.length || 0,
+            outputs: metadata.io.outputs?.length || 0
+          })
+        } else {
+          // Remove io field if no inputs or outputs
+          delete templateData.io
+        }
+      }
 
       // Calculate new required thumbnail count
       const newThumbnailVariant = templateData.thumbnailVariant || 'none'
@@ -722,6 +754,32 @@ export default defineEventHandler(async (event) => {
         } else {
           console.log(`[Update Template] Added input file: ${inputFile.filename}`)
         }
+      }
+    }
+
+    // 6. Update output files if provided
+    if (files?.outputFiles && files.outputFiles.length > 0) {
+      console.log(`[Update Template] Uploading ${files.outputFiles.length} output file(s)`)
+      for (const outputFile of files.outputFiles) {
+        // Output files don't need conflict resolution like input files
+        // They are stored directly in output/ folder
+
+        // Create blob for output file content
+        const { data: blob } = await octokit.git.createBlob({
+          owner,
+          repo: repoName,
+          content: outputFile.content,
+          encoding: 'base64'
+        })
+
+        tree.push({
+          path: `output/${outputFile.filename}`,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          sha: blob.sha
+        })
+
+        console.log(`[Update Template] Added output file: ${outputFile.filename}`)
       }
     }
 

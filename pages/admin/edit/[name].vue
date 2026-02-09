@@ -212,9 +212,11 @@
                 :branch="selectedBranch"
                 :workflow-content="workflowContent"
                 :category="form.category"
+                :io-data="originalTemplate?.io"
                 :model-links-validation="modelLinksValidation"
                 @workflow-updated="handleWorkflowUpdated"
                 @input-files-updated="handleInputFilesUpdated"
+                @output-files-updated="handleOutputFilesUpdated"
                 @open-converter="handleInputFileConversion"
                 @format-changed="handleInputFileFormatChange"
                 @template-name-extracted="handleTemplateNameExtracted"
@@ -1187,6 +1189,7 @@ const thumbnailFilesInfo = ref<Map<number, { size: string; dimensions?: string }
 const updatedWorkflowContent = ref<string>('')
 const hasWorkflowChanged = ref<boolean>(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
+const reuploadedOutputFiles = ref<Map<string, File>>(new Map()) // New state for output files
 
 // Save success state
 const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
@@ -2049,6 +2052,11 @@ const handleWorkflowUpdated = (content: string) => {
 // Handler for input files updates from WorkflowFileManager
 const handleInputFilesUpdated = (files: Map<string, File>) => {
   reuploadedInputFiles.value = files
+}
+
+// Handler for output files updates from WorkflowFileManager
+const handleOutputFilesUpdated = (files: Map<string, File>) => {
+  reuploadedOutputFiles.value = files
 }
 
 // Handler for custom nodes detected from workflow
@@ -3158,6 +3166,22 @@ const handleSubmit = async () => {
       }
     }
 
+    // Check if output files were reuploaded
+    if (reuploadedOutputFiles.value.size > 0) {
+      filesData.outputFiles = []
+
+      for (const [filename, file] of reuploadedOutputFiles.value) {
+        const fileBase64 = await fileToBase64(file)
+        const outputFileData: any = {
+          filename,
+          content: fileBase64.split(',')[1] // Remove data URL prefix
+        }
+
+        filesData.outputFiles.push(outputFileData)
+      }
+      console.log('[Submit] Output files:', reuploadedOutputFiles.value.size, 'files')
+    }
+
     // Check if thumbnails were reuploaded (or need to be uploaded in create mode)
     if (reuploadedThumbnails.value.size > 0) {
       filesData.thumbnails = []
@@ -3210,6 +3234,47 @@ const handleSubmit = async () => {
     // Get the template name (from form in create mode, from route in edit mode)
     const targetTemplateName = isCreateMode.value ? form.value.templateName : templateName
 
+    // Build IO data from WorkflowFileManager
+    let ioData: any = undefined
+    if (workflowFileManagerRef.value) {
+      const inputRefs = workflowFileManagerRef.value.inputFileRefs || []
+      const outputRefs = workflowFileManagerRef.value.outputFileRefs || []
+
+      // Only include io if there are inputs or outputs
+      if (inputRefs.length > 0 || outputRefs.length > 0) {
+        ioData = {}
+
+        // Build inputs array (only include files that exist or were uploaded)
+        if (inputRefs.length > 0) {
+          ioData.inputs = inputRefs
+            .filter((ref: any) => ref.filename && (ref.exists || reuploadedInputFiles.value.has(ref.filename)))
+            .map((ref: any) => ({
+              nodeId: ref.nodeId,
+              nodeType: ref.nodeType,
+              file: ref.filename,
+              mediaType: ref.mediaType || 'image' // Fallback to image if not specified
+            }))
+        }
+
+        // Build outputs array (only include files that were uploaded)
+        if (outputRefs.length > 0) {
+          ioData.outputs = outputRefs
+            .filter((ref: any) => ref.filename && (ref.exists || reuploadedOutputFiles.value.has(ref.filename)))
+            .map((ref: any) => ({
+              nodeId: ref.nodeId,
+              nodeType: ref.nodeType,
+              file: ref.filename,
+              mediaType: ref.mediaType
+            }))
+        }
+
+        console.log('[Submit] IO data:', {
+          inputs: ioData.inputs?.length || 0,
+          outputs: ioData.outputs?.length || 0
+        })
+      }
+    }
+
     // Call appropriate API endpoint
     const response = await $fetch(apiEndpoint, {
       method: 'POST',
@@ -3247,7 +3312,8 @@ const handleSubmit = async () => {
           size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
           vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
           usage: form.value.usage ?? 0,
-          searchRank: form.value.searchRank ?? 0
+          searchRank: form.value.searchRank ?? 0,
+          io: ioData // Include IO data if available
         },
         templateOrder,
         files: Object.keys(filesData).length > 0 ? filesData : undefined
@@ -3298,6 +3364,7 @@ const handleSubmit = async () => {
       updatedWorkflowContent.value = ''
       hasWorkflowChanged.value = false
       reuploadedInputFiles.value.clear()
+      reuploadedOutputFiles.value.clear() // Clear output files
       thumbnailReuploadStatus.value = null
 
       // Clear format changes in WorkflowFileManager

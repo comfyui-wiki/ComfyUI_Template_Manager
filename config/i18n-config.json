@@ -87,7 +87,8 @@
       "usage",
       "searchRank",
       "openSource",
-      "comfyuiVersion"
+      "comfyuiVersion",
+      "io"
     ]
   },
   "aiTranslation": {

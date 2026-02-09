@@ -459,6 +459,155 @@
       </svg>
       <p class="text-sm text-muted-foreground">No input files required by this workflow</p>
     </div>
+
+    <!-- Output Files Section (Optional) -->
+    <div v-if="outputFileRefs.length > 0" class="mt-6 p-4 border-2 rounded-lg border-border bg-card">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <h3 class="font-semibold">Output Files (Optional)</h3>
+        </div>
+        <span class="text-xs px-2.5 py-1 rounded font-medium bg-blue-100 text-blue-800">
+          {{ outputFileRefs.filter(f => f.exists).length }}/{{ outputFileRefs.length }} uploaded
+        </span>
+      </div>
+
+      <!-- Output File List -->
+      <div class="space-y-3">
+        <div
+          v-for="fileRef in outputFileRefs"
+          :key="`output-${fileRef.nodeId}`"
+          class="border rounded-lg border-border"
+        >
+          <div class="flex items-center justify-between p-3 bg-background">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+              <!-- Icon -->
+              <div class="flex-shrink-0">
+                <div class="w-10 h-10 rounded flex items-center justify-center"
+                     :class="fileRef.exists ? 'bg-green-100' : 'bg-gray-100'">
+                  <svg v-if="fileRef.exists" class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <svg v-else class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- File Info -->
+              <div class="flex-1 min-w-0">
+                <!-- Editable filename -->
+                <div class="flex items-center gap-2 group">
+                  <input
+                    v-if="editingOutputFilename === fileRef.nodeId"
+                    v-model="tempOutputFilename"
+                    type="text"
+                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary flex-1"
+                    placeholder="output_filename.mp4"
+                    @keyup.enter="saveOutputFilenameEdit(fileRef.nodeId)"
+                    @keyup.esc="cancelOutputFilenameEdit"
+                    @blur="saveOutputFilenameEdit(fileRef.nodeId)"
+                  />
+                  <div v-else class="font-mono text-sm truncate">
+                    {{ fileRef.filename || `[Node ${fileRef.nodeId}] No file uploaded yet` }}
+                  </div>
+                  <button
+                    v-if="editingOutputFilename !== fileRef.nodeId"
+                    type="button"
+                    class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    @click="startOutputFilenameEdit(fileRef.nodeId, fileRef.filename)"
+                    title="Edit filename"
+                  >
+                    <svg class="w-3 h-3 text-muted-foreground hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span class="capitalize">{{ fileRef.nodeType }}</span>
+                  <span>•</span>
+                  <span>Node #{{ fileRef.nodeId }}</span>
+                  <span>•</span>
+                  <span class="capitalize">{{ fileRef.mediaType }}</span>
+                  <span v-if="fileRef.size">•</span>
+                  <span v-if="fileRef.size">{{ formatFileSize(fileRef.size) }}</span>
+                </div>
+                <div v-if="!fileRef.exists && fileRef.filename" class="text-xs text-amber-700 mt-1 font-medium">
+                  ⚠️ File not found in repository
+                </div>
+              </div>
+
+              <!-- Preview for images -->
+              <div v-if="fileRef.exists && fileRef.previewUrl && isImageFile(fileRef.filename)" class="flex-shrink-0">
+                <img
+                  :src="fileRef.previewUrl"
+                  :alt="fileRef.filename"
+                  class="w-12 h-12 rounded object-cover border"
+                  @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
+                />
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 ml-3">
+              <Button
+                v-if="fileRef.exists"
+                type="button"
+                variant="outline"
+                size="sm"
+                @click="downloadOutputFile(fileRef.filename)"
+                title="Download file"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </Button>
+              <Button
+                v-if="fileRef.exists"
+                type="button"
+                variant="outline"
+                size="sm"
+                @click="handleConvertOutputFile(fileRef.nodeId)"
+                title="Convert/compress file"
+              >
+                Convert
+              </Button>
+              <Button
+                type="button"
+                :variant="fileRef.exists ? 'outline' : 'default'"
+                size="sm"
+                @click="triggerOutputFileUpload(fileRef.nodeId)"
+                :title="fileRef.exists ? 'Replace file' : 'Upload file'"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+
+          <!-- Warning Message -->
+          <div v-if="outputFileWarnings.has(fileRef.nodeId.toString())"
+               class="px-3 pb-3 pt-0">
+            <div class="p-2 rounded bg-amber-100 border border-amber-300 text-xs text-amber-800">
+              {{ outputFileWarnings.get(fileRef.nodeId.toString()) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden file inputs for each output file -->
+      <input
+        v-for="fileRef in outputFileRefs"
+        :key="'output-input-' + fileRef.nodeId"
+        :ref="el => setOutputFileRef(fileRef.nodeId.toString(), el)"
+        type="file"
+        class="hidden"
+        @change="(e) => handleOutputFileUpload(e, fileRef.nodeId)"
+      />
+    </div>
   </div>
 </template>
 
@@ -475,12 +624,36 @@ interface InputFileRef {
   size?: number
 }
 
+interface OutputFileRef {
+  filename: string // Output filename (can be empty initially)
+  nodeId: number
+  nodeType: string
+  mediaType: string // image, video, audio, 3d
+  exists: boolean
+  previewUrl?: string
+  size?: number
+}
+
 interface Props {
   templateName: string
   repo: string
   branch: string
   workflowContent?: string
   category?: string
+  ioData?: {
+    inputs?: Array<{
+      nodeId: number
+      nodeType: string
+      file: string
+      mediaType: string
+    }>
+    outputs?: Array<{
+      nodeId: number
+      nodeType: string
+      file: string
+      mediaType: string
+    }>
+  }
   modelLinksValidation?: {
     totalModels: number
     missingLinks: number
@@ -495,6 +668,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   workflowUpdated: [content: string]
   inputFilesUpdated: [files: Map<string, File>]
+  outputFilesUpdated: [files: Map<string, File>] // New emit for output files
   openConverter: [file: File, targetFilename: string, isExisting: boolean]
   formatChanged: [oldFilename: string, newFilename: string]
   templateNameExtracted: [name: string] // Emit template name from filename
@@ -508,10 +682,14 @@ const inputFileInputRefs = ref<Map<string, HTMLInputElement>>(new Map())
 const workflowStatus = ref<{ success: boolean; message: string } | null>(null)
 const formatChangeNotice = ref<{ oldFilename: string; newFilename: string } | null>(null)
 const inputFileRefs = ref<InputFileRef[]>([])
+const outputFileRefs = ref<OutputFileRef[]>([]) // New ref for output files
 const workflowParsed = ref(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
+const reuploadedOutputFiles = ref<Map<string, File>>(new Map()) // New map for output files
 const inputFileWarnings = ref<Map<string, string>>(new Map())
+const outputFileWarnings = ref<Map<string, string>>(new Map()) // New warnings for outputs
 const pendingConversionFiles = ref<Map<string, File>>(new Map())
+const outputFileInputRefs = ref<Map<string, HTMLInputElement>>(new Map()) // Refs for output file inputs
 
 // Naming rules
 const namingRules = ref<any>(null)
@@ -524,15 +702,22 @@ const isEditingTemplateName = ref(false)
 const editingTemplateNameValue = ref<string>('')
 const duplicateNameWarning = ref<string | null>(null)
 
-// Filename editing state
+// Filename editing state (input files)
 const editingFilename = ref<string | null>(null)
 const tempFilename = ref<string>('')
+
+// Filename editing state (output files - by nodeId)
+const editingOutputFilename = ref<number | null>(null)
+const tempOutputFilename = ref<string>('')
 
 // Format change tracking
 const formatChangedFiles = ref<Map<string, string>>(new Map())
 
 // Node types that require input assets (from Python script)
-const ASSET_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo']
+const INPUT_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo', 'Load3DModel', 'LoadImageMask']
+
+// Node types that produce output assets (from Python script)
+const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveVideo', 'SaveAudio', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio']
 
 // Computed
 const hasWarnings = computed(() => {
@@ -555,6 +740,13 @@ const templateNameError = computed(() => {
 const setInputFileRef = (filename: string, el: any) => {
   if (el) {
     inputFileInputRefs.value.set(filename, el as HTMLInputElement)
+  }
+}
+
+// Helper: Set output file ref
+const setOutputFileRef = (nodeId: string, el: any) => {
+  if (el) {
+    outputFileInputRefs.value.set(nodeId, el as HTMLInputElement)
   }
 }
 
@@ -743,7 +935,7 @@ const parseWorkflowForInputFiles = (workflowJson: string): InputFileRef[] => {
       if (!node || typeof node !== 'object') continue
 
       const nodeType = node.type
-      if (ASSET_NODE_TYPES.includes(nodeType)) {
+      if (INPUT_NODE_TYPES.includes(nodeType)) {
         const widgetsValues = node.widgets_values
         let filename: string | null = null
 
@@ -774,6 +966,47 @@ const parseWorkflowForInputFiles = (workflowJson: string): InputFileRef[] => {
     return refs
   } catch (error) {
     console.error('Failed to parse workflow JSON:', error)
+    return []
+  }
+}
+
+// Helper: Get media type from node type
+const getMediaTypeFromNodeType = (nodeType: string): string => {
+  const lowerType = nodeType.toLowerCase()
+  if (lowerType.includes('image')) return 'image'
+  if (lowerType.includes('video')) return 'video'
+  if (lowerType.includes('audio')) return 'audio'
+  if (lowerType.includes('3d') || lowerType.includes('model')) return '3d'
+  return 'image' // default fallback
+}
+
+// Parse workflow JSON to extract output file references
+const parseWorkflowForOutputFiles = (workflowJson: string): OutputFileRef[] => {
+  try {
+    const data = JSON.parse(workflowJson)
+    const nodes = data.nodes || []
+    const refs: OutputFileRef[] = []
+
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object') continue
+
+      const nodeType = node.type
+      if (OUTPUT_NODE_TYPES.includes(nodeType)) {
+        const mediaType = getMediaTypeFromNodeType(nodeType)
+
+        refs.push({
+          filename: '', // Empty initially, user can fill or upload
+          nodeId: node.id,
+          nodeType,
+          mediaType,
+          exists: false,
+        })
+      }
+    }
+
+    return refs
+  } catch (error) {
+    console.error('Failed to parse workflow JSON for outputs:', error)
     return []
   }
 }
@@ -811,6 +1044,45 @@ const checkInputFilesExistence = async () => {
       }
     } catch (error) {
       console.warn(`Failed to check file: ${fileRef.filename}`, error)
+      fileRef.exists = false
+    }
+  }
+}
+
+// Check if output files exist in GitHub repo (output folder)
+const checkOutputFilesExistence = async () => {
+  if (outputFileRefs.value.length === 0) return
+
+  const [owner, repoName] = props.repo.split('/')
+
+  for (const fileRef of outputFileRefs.value) {
+    // Skip if no filename or already reuploaded
+    if (!fileRef.filename) continue
+    if (reuploadedOutputFiles.value.has(fileRef.filename)) {
+      fileRef.exists = true
+      continue
+    }
+
+    // Check in output folder
+    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${fileRef.filename}`
+    try {
+      const response = await fetch(url, { method: 'HEAD' })
+      fileRef.exists = response.ok
+
+      if (response.ok) {
+        // Get file size
+        const sizeHeader = response.headers.get('content-length')
+        if (sizeHeader) {
+          fileRef.size = parseInt(sizeHeader, 10)
+        }
+
+        // Set preview URL for images
+        if (isImageFile(fileRef.filename)) {
+          fileRef.previewUrl = url
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to check output file: ${fileRef.filename}`, error)
       fileRef.exists = false
     }
   }
@@ -1017,11 +1289,14 @@ const handleWorkflowReupload = async (event: Event) => {
       emit('customNodesDetected', customNodes)
     }
 
-    // Re-parse for input files
+    // Re-parse for input and output files
     const newRefs = parseWorkflowForInputFiles(text)
+    const newOutputRefs = parseWorkflowForOutputFiles(text)
     inputFileRefs.value = newRefs
+    outputFileRefs.value = newOutputRefs
     workflowParsed.value = true
     await checkInputFilesExistence()
+    await checkOutputFilesExistence()
   } catch (error) {
     workflowStatus.value = {
       success: false,
@@ -1345,12 +1620,257 @@ const saveFilenameEdit = (oldFilename: string) => {
   cancelFilenameEdit()
 }
 
-// Expose method for parent to call when converter finishes
+// Output filename editing functions
+const startOutputFilenameEdit = (nodeId: number, currentFilename: string) => {
+  editingOutputFilename.value = nodeId
+  tempOutputFilename.value = currentFilename || ''
+}
+
+const cancelOutputFilenameEdit = () => {
+  editingOutputFilename.value = null
+  tempOutputFilename.value = ''
+}
+
+const saveOutputFilenameEdit = (nodeId: number) => {
+  const newFilename = tempOutputFilename.value.trim()
+  const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
+
+  if (!fileRef) {
+    cancelOutputFilenameEdit()
+    return
+  }
+
+  const oldFilename = fileRef.filename
+
+  // If no change, cancel
+  if (newFilename === oldFilename) {
+    cancelOutputFilenameEdit()
+    return
+  }
+
+  // Validate filename (basic check) - allow empty
+  if (newFilename && !/^[a-zA-Z0-9_\-\.]+$/.test(newFilename)) {
+    outputFileWarnings.value.set(nodeId.toString(), '⚠️ Invalid filename. Use only letters, numbers, dots, dashes, and underscores.')
+    cancelOutputFilenameEdit()
+    return
+  }
+
+  console.log('[WorkflowFileManager] Renaming output file:', oldFilename || '(empty)', '→', newFilename || '(empty)')
+
+  // Update the filename in the ref
+  fileRef.filename = newFilename
+
+  // Handle reuploaded file renaming
+  if (oldFilename && reuploadedOutputFiles.value.has(oldFilename)) {
+    const file = reuploadedOutputFiles.value.get(oldFilename)!
+    reuploadedOutputFiles.value.delete(oldFilename)
+
+    if (newFilename) {
+      const newFile = new File([file], newFilename, { type: file.type })
+      reuploadedOutputFiles.value.set(newFilename, newFile)
+
+      // Mark as exists since we have the file locally
+      fileRef.exists = true
+      fileRef.size = file.size
+
+      // Update preview if image
+      if (isImageFile(newFilename)) {
+        fileRef.previewUrl = URL.createObjectURL(newFile)
+      }
+    }
+
+    // Emit updated files
+    emit('outputFilesUpdated', reuploadedOutputFiles.value)
+  } else if (newFilename) {
+    // New filename set without uploaded file
+    // Don't mark as exists, will be checked later when workflow is loaded
+    fileRef.exists = false
+    outputFileWarnings.value.set(nodeId.toString(), `📝 Filename set: ${newFilename}. Upload a file or it will be included in metadata.`)
+    setTimeout(() => {
+      outputFileWarnings.value.delete(nodeId.toString())
+    }, 3000)
+  } else {
+    // Empty filename - reset
+    fileRef.exists = false
+    fileRef.size = undefined
+    fileRef.previewUrl = undefined
+  }
+
+  // Clear any warnings on old filename
+  if (oldFilename) {
+    outputFileWarnings.value.delete(nodeId.toString())
+  }
+
+  cancelOutputFilenameEdit()
+}
+
+// Expose methods and data for parent to call
 defineExpose({
   handleConvertedFileReceived,
   formatChangedFiles,
-  resetFormatChanges
+  resetFormatChanges,
+  inputFileRefs, // Expose input file refs for parent
+  outputFileRefs, // Expose output file refs for parent
+  reuploadedOutputFiles // Expose reuploaded output files for parent
 })
+
+// Trigger output file upload
+const triggerOutputFileUpload = (nodeId: number) => {
+  const input = outputFileInputRefs.value.get(nodeId.toString())
+  input?.click()
+}
+
+// Handle output file upload
+const handleOutputFileUpload = async (event: Event, nodeId: number) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  console.log('[WorkflowFileManager] Output file uploaded:', file.name, file.type, file.size)
+
+  const nodeIdStr = nodeId.toString()
+
+  // Clear previous warning
+  outputFileWarnings.value.delete(nodeIdStr)
+
+  // Find the output file ref
+  const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
+  if (!fileRef) return
+
+  // Update filename if not set
+  if (!fileRef.filename) {
+    fileRef.filename = file.name
+  }
+
+  // Validate file size and format
+  const isImage = file.type.startsWith('image/')
+  const isVideo = file.type.startsWith('video/')
+  const isWebP = file.type === 'image/webp'
+  const isMP4 = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4')
+
+  const fileSizeMB = file.size / (1024 * 1024)
+
+  // Check MP4 size limit (8MB)
+  if (isMP4 && fileSizeMB > 8) {
+    outputFileWarnings.value.set(nodeIdStr,
+      `❌ MP4 file is too large (${fileSizeMB.toFixed(2)}MB). Maximum size for MP4 is 8MB. Please reduce the file size.`
+    )
+    input.value = ''
+    return
+  }
+
+  // Store the file
+  reuploadedOutputFiles.value.set(fileRef.filename, file)
+
+  // Update the file ref
+  fileRef.exists = true
+  fileRef.size = file.size
+
+  // Create preview for images
+  if (isImageFile(file.name)) {
+    fileRef.previewUrl = URL.createObjectURL(file)
+  }
+
+  // Check size warnings
+  let sizeWarning = ''
+  if (isImage && fileSizeMB > 2) {
+    sizeWarning = `⚠️ Image size is ${fileSizeMB.toFixed(2)}MB (recommended: < 2MB). This may be too large for the server.`
+  } else if (isMP4 && fileSizeMB > 4) {
+    sizeWarning = `⚠️ MP4 size is ${fileSizeMB.toFixed(2)}MB (recommended: < 4MB for better performance).`
+  }
+
+  // Check if needs conversion
+  const needsConversion = (isImage && !isWebP) || (isVideo && !isMP4)
+
+  if (needsConversion) {
+    outputFileWarnings.value.set(nodeIdStr,
+      `${sizeWarning ? sizeWarning + ' ' : ''}✨ File uploaded: ${file.name} (${fileSizeMB.toFixed(2)}MB). Click "Convert" button to optimize format and size.`
+    )
+  } else if (sizeWarning) {
+    outputFileWarnings.value.set(nodeIdStr, sizeWarning)
+  } else {
+    const formatMsg = isWebP ? 'WebP format is optimal!' : isMP4 ? 'MP4 format is accepted!' : 'File format is valid!'
+    outputFileWarnings.value.set(nodeIdStr,
+      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
+    )
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      outputFileWarnings.value.delete(nodeIdStr)
+    }, 3000)
+  }
+
+  // Emit updated files
+  emit('outputFilesUpdated', reuploadedOutputFiles.value)
+
+  // Reset input
+  input.value = ''
+}
+
+// Handle output file conversion request
+const handleConvertOutputFile = async (nodeId: number) => {
+  const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
+  if (!fileRef || !fileRef.filename) return
+
+  let file = reuploadedOutputFiles.value.get(fileRef.filename)
+  let isExisting = false
+
+  // If no reuploaded file, fetch from GitHub
+  if (!file) {
+    isExisting = true
+    const [owner, repoName] = props.repo.split('/')
+    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${fileRef.filename}`
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error('File not found')
+
+      const blob = await response.blob()
+      file = new File([blob], fileRef.filename, { type: blob.type })
+    } catch (error) {
+      console.error('Failed to fetch output file for conversion:', error)
+      return
+    }
+  }
+
+  if (file) {
+    emit('openConverter', file, fileRef.filename, isExisting)
+  }
+}
+
+// Download output file
+const downloadOutputFile = async (filename: string) => {
+  // Check if reuploaded locally
+  if (reuploadedOutputFiles.value.has(filename)) {
+    const file = reuploadedOutputFiles.value.get(filename)!
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+    return
+  }
+
+  // Download from GitHub output folder
+  const [owner, repoName] = props.repo.split('/')
+  const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${filename}`
+
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('File not found')
+
+    const blob = await response.blob()
+    const downloadUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(downloadUrl)
+  } catch (error) {
+    console.error('Failed to download output file:', error)
+  }
+}
 
 // Download input file
 const downloadInputFile = async (filename: string) => {
@@ -1391,8 +1911,9 @@ watch(() => props.workflowContent, async (newContent) => {
   if (!newContent) return
 
   const refs = parseWorkflowForInputFiles(newContent)
+  const outputRefs = parseWorkflowForOutputFiles(newContent)
 
-  // Preserve state of reuploaded files after parsing
+  // Preserve state of reuploaded input files after parsing
   for (const ref of refs) {
     if (reuploadedInputFiles.value.has(ref.filename)) {
       const file = reuploadedInputFiles.value.get(ref.filename)!
@@ -1404,9 +1925,36 @@ watch(() => props.workflowContent, async (newContent) => {
     }
   }
 
+  // Merge existing output files from ioData (if in edit mode)
+  if (props.ioData?.outputs) {
+    for (const existingOutput of props.ioData.outputs) {
+      // Find corresponding ref by nodeId
+      const ref = outputRefs.find(r => r.nodeId === existingOutput.nodeId)
+      if (ref && existingOutput.file) {
+        // Set filename from existing data
+        ref.filename = existingOutput.file
+        // Will check existence later
+      }
+    }
+  }
+
+  // Preserve state of reuploaded output files after parsing
+  for (const ref of outputRefs) {
+    if (ref.filename && reuploadedOutputFiles.value.has(ref.filename)) {
+      const file = reuploadedOutputFiles.value.get(ref.filename)!
+      ref.exists = true
+      ref.size = file.size
+      if (isImageFile(file.name)) {
+        ref.previewUrl = URL.createObjectURL(file)
+      }
+    }
+  }
+
   inputFileRefs.value = refs
+  outputFileRefs.value = outputRefs
   workflowParsed.value = true
   await checkInputFilesExistence()
+  await checkOutputFilesExistence()
 }, { immediate: true })
 
 // Watch for category changes to re-validate template name
