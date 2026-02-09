@@ -75,16 +75,17 @@
             <!-- Branch Info -->
             <div class="flex items-center gap-3 flex-wrap">
               <a
-                :href="`https://github.com/${selectedRepo}/tree/${selectedBranch}`"
+                :href="`https://github.com/${selectedRepo || 'Comfy-Org/workflow_templates'}/tree/${selectedBranch || 'main'}`"
                 target="_blank"
                 class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors group"
+                :title="`View on GitHub: ${selectedRepo || 'Comfy-Org/workflow_templates'} @ ${selectedBranch || 'main'}`"
               >
                 <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
                 </svg>
-                <span class="font-mono font-medium text-gray-700">{{ selectedRepo }}</span>
-                <span class="text-gray-400">/</span>
-                <span class="font-mono font-semibold text-gray-900">{{ selectedBranch }}</span>
+                <span class="font-mono font-medium text-gray-700">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span>
+                <span class="text-gray-400">@</span>
+                <span class="font-mono font-semibold text-gray-900">{{ selectedBranch || 'main' }}</span>
                 <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -291,7 +292,7 @@
           <div class="flex-1">
             <p class="text-sm text-purple-900 font-medium">Browsing PR Branch - Read-Only Mode</p>
             <p class="text-xs text-purple-800 mt-1">
-              You're viewing a pull request branch <span class="font-mono font-semibold">{{ selectedRepo }}</span> / <span class="font-mono font-semibold">{{ selectedBranch }}</span>.
+              You're viewing a pull request branch <span class="font-mono font-semibold">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span> @ <span class="font-mono font-semibold">{{ selectedBranch || 'main' }}</span>.
               Editing is disabled. To make changes, please switch to a branch you have write access to.
             </p>
             <div class="mt-2 flex flex-wrap gap-2">
@@ -328,7 +329,7 @@
           <div class="flex-1">
             <p class="text-sm text-blue-900 font-medium">Read-only mode</p>
             <p class="text-xs text-blue-800 mt-1">
-              You're viewing <span class="font-mono font-semibold">{{ selectedRepo }}</span> / <span class="font-mono font-semibold">{{ selectedBranch }}</span> in read-only mode.
+              You're viewing <span class="font-mono font-semibold">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span> @ <span class="font-mono font-semibold">{{ selectedBranch || 'main' }}</span> in read-only mode.
               To create or edit templates:
             </p>
             <div class="mt-2 flex flex-wrap gap-2">

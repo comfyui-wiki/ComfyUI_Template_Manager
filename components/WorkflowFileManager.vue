@@ -717,7 +717,7 @@ const formatChangedFiles = ref<Map<string, string>>(new Map())
 const INPUT_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo', 'Load3DModel', 'LoadImageMask']
 
 // Node types that produce output assets (from Python script)
-const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveVideo', 'SaveAudio', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio']
+const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveVideo', 'SaveAudio', 'SaveAudioMP3', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio']
 
 // Computed
 const hasWarnings = computed(() => {
