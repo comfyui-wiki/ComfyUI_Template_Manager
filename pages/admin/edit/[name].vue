@@ -3256,10 +3256,11 @@ const handleSubmit = async () => {
             }))
         }
 
-        // Build outputs array (only include files that were uploaded)
+        // Build outputs array (include all outputs with filename set, even if file doesn't exist yet)
+        // Output files are optional - user may set filename for future upload or just as metadata
         if (outputRefs.length > 0) {
           ioData.outputs = outputRefs
-            .filter((ref: any) => ref.filename && (ref.exists || reuploadedOutputFiles.value.has(ref.filename)))
+            .filter((ref: any) => ref.filename && ref.filename.trim() !== '')
             .map((ref: any) => ({
               nodeId: ref.nodeId,
               nodeType: ref.nodeType,
