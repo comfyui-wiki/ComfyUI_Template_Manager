@@ -35,6 +35,20 @@ interface CreateTemplateRequest {
     vram?: number
     usage?: number
     searchRank?: number
+    io?: {
+      inputs?: Array<{
+        nodeId: number
+        nodeType: string
+        file: string
+        mediaType: string
+      }>
+      outputs?: Array<{
+        nodeId: number
+        nodeType: string
+        file: string
+        mediaType: string
+      }>
+    }
   }
   templateOrder?: string[]  // Array of template names in desired order
   files: {
@@ -47,6 +61,10 @@ interface CreateTemplateRequest {
       filename: string
     }>
     inputFiles?: Array<{
+      filename: string
+      content: string // base64
+    }>
+    outputFiles?: Array<{
       filename: string
       content: string // base64
     }>
@@ -210,6 +228,16 @@ export default defineEventHandler(async (event) => {
     if (metadata.searchRank !== undefined) {
       newTemplate.searchRank = metadata.searchRank
     }
+    // Add io field if provided
+    if (metadata.io !== undefined) {
+      if (metadata.io && ((metadata.io.inputs?.length || 0) > 0 || (metadata.io.outputs?.length || 0) > 0)) {
+        newTemplate.io = metadata.io
+        console.log('[Create Template] Added io field:', {
+          inputs: metadata.io.inputs?.length || 0,
+          outputs: metadata.io.outputs?.length || 0
+        })
+      }
+    }
 
     // Add template to category
     indexData[targetCategoryIndex].templates = indexData[targetCategoryIndex].templates || []
@@ -253,7 +281,6 @@ export default defineEventHandler(async (event) => {
       console.log('[Create Template] Checking bundles.json...')
 
       let bundlesData: any = {}
-      let bundlesFileExists = false
 
       // Try to get current bundles.json
       try {
@@ -267,7 +294,6 @@ export default defineEventHandler(async (event) => {
         if ('content' in bundlesFile) {
           const bundlesContent = Buffer.from(bundlesFile.content, 'base64').toString('utf-8')
           bundlesData = JSON.parse(bundlesContent)
-          bundlesFileExists = true
           console.log('[Create Template] bundles.json found and loaded')
         }
       } catch (error: any) {
@@ -507,6 +533,32 @@ export default defineEventHandler(async (event) => {
         } else {
           console.log(`[Create Template] Added input file: ${inputFile.filename}`)
         }
+      }
+    }
+
+    // 7. Add output files if provided
+    if (files.outputFiles && files.outputFiles.length > 0) {
+      console.log(`[Create Template] Uploading ${files.outputFiles.length} output file(s)`)
+      for (const outputFile of files.outputFiles) {
+        // Output files don't need conflict resolution like input files
+        // They are stored directly in output/ folder
+
+        // Create blob for output file content
+        const { data: blob } = await octokit.git.createBlob({
+          owner,
+          repo: repoName,
+          content: outputFile.content,
+          encoding: 'base64'
+        })
+
+        tree.push({
+          path: `output/${outputFile.filename}`,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          sha: blob.sha
+        })
+
+        console.log(`[Create Template] Added output file: ${outputFile.filename}`)
       }
     }
 

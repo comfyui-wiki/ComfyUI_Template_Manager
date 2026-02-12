@@ -3,7 +3,6 @@
     "DownloadAndLoadDepthAnythingV2Model"
   ],
   "directoryRules": {
-    "DownloadAndLoadDepthAnythingV2Model": "depthanything",
     "CheckpointLoaderSimple": "checkpoints",
     "CheckpointLoader": "checkpoints",
     "ControlNetLoader": "controlnet",
