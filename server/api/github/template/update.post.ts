@@ -86,14 +86,28 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<UpdateTemplateRequest>(event)
     const { repo, branch, templateName, metadata, templateOrder, files } = body
 
-    // Log received templateOrder for debugging
+    // Log received request for debugging
     console.log('[Update Template] Request received:', {
       templateName,
       hasTemplateOrder: !!templateOrder,
-      templateOrderLength: templateOrder?.length || 0
+      templateOrderLength: templateOrder?.length || 0,
+      hasFiles: !!files,
+      hasWorkflow: !!files?.workflow,
+      hasThumbnails: !!files?.thumbnails,
+      thumbnailCount: files?.thumbnails?.length || 0,
+      hasInputFiles: !!files?.inputFiles,
+      inputFileCount: files?.inputFiles?.length || 0,
+      hasOutputFiles: !!files?.outputFiles,
+      outputFileCount: files?.outputFiles?.length || 0
     })
     if (templateOrder) {
       console.log('[Update Template] templateOrder:', templateOrder.join(', '))
+    }
+    if (files?.thumbnails) {
+      console.log('[Update Template] thumbnails to upload:', files.thumbnails.map(t => t.filename).join(', '))
+    }
+    if (files?.workflow) {
+      console.log('[Update Template] workflow will be updated')
     }
 
     if (!repo || !branch || !templateName) {
@@ -638,6 +652,7 @@ export default defineEventHandler(async (event) => {
 
     // 3. Update workflow.json if provided (with input file name updates if needed)
     if (files?.workflow?.content) {
+      console.log('[Update Template] Processing workflow file update...')
       let workflowContent = Buffer.from(files.workflow.content, 'base64').toString('utf-8')
 
       // Update workflow JSON with actual filenames (prefixed if conflict)
@@ -689,10 +704,14 @@ export default defineEventHandler(async (event) => {
         type: 'blob' as const,
         content: workflowContent
       })
+      console.log('[Update Template] ✓ Added workflow to tree: templates/${templateName}.json')
+    } else {
+      console.log('[Update Template] ⚠️ No workflow file to update (files?.workflow?.content is missing)')
     }
 
     // 4. Update thumbnails if provided
     if (files?.thumbnails && files.thumbnails.length > 0) {
+      console.log(`[Update Template] Processing ${files.thumbnails.length} thumbnail(s)...`)
       for (const thumbnail of files.thumbnails) {
         // Create blob for binary image content
         const { data: blob } = await octokit.git.createBlob({
@@ -708,7 +727,10 @@ export default defineEventHandler(async (event) => {
           type: 'blob' as const,
           sha: blob.sha
         })
+        console.log(`[Update Template] ✓ Added thumbnail to tree: templates/${thumbnail.filename}`)
       }
+    } else {
+      console.log('[Update Template] ⚠️ No thumbnails to update (files?.thumbnails is empty or missing)')
     }
 
     // 5. Update input files if provided (using actual filenames from mapping)
@@ -784,12 +806,18 @@ export default defineEventHandler(async (event) => {
     }
 
     // Create new tree
+    console.log(`[Update Template] Creating tree with ${tree.length} file(s):`)
+    tree.forEach((item, index) => {
+      console.log(`  ${index + 1}. ${item.path} (${item.sha ? 'blob sha' : item.content ? 'content' : 'delete'})`)
+    })
+
     const { data: newTree } = await octokit.git.createTree({
       owner,
       repo: repoName,
       tree,
       base_tree: currentTreeSha
     })
+    console.log('[Update Template] ✓ Tree created successfully:', newTree.sha)
 
     // Create commit (mention reorder in message when only/mostly order changed)
     const commitSubject = orderUpdated
