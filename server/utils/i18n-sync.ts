@@ -561,7 +561,6 @@ export async function syncUpdatedTemplateToAllLocales(
   console.log(`[i18n-sync] Loaded i18n.json with ${Object.keys(i18nData.templates || {}).length} templates`)
 
   // Load master (English) file to get correct template order
-  const [owner, repoName] = repo.split('/')
   let masterData: any[]
 
   // Use provided masterIndexData if available, otherwise fetch from GitHub
@@ -584,125 +583,120 @@ export async function syncUpdatedTemplateToAllLocales(
 
   const fileUpdates: FileUpdate[] = []
 
-  // Process each locale
+  // Process each locale (skip default/English locale - it's handled separately in the main flow)
   for (const locale of config.supportedLocales) {
+    // Skip the default (English) locale - index.json is already updated by the main update flow.
+    // Including it here would push a second 'templates/index.json' entry to the git tree,
+    // and GitHub uses the last entry, which would overwrite the correctly updated version.
+    if (locale.isDefault) {
+      console.log(`[i18n-sync] Skipping default locale (${locale.code}) - handled by main flow`)
+      continue
+    }
+
     const indexPath = `templates/${locale.indexFile}`
     console.log(`[i18n-sync] Processing locale: ${locale.code} (${indexPath})`)
 
-    // Read current locale file
-    const localeData = await readJsonFromGitHub(octokit, repo, branch, indexPath)
+    // Wrap each locale in its own try-catch so one failure doesn't skip the rest
+    try {
+      // Read current locale file
+      const localeData = await readJsonFromGitHub(octokit, repo, branch, indexPath)
 
-    if (!localeData || !Array.isArray(localeData)) {
-      console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: invalid or missing data`)
-      continue
-    }
+      if (!localeData || !Array.isArray(localeData)) {
+        console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: invalid or missing data`)
+        continue
+      }
 
-    console.log(`[i18n-sync] Loaded ${locale.code} with ${localeData.length} categories`)
+      console.log(`[i18n-sync] Loaded ${locale.code} with ${localeData.length} categories`)
 
-    // Make sure new category exists
-    if (!localeData[categoryIndex]) {
-      console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: category ${categoryIndex} doesn't exist (only ${localeData.length} categories found)`)
-      continue
-    }
+      // Make sure new category exists
+      if (!localeData[categoryIndex]) {
+        console.warn(`[i18n-sync] ✗ Skipping ${locale.code}: category ${categoryIndex} doesn't exist (only ${localeData.length} categories found)`)
+        continue
+      }
 
-    console.log(`[i18n-sync] Category ${categoryIndex} in ${locale.code} has ${localeData[categoryIndex].templates?.length || 0} templates`)
+      console.log(`[i18n-sync] Category ${categoryIndex} in ${locale.code} has ${localeData[categoryIndex].templates?.length || 0} templates`)
 
-    // Find existing template in new category
-    let existingIndex = localeData[categoryIndex].templates.findIndex(
-      (t: any) => t.name === templateData.name
-    )
+      // Find existing template in new category
+      let existingIndex = localeData[categoryIndex].templates.findIndex(
+        (t: any) => t.name === templateData.name
+      )
 
-    let existingTemplate: any = null
-    let movedFromOldCategory = false
+      let existingTemplate: any = null
+      let movedFromOldCategory = false
 
-    if (existingIndex >= 0) {
-      console.log(`[i18n-sync] Found template at index ${existingIndex} in new category ${categoryIndex}`)
-      existingTemplate = localeData[categoryIndex].templates[existingIndex]
-    } else if (oldCategoryIndex !== undefined && oldCategoryIndex !== categoryIndex) {
-      // Category changed - try to find in old category
-      console.log(`[i18n-sync] Not found in new category, searching in old category ${oldCategoryIndex}...`)
+      if (existingIndex >= 0) {
+        console.log(`[i18n-sync] Found template at index ${existingIndex} in new category ${categoryIndex}`)
+        existingTemplate = localeData[categoryIndex].templates[existingIndex]
+      } else if (oldCategoryIndex !== undefined && oldCategoryIndex !== categoryIndex) {
+        // Category changed - try to find in old category
+        console.log(`[i18n-sync] Not found in new category, searching in old category ${oldCategoryIndex}...`)
 
-      if (localeData[oldCategoryIndex]) {
-        const oldIndex = localeData[oldCategoryIndex].templates.findIndex(
-          (t: any) => t.name === templateData.name
-        )
+        if (localeData[oldCategoryIndex]) {
+          const oldIndex = localeData[oldCategoryIndex].templates.findIndex(
+            (t: any) => t.name === templateData.name
+          )
 
-        if (oldIndex >= 0) {
-          console.log(`[i18n-sync] Found template in old category ${oldCategoryIndex} at index ${oldIndex}`)
-          existingTemplate = localeData[oldCategoryIndex].templates[oldIndex]
+          if (oldIndex >= 0) {
+            console.log(`[i18n-sync] Found template in old category ${oldCategoryIndex} at index ${oldIndex}`)
+            existingTemplate = localeData[oldCategoryIndex].templates[oldIndex]
 
-          // Remove from old category
-          localeData[oldCategoryIndex].templates.splice(oldIndex, 1)
-          console.log(`[i18n-sync] Removed template from old category ${oldCategoryIndex}`)
+            // Remove from old category
+            localeData[oldCategoryIndex].templates.splice(oldIndex, 1)
+            console.log(`[i18n-sync] Removed template from old category ${oldCategoryIndex}`)
 
-          // Add to new category
-          localeData[categoryIndex].templates.push(existingTemplate)
-          existingIndex = localeData[categoryIndex].templates.length - 1
-          movedFromOldCategory = true
-          console.log(`[i18n-sync] Moved template to new category ${categoryIndex}`)
+            // Add to new category
+            localeData[categoryIndex].templates.push(existingTemplate)
+            existingIndex = localeData[categoryIndex].templates.length - 1
+            movedFromOldCategory = true
+            console.log(`[i18n-sync] Moved template to new category ${categoryIndex}`)
+          } else {
+            console.log(`[i18n-sync] Template not found in old category ${oldCategoryIndex} either, will add as new`)
+          }
         } else {
-          console.log(`[i18n-sync] Template not found in old category ${oldCategoryIndex} either, will add as new`)
+          console.log(`[i18n-sync] Old category ${oldCategoryIndex} doesn't exist in ${locale.code}, will add as new`)
         }
       } else {
-        console.log(`[i18n-sync] Old category ${oldCategoryIndex} doesn't exist in ${locale.code}, will add as new`)
+        console.log(`[i18n-sync] Template ${templateData.name} not found in ${locale.code} category ${categoryIndex}, will add as new`)
       }
-    } else {
-      console.log(`[i18n-sync] Template ${templateData.name} not found in ${locale.code} category ${categoryIndex}, will add as new`)
-    }
 
-    // Build or update the template
-    let updatedTemplate: any
+      // Build or update the template
+      let updatedTemplate: any
 
-    if (existingTemplate) {
-      // Update existing template - preserve translations
-      updatedTemplate = { ...existingTemplate }
-      const updatedFields: string[] = []
+      if (existingTemplate) {
+        // Update existing template - preserve translations
+        updatedTemplate = { ...existingTemplate }
+        const updatedFields: string[] = []
 
-      for (const field of config.autoSyncFields.fields) {
-        if (field in templateData) {
-          updatedTemplate[field] = templateData[field]
-          updatedFields.push(field)
-        } else {
-          // If field doesn't exist in templateData, remove it from locale file
-          // This handles deletion of optional fields (e.g., empty includeOnDistributions)
-          if (field in updatedTemplate) {
-            delete updatedTemplate[field]
-            updatedFields.push(`-${field}`)
+        for (const field of config.autoSyncFields.fields) {
+          if (field in templateData) {
+            updatedTemplate[field] = templateData[field]
+            updatedFields.push(field)
+          } else {
+            // If field doesn't exist in templateData, remove it from locale file
+            // This handles deletion of optional fields (e.g., empty includeOnDistributions)
+            if (field in updatedTemplate) {
+              delete updatedTemplate[field]
+              updatedFields.push(`-${field}`)
+            }
           }
         }
-      }
 
-      console.log(`[i18n-sync] Updated ${updatedFields.length} auto-sync fields in ${locale.code}:`, updatedFields.join(', '))
+        console.log(`[i18n-sync] Updated ${updatedFields.length} auto-sync fields in ${locale.code}:`, updatedFields.join(', '))
 
-      // For English locale, update title and description from master
-      if (locale.code === 'en') {
-        updatedTemplate.title = templateData.title
-        updatedTemplate.description = templateData.description
-        console.log(`[i18n-sync] Updated title and description for English locale`)
-      }
-
-      // Update tags - translate to target language using i18n.json mappings
-      if (templateData.tags) {
-        if (locale.code === 'en') {
-          // For English, use original tags
-          updatedTemplate.tags = templateData.tags
-          console.log(`[i18n-sync] Updated tags for English: ${templateData.tags.length} tags`)
-        } else {
-          // For other languages, translate using i18n.json tag mappings
+        // Update tags - translate to target language using i18n.json mappings
+        if (templateData.tags) {
           updatedTemplate.tags = translateTags(templateData.tags, locale.code, i18nData)
           console.log(`[i18n-sync] Updated and translated tags for ${locale.code}: ${updatedTemplate.tags.length} tags`)
         }
-      }
 
-      localeData[categoryIndex].templates[existingIndex] = updatedTemplate
-    } else {
-      // Template doesn't exist in target file - add it as new
-      console.log(`[i18n-sync] Template not found in ${locale.code}, adding as new template...`)
+        localeData[categoryIndex].templates[existingIndex] = updatedTemplate
+      } else {
+        // Template doesn't exist in target file - add it as new
+        console.log(`[i18n-sync] Template not found in ${locale.code}, adding as new template...`)
 
-      updatedTemplate = { ...templateData }
+        updatedTemplate = { ...templateData }
 
-      // For non-English locales, try to get translations from i18n.json
-      if (locale.code !== 'en') {
+        // Try to get translations from i18n.json
         const i18nTemplates = i18nData.templates || {}
         const i18nTemplate = i18nTemplates[templateData.name]
 
@@ -731,53 +725,54 @@ export async function syncUpdatedTemplateToAllLocales(
           updatedTemplate.tags = translateTags(templateData.tags, locale.code, i18nData)
           console.log(`[i18n-sync] Translated tags for new template: ${updatedTemplate.tags.length} tags`)
         }
+
+        // Add to category
+        localeData[categoryIndex].templates.push(updatedTemplate)
+        console.log(`[i18n-sync] Added new template to ${locale.code} category ${categoryIndex}`)
       }
 
-      // Add to category
-      localeData[categoryIndex].templates.push(updatedTemplate)
-      console.log(`[i18n-sync] Added new template to ${locale.code} category ${categoryIndex}`)
-    }
-
-    if (movedFromOldCategory) {
-      console.log(`[i18n-sync] ✓ Moved and updated template in ${locale.code}`)
-    } else if (existingTemplate) {
-      console.log(`[i18n-sync] ✓ Updated template in ${locale.code}`)
-    } else {
-      console.log(`[i18n-sync] ✓ Added new template in ${locale.code}`)
-    }
-
-    // Reorder templates to match master order
-    console.log(`[i18n-sync] Reordering templates in ${locale.code} to match master order...`)
-
-    const templateMap = new Map()
-    for (const template of localeData[categoryIndex].templates) {
-      templateMap.set(template.name, template)
-    }
-
-    const reorderedTemplates: any[] = []
-    for (const masterTemplateName of masterTemplateOrder) {
-      if (templateMap.has(masterTemplateName)) {
-        reorderedTemplates.push(templateMap.get(masterTemplateName))
+      if (movedFromOldCategory) {
+        console.log(`[i18n-sync] ✓ Moved and updated template in ${locale.code}`)
+      } else if (existingTemplate) {
+        console.log(`[i18n-sync] ✓ Updated template in ${locale.code}`)
+      } else {
+        console.log(`[i18n-sync] ✓ Added new template in ${locale.code}`)
       }
-    }
 
-    // Add any templates that exist in locale but not in master (shouldn't happen, but just in case)
-    for (const template of localeData[categoryIndex].templates) {
-      if (!masterTemplateOrder.includes(template.name)) {
-        console.warn(`[i18n-sync] Template ${template.name} exists in ${locale.code} but not in master, appending to end`)
-        reorderedTemplates.push(template)
+      // Reorder templates to match master order
+      const templateMap = new Map()
+      for (const template of localeData[categoryIndex].templates) {
+        templateMap.set(template.name, template)
       }
+
+      const reorderedTemplates: any[] = []
+      for (const masterTemplateName of masterTemplateOrder) {
+        if (templateMap.has(masterTemplateName)) {
+          reorderedTemplates.push(templateMap.get(masterTemplateName))
+        }
+      }
+
+      // Add any templates that exist in locale but not in master (shouldn't happen, but just in case)
+      for (const template of localeData[categoryIndex].templates) {
+        if (!masterTemplateOrder.includes(template.name)) {
+          console.warn(`[i18n-sync] Template ${template.name} exists in ${locale.code} but not in master, appending to end`)
+          reorderedTemplates.push(template)
+        }
+      }
+
+      localeData[categoryIndex].templates = reorderedTemplates
+      console.log(`[i18n-sync] ✓ Reordered ${reorderedTemplates.length} templates in ${locale.code}`)
+
+      // Format and add to updates
+      const formattedContent = formatTemplateJson(localeData)
+      fileUpdates.push({
+        path: indexPath,
+        content: formattedContent
+      })
+    } catch (localeError: any) {
+      console.error(`[i18n-sync] ✗ Failed to process locale ${locale.code}:`, localeError.message)
+      // Continue to next locale - don't let one failure block all others
     }
-
-    localeData[categoryIndex].templates = reorderedTemplates
-    console.log(`[i18n-sync] ✓ Reordered ${reorderedTemplates.length} templates in ${locale.code}`)
-
-    // Format and add to updates
-    const formattedContent = formatTemplateJson(localeData)
-    fileUpdates.push({
-      path: indexPath,
-      content: formattedContent
-    })
   }
 
   console.log(`[i18n-sync] syncUpdatedTemplateToAllLocales completed with ${fileUpdates.length} file updates`)
