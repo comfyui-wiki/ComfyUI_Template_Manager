@@ -122,11 +122,8 @@ export function formatTemplateJson(data: any, indent = 2): string {
       )
 
       if (allPrimitives) {
-        // Keep primitive arrays on single line if short
-        const singleLine = JSON.stringify(value)
-        if (singleLine.length <= 60) {
-          return singleLine
-        }
+        // Always keep primitive arrays (tags, models, etc.) on a single line
+        return JSON.stringify(value)
       }
 
       // Default array formatting (one item per line)
