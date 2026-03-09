@@ -4,13 +4,15 @@ import workflowModelConfig from '~/config/workflow-model-config.json'
 import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import i18nConfig from '~/config/i18n-config.json'
 import aiAssistantPrompts from '~/config/ai-assistant-prompts.json'
+import supportedModels from '~/config/supported_models.json'
 
 const configs: Record<string, any> = {
   'template-naming-rules.json': templateNamingRules,
   'workflow-model-config.json': workflowModelConfig,
   'bundle-mapping-rules.json': bundleMappingRules,
   'i18n-config.json': i18nConfig,
-  'ai-assistant-prompts.json': aiAssistantPrompts
+  'ai-assistant-prompts.json': aiAssistantPrompts,
+  'supported_models.json': supportedModels
 }
 
 export default defineEventHandler((event) => {

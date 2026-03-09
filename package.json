@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "predev": "node scripts/copy-supported-models.js",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",

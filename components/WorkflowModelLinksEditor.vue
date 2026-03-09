@@ -188,11 +188,18 @@
 
                   <!-- Model URL -->
                   <div>
-                    <Label class="text-xs">Model URL</Label>
+                    <div class="flex items-center gap-1.5 mb-1">
+                      <Label class="text-xs">Model URL</Label>
+                      <span
+                        v-if="model.autoFilled"
+                        class="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium leading-none"
+                        title="URL auto-filled from supported models list"
+                      >✓ auto</span>
+                    </div>
                     <div class="relative">
                       <Input
                         v-model="model.url"
-                        @input="validateModel(model, nodeInfo)"
+                        @input="model.autoFilled = false; validateModel(model, nodeInfo)"
                         @blur="convertHuggingFaceUrl(model)"
                         placeholder="Model download URL"
                         class="text-xs"
@@ -208,11 +215,28 @@
                         title="Invalid URL format"
                       ></div>
                       <div
+                        v-else-if="model.isCivitai"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-4 h-4 rounded-full bg-orange-400 text-white text-[9px] font-bold leading-none cursor-default"
+                        title="CivitAI URL — filename cannot be verified automatically"
+                      >?</div>
+                      <div
                         v-else-if="model.urlValid === true"
                         class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-green-500"
                         title="Valid URL"
                       ></div>
                     </div>
+                    <a
+                      v-if="model.isCivitai && model.url"
+                      :href="model.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 mt-1 text-[10px] text-orange-600 hover:text-orange-700 hover:underline"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Visit to verify
+                    </a>
                   </div>
 
                   <!-- Directory -->
@@ -415,6 +439,9 @@ const config = ref<any>(null)
 const directoryRules = computed(() => config.value?.directoryRules || {})
 const customNodeRules = computed(() => config.value?.customNodeRules || [])
 
+// Supported models lookup: model_name → { url, directory }
+const supportedModelsMap = ref<Map<string, { url: string; directory: string }>>(new Map())
+
 watch(() => props.open, (value) => {
   isOpen.value = value || false
   if (value && props.initialWorkflow) {
@@ -467,9 +494,20 @@ watch(isOpen, (value, oldValue) => {
 // Load configuration on mount
 onMounted(async () => {
   try {
-    // Fetch from API endpoint instead of public folder
-    const response = await fetch('/api/config/workflow-model-config.json')
-    config.value = await response.json()
+    const [configRes, modelsRes] = await Promise.all([
+      fetch('/api/config/workflow-model-config.json'),
+      fetch('/api/config/supported_models.json')
+    ])
+    config.value = await configRes.json()
+
+    const modelsData = await modelsRes.json()
+    const map = new Map<string, { url: string; directory: string }>()
+    for (const entry of modelsData.models ?? []) {
+      if (entry.model_name) {
+        map.set(entry.model_name, { url: entry.url ?? '', directory: entry.directory ?? '' })
+      }
+    }
+    supportedModelsMap.value = map
   } catch (error) {
     console.error('[WorkflowModelLinksEditor] Failed to load config:', error)
   }
@@ -601,19 +639,33 @@ const parseWorkflow = () => {
       })
     }
 
-    // Add missing models
+    // Add missing models (auto-fill URL/directory from supported models list if available)
     const existingNames = models.map(m => m.name)
     for (const file of modelFiles) {
       const fileName = file.split(/[\\\/]/).pop()
       if (!existingNames.includes(fileName)) {
+        const supported = fileName ? supportedModelsMap.value.get(fileName) : undefined
         models.push({
           name: fileName,
-          url: '',
-          directory: directoryRules.value[node.type] || '',
+          url: supported?.url ?? '',
+          directory: supported?.directory || directoryRules.value[node.type] || '',
+          autoFilled: !!supported,
           valid: false,
           nameValid: null,
           urlValid: null
         })
+      }
+    }
+
+    // Also auto-fill URL for existing models that have a blank URL
+    for (const model of models) {
+      if (!model.url && model.name) {
+        const supported = supportedModelsMap.value.get(model.name)
+        if (supported) {
+          model.url = supported.url
+          if (!model.directory) model.directory = supported.directory
+          model.autoFilled = true
+        }
       }
     }
 
@@ -669,10 +721,15 @@ const validateModel = (model: any, nodeInfo: any) => {
   model.nameValid = model.name ? (nameMatched || null) : null
 
   // Validate URL
+  model.isCivitai = false
   if (!model.url) {
     model.urlValid = null
   } else if (!model.url.includes('http')) {
     model.urlValid = false
+  } else if (model.url.includes('civitai.com')) {
+    // CivitAI URLs don't embed the filename — mark as unverifiable, not invalid
+    model.isCivitai = true
+    model.urlValid = null
   } else {
     // Check Hugging Face format
     const isHF = model.url.includes('huggingface.co')
@@ -689,7 +746,9 @@ const validateModel = (model: any, nodeInfo: any) => {
     }
   }
 
-  model.valid = model.nameValid === true && model.urlValid === true
+  // CivitAI: treat as valid when URL is present and name is not mismatched
+  model.valid = (model.nameValid === true && model.urlValid === true) ||
+    (model.isCivitai && !!model.url && model.nameValid !== false)
 
   // Update node stats
   updateNodeStats(nodeInfo)
