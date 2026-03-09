@@ -1345,11 +1345,27 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     return
   }
 
+  // For first-time uploads (slot was not yet filled), use the uploaded file's own name.
+  // For replacements (slot already has a file), keep the existing slot name.
+  const existingRef = inputFileRefs.value.find(f => f.filename === originalFilename)
+  const isNewUpload = !existingRef?.exists
+  const effectiveFilename = isNewUpload ? file.name : originalFilename
+
+  // If the name differs, rename the slot before doing anything else
+  if (effectiveFilename !== originalFilename) {
+    const index = inputFileRefs.value.findIndex(f => f.filename === originalFilename)
+    if (index !== -1) {
+      inputFileRefs.value.splice(index, 1, { ...inputFileRefs.value[index], filename: effectiveFilename })
+    }
+    formatChangedFiles.value.set(effectiveFilename, originalFilename)
+    formatChangeNotice.value = { oldFilename: originalFilename, newFilename: effectiveFilename }
+  }
+
   // ALWAYS store the file first to mark it as uploaded
-  reuploadedInputFiles.value.set(originalFilename, file)
+  reuploadedInputFiles.value.set(effectiveFilename, file)
 
   // Update the file ref to mark as exists
-  const fileRef = inputFileRefs.value.find(f => f.filename === originalFilename)
+  const fileRef = inputFileRefs.value.find(f => f.filename === effectiveFilename)
   if (fileRef) {
     fileRef.exists = true
     fileRef.size = file.size
@@ -1373,14 +1389,17 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 
   if (needsConversion) {
     // Show info message - user can manually click Convert button
-    inputFileWarnings.value.set(originalFilename,
+    inputFileWarnings.value.set(effectiveFilename,
       `${sizeWarning ? sizeWarning + ' ' : ''}✨ File uploaded: ${file.name} (${fileSizeMB.toFixed(2)}MB). Click "Convert" button to optimize format and size.`
     )
 
     // Store file for conversion
-    pendingConversionFiles.value.set(originalFilename, file)
+    pendingConversionFiles.value.set(effectiveFilename, file)
 
-    // Emit updated files
+    // Emit updated files and rename if needed
+    if (effectiveFilename !== originalFilename) {
+      emit('formatChanged', originalFilename, effectiveFilename)
+    }
     emit('inputFilesUpdated', reuploadedInputFiles.value)
 
     // Reset input
@@ -1393,19 +1412,22 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 
   // WebP or MP4 file - show success message
   if (sizeWarning) {
-    inputFileWarnings.value.set(originalFilename, sizeWarning)
+    inputFileWarnings.value.set(effectiveFilename, sizeWarning)
   } else {
     const formatMsg = isWebP ? 'WebP format is optimal!' : isMP4 ? 'MP4 format is accepted!' : 'File format is valid!'
-    inputFileWarnings.value.set(originalFilename,
+    inputFileWarnings.value.set(effectiveFilename,
       `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
     )
     // Clear success message after 3 seconds
     setTimeout(() => {
-      inputFileWarnings.value.delete(originalFilename)
+      inputFileWarnings.value.delete(effectiveFilename)
     }, 3000)
   }
 
-  // Emit updated files
+  // Emit rename and updated files
+  if (effectiveFilename !== originalFilename) {
+    emit('formatChanged', originalFilename, effectiveFilename)
+  }
   emit('inputFilesUpdated', reuploadedInputFiles.value)
 
   // Reset input
