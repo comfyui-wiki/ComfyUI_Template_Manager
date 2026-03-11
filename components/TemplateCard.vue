@@ -242,7 +242,7 @@
             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
             </svg>
-            Open in Cloud
+            Open in Cloud<span v-if="template.name?.endsWith('.app')" class="ml-1 text-[10px] font-bold opacity-80">(APP)</span>
           </Button>
           <Button
             variant="outline"
