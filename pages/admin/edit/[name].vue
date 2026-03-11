@@ -664,6 +664,77 @@
                     />
                   </div>
 
+                  <!-- Creator / Username -->
+                  <div class="space-y-2">
+                    <Label for="username">Creator (optional)</Label>
+                    <div class="relative">
+                      <!-- Selected creator preview + trigger -->
+                      <div
+                        class="flex items-center gap-2 border rounded-md px-3 py-2 cursor-pointer hover:border-primary/50 transition-colors bg-background"
+                        @click="isCreatorDropdownOpen = !isCreatorDropdownOpen"
+                      >
+                        <!-- Avatar -->
+                        <img
+                          v-if="form.username && creatorsData[form.username]"
+                          :src="getCreatorAvatarUrl(creatorsData[form.username], (selectedRepo || 'Comfy-Org/workflow_templates').split('/')[0], (selectedRepo || 'Comfy-Org/workflow_templates').split('/')[1], selectedBranch || 'main')"
+                          :alt="creatorsData[form.username].displayName"
+                          class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                        />
+                        <div v-else-if="form.username" class="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <span class="flex-1 text-sm" :class="form.username ? '' : 'text-muted-foreground'">
+                          {{ form.username && creatorsData[form.username] ? creatorsData[form.username].displayName : (form.username || 'Select a creator...') }}
+                        </span>
+                        <svg class="w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform" :class="isCreatorDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      <!-- Dropdown -->
+                      <div
+                        v-if="isCreatorDropdownOpen"
+                        class="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-64 overflow-y-auto"
+                      >
+                        <!-- None option -->
+                        <div
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center gap-2 border-b"
+                          @mousedown.prevent="form.username = ''; isCreatorDropdownOpen = false"
+                        >
+                          <div class="w-6 h-6 rounded-full bg-muted flex-shrink-0" />
+                          <span class="text-muted-foreground">None</span>
+                        </div>
+                        <!-- Creator options -->
+                        <div
+                          v-for="(creator, handle) in creatorsData"
+                          :key="handle"
+                          class="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                          @mousedown.prevent="form.username = handle as string; isCreatorDropdownOpen = false"
+                        >
+                          <img
+                            :src="getCreatorAvatarUrl(creator, (selectedRepo || 'Comfy-Org/workflow_templates').split('/')[0], (selectedRepo || 'Comfy-Org/workflow_templates').split('/')[1], selectedBranch || 'main')"
+                            :alt="creator.displayName"
+                            class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <div class="font-medium truncate">{{ creator.displayName }}</div>
+                            <div class="text-xs text-muted-foreground truncate">@{{ creator.handle }}</div>
+                          </div>
+                          <span v-if="form.username === handle" class="text-primary text-xs flex-shrink-0">✓</span>
+                        </div>
+                        <!-- Empty state -->
+                        <div v-if="Object.keys(creatorsData).length === 0" class="px-3 py-4 text-sm text-muted-foreground text-center">
+                          No creators found
+                        </div>
+                      </div>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      The creator who made this workflow template.
+                    </p>
+                  </div>
+
                   <!-- ComfyUI Version -->
                   <div class="space-y-2">
                     <Label for="comfyuiVersion">Minimum ComfyUI Version (optional)</Label>
@@ -1295,7 +1366,8 @@ const form = ref({
   sizeGB: null as number | null, // Size in GB (will be converted to bytes when saving), null means not filled yet
   vramGB: null as number | null, // VRAM in GB (optional, null means not filled)
   usage: null as number | null, // Usage count (optional, null means not filled)
-  searchRank: null as number | null // Search rank (optional, null means not filled)
+  searchRank: null as number | null, // Search rank (optional, null means not filled)
+  username: '' // Creator username
 })
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
@@ -1304,6 +1376,8 @@ const availableModels = ref<string[]>([])
 const availableCustomNodes = ref<string[]>([])
 const availableProviders = ref<string[]>([])
 const logoMapping = ref<Record<string, string>>({})
+const creatorsData = ref<Record<string, { displayName: string; handle: string; avatarUrl: string; summary?: string; social?: string | string[] }>>({})
+const isCreatorDropdownOpen = ref(false)
 const tagSearchInput = ref('')
 const modelSearchInput = ref('')
 const customNodeSearchInput = ref('')
@@ -1556,7 +1630,8 @@ const hasFormChanges = computed(() => {
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
     JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort()) ||
     JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort()) ||
-    JSON.stringify(form.value.includeOnDistributions.sort()) !== JSON.stringify((originalTemplate.value.includeOnDistributions || []).sort())
+    JSON.stringify(form.value.includeOnDistributions.sort()) !== JSON.stringify((originalTemplate.value.includeOnDistributions || []).sort()) ||
+    form.value.username !== (originalTemplate.value.username || '')
   )
 })
 
@@ -2754,6 +2829,27 @@ const loadLogoConfiguration = async (owner: string, repoName: string, branch: st
   }
 }
 
+// Load creators data from site/creators.json
+const loadCreatorsData = async (owner: string, repoName: string, branch: string) => {
+  try {
+    const creatorsUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/site/creators.json?t=${Date.now()}`
+    const response = await fetch(creatorsUrl)
+    if (response.ok) {
+      creatorsData.value = await response.json()
+      console.log('[Edit Page] Loaded creators:', Object.keys(creatorsData.value).length)
+    }
+  } catch (err) {
+    console.warn('[Edit Page] Failed to load creators.json:', err)
+  }
+}
+
+// Get creator avatar URL from GitHub raw
+const getCreatorAvatarUrl = (creator: { avatarUrl: string }, owner: string, repoName: string, branch: string) => {
+  // avatarUrl is like "/workflows/avatars/comfyui.png", extract filename
+  const filename = creator.avatarUrl.split('/').pop()
+  return `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/site/avatars/${filename}`
+}
+
 // Refresh logo data (called after Logo Manager saves)
 const handleLogoManagerRefresh = async () => {
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
@@ -2828,8 +2924,11 @@ onMounted(async () => {
       availableCustomNodes.value = Array.from(customNodesSet).sort()
     }
 
-    // Load logo configuration from index_logo.json
-    await loadLogoConfiguration(owner, repoName, branch)
+    // Load logo configuration and creators data in parallel
+    await Promise.all([
+      loadLogoConfiguration(owner, repoName, branch),
+      loadCreatorsData(owner, repoName, branch)
+    ])
 
     // In create mode, skip loading existing template
     if (isCreateMode.value) {
@@ -2965,6 +3064,7 @@ onMounted(async () => {
     })
     form.value.usage = foundTemplate.usage !== undefined ? foundTemplate.usage : null
     form.value.searchRank = foundTemplate.searchRank !== undefined ? foundTemplate.searchRank : null
+    form.value.username = foundTemplate.username || ''
 
     // Load workflow content
     await loadWorkflowContent(owner, repoName, branch)
@@ -3314,6 +3414,7 @@ const handleSubmit = async () => {
           vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
           usage: form.value.usage ?? 0,
           searchRank: form.value.searchRank ?? 0,
+          username: form.value.username || undefined,
           io: ioData // Include IO data if available
         },
         templateOrder,
@@ -3397,6 +3498,7 @@ const handleSubmit = async () => {
         originalTemplate.value.vram = gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null)
         originalTemplate.value.usage = form.value.usage ?? 0
         originalTemplate.value.searchRank = form.value.searchRank ?? 0
+        originalTemplate.value.username = form.value.username || undefined
       }
 
       // Reset template order changes (computed property will auto-update)

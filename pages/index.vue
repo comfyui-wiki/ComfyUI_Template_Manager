@@ -57,6 +57,20 @@
 
               <Button
                 v-if="status === 'authenticated' && isMounted"
+                @click="showCreatorManager = true"
+                size="sm"
+                variant="outline"
+                :disabled="!canEditCurrentRepo || isViewingPR"
+                :title="isViewingPR ? 'Cannot manage creators while browsing PR' : (canEditCurrentRepo ? 'Batch assign creators to templates' : 'Select a branch with write access to manage creators')"
+              >
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Creators
+              </Button>
+
+              <Button
+                v-if="status === 'authenticated' && isMounted"
                 @click="showUsageUpdateModal = true"
                 size="sm"
                 variant="outline"
@@ -407,6 +421,7 @@
       :commit-sha="latestCommitSha"
       :pr-templates="prDetails?.templates.changed"
       :logo-mapping="logoMapping"
+      :creators-data="creatorsData"
       :repo-base-url="repoBaseUrl"
       @clear-filters="clearFilters"
       @refresh="refreshTemplates"
@@ -431,6 +446,15 @@
       v-if="isMounted"
       v-model:open="showTagModelManager"
       :index-data="categories"
+    />
+
+    <!-- Creator Manager Modal -->
+    <CreatorManager
+      v-if="isMounted"
+      v-model:open="showCreatorManager"
+      :index-data="categories"
+      :creators-data="creatorsData"
+      @saved="refreshTemplates"
     />
 
     <!-- Usage Update Modal -->
@@ -475,6 +499,7 @@ import PRBrowser from '~/components/PRBrowser.vue'
 import TranslationManager from '~/components/TranslationManager.vue'
 import UsageUpdateModal from '~/components/UsageUpdateModal.vue'
 import TagModelManager from '~/components/TagModelManager.vue'
+import CreatorManager from '~/components/CreatorManager.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
 import TemplateMainContent from '~/components/TemplateMainContent.vue'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
@@ -528,11 +553,15 @@ const showUsageUpdateModal = ref(false)
 const showTagModelManager = ref(false)
 const showCreatePRModal = ref(false)
 const showLocalSettings = ref(false)
+const showCreatorManager = ref(false)
 const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
 
 // Logo configuration
 const logoMapping = ref<Record<string, string>>({})
+
+// Creators data
+const creatorsData = ref<Record<string, { displayName: string; handle: string; avatarUrl: string; summary?: string; social?: string | string[] }>>({})
 
 // PR Status
 const prStatus = ref<any>(null)
@@ -573,6 +602,21 @@ const loadLogoConfiguration = async (owner: string, repo: string, branch: string
   }
 }
 
+// Load creators data from site/creators.json
+const loadCreatorsData = async (owner: string, repo: string, branch: string) => {
+  try {
+    const creatorsUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/site/creators.json?t=${Date.now()}`
+    const response = await fetch(creatorsUrl)
+    if (response.ok) {
+      creatorsData.value = await response.json()
+      console.log('[Index] Loaded creators:', Object.keys(creatorsData.value).length)
+    }
+  } catch (err) {
+    console.warn('[Index] Failed to load creators.json:', err)
+    creatorsData.value = {}
+  }
+}
+
 const loadTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
   console.log(`[LoadTemplates] Loading from ${owner}/${repo}/${branch}`, forceRefresh ? '(force refresh)' : '')
   loading.value = true
@@ -581,6 +625,7 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
     await Promise.all([
       loadCurrentTemplates(owner, repo, branch, forceRefresh),
       loadLogoConfiguration(owner, repo, branch),
+      loadCreatorsData(owner, repo, branch),
       status.value === 'authenticated' ? checkBranchPermission(owner, repo, branch) : Promise.resolve()
     ])
     console.log('[LoadTemplates] Templates loaded successfully')

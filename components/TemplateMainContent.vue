@@ -237,6 +237,7 @@
             :commit-sha="commitSha"
             :pr-templates="prTemplates"
             :logo-mapping="logoMapping"
+            :creators-data="creatorsData"
             :repo-base-url="repoBaseUrl"
             @edit="$emit('edit-template', template)"
             @view="$emit('view-template', template)"
@@ -283,6 +284,7 @@ const props = defineProps<{
   commitSha?: string
   prTemplates?: string[]
   logoMapping: Record<string, string>
+  creatorsData?: Record<string, { displayName: string; handle: string; avatarUrl: string; summary?: string; social?: string | string[] }>
   repoBaseUrl: string
 }>()
 
