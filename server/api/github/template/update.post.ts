@@ -35,6 +35,7 @@ interface UpdateTemplateRequest {
     vram?: number
     usage?: number
     searchRank?: number
+    username?: string
     io?: {
       inputs?: Array<{
         nodeId: number
@@ -227,6 +228,11 @@ export default defineEventHandler(async (event) => {
       if (metadata.vram !== undefined) templateData.vram = metadata.vram
       if (metadata.usage !== undefined) templateData.usage = metadata.usage
       if (metadata.searchRank !== undefined) templateData.searchRank = metadata.searchRank
+      if (metadata.username) {
+        templateData.username = metadata.username
+      } else if (metadata.username === '') {
+        delete templateData.username
+      }
 
       // Update io field if provided
       if (metadata.io !== undefined) {

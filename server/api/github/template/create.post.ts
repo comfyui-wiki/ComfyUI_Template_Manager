@@ -35,6 +35,7 @@ interface CreateTemplateRequest {
     vram?: number
     usage?: number
     searchRank?: number
+    username?: string
     io?: {
       inputs?: Array<{
         nodeId: number
@@ -227,6 +228,9 @@ export default defineEventHandler(async (event) => {
     }
     if (metadata.searchRank !== undefined) {
       newTemplate.searchRank = metadata.searchRank
+    }
+    if (metadata.username) {
+      newTemplate.username = metadata.username
     }
     // Add io field if provided
     if (metadata.io !== undefined) {

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/templates/**)",
+      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/site/**)"
+    ]
+  }
+}

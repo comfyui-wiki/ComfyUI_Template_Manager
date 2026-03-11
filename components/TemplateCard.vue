@@ -189,6 +189,18 @@
         </p>
       </div>
 
+      <!-- Creator -->
+      <div v-if="creatorInfo" class="flex items-center gap-1.5 mb-3">
+        <img
+          v-if="creatorAvatarUrl"
+          :src="creatorAvatarUrl"
+          :alt="creatorInfo.displayName"
+          class="w-5 h-5 rounded-full object-cover flex-shrink-0"
+        />
+        <div v-else class="w-5 h-5 rounded-full bg-muted flex-shrink-0" />
+        <span class="text-xs text-muted-foreground truncate">{{ creatorInfo.displayName }}</span>
+      </div>
+
       <!-- Models metadata (keeping this but removing tags as they're now on thumbnail) -->
       <div v-if="template.models?.length" class="space-y-1.5 mb-3">
         <!-- Models -->
@@ -351,6 +363,7 @@ const props = defineProps<{
   commitSha?: string // Optional commit SHA for stronger cache busting
   prTemplates?: string[] // List of templates changed in a PR (for highlighting)
   logoMapping?: Record<string, string>
+  creatorsData?: Record<string, { displayName: string; handle: string; avatarUrl: string; summary?: string; social?: string | string[] }>
   repoBaseUrl?: string
 }>()
 
@@ -366,6 +379,20 @@ const copySuccess = ref(false)
 // Check if this template is in the PR
 const isInPR = computed(() => {
   return props.prTemplates?.includes(props.template.name) || false
+})
+
+// Creator info
+const creatorInfo = computed(() => {
+  if (!props.template.username || !props.creatorsData) return null
+  return props.creatorsData[props.template.username] || null
+})
+
+const creatorAvatarUrl = computed(() => {
+  if (!creatorInfo.value) return null
+  const filename = creatorInfo.value.avatarUrl.split('/').pop()
+  const repo = props.repo || 'Comfy-Org/workflow_templates'
+  const branch = props.branch || 'main'
+  return `https://raw.githubusercontent.com/${repo}/${branch}/site/avatars/${filename}`
 })
 
 // Calculate missing output files count

@@ -714,7 +714,7 @@ const tempOutputFilename = ref<string>('')
 const formatChangedFiles = ref<Map<string, string>>(new Map())
 
 // Node types that require input assets (from Python script)
-const INPUT_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo', 'Load3DModel', 'LoadImageMask']
+const INPUT_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo', 'Load3D', 'LoadImageMask']
 
 // Node types that produce output assets (from Python script)
 const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveVideo', 'SaveAudio', 'SaveAudioMP3', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio']
