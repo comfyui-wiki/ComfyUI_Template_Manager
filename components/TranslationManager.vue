@@ -342,7 +342,9 @@ const saveTranslation = (key: string, lang: string, value: string) => {
   // Clean the value before saving
   const cleanedValue = cleanTranslationValue(value)
 
-  const [mainKey, subKey] = key.includes('.') ? key.split('.') : [key, null]
+  const lastDot = key.lastIndexOf('.')
+  const mainKey = lastDot !== -1 ? key.substring(0, lastDot) : key
+  const subKey = lastDot !== -1 ? key.substring(lastDot + 1) : null
 
   if (activeSection.value === 'templates' && subKey) {
     if (!i18nData.value.templates[mainKey]) {
