@@ -794,14 +794,9 @@ const handleVisibilityChange = async () => {
       sessionStorage.removeItem('template_just_saved')
     }
 
-    // If user was away for more than 2 seconds OR just saved a template, force refresh
-    // This catches quick edits where user saves and immediately returns
-    if (timeSinceLastVisit > 2000 || justSaved) {
-      if (justSaved) {
-        console.log('[Page Visible] User returned after saving - refreshing data')
-      } else {
-        console.log('[Page Visible] User returned after', Math.round(timeSinceLastVisit / 1000), 'seconds - refreshing data')
-      }
+    // Only refresh when a template was just saved, not on every tab switch
+    if (justSaved) {
+      console.log('[Page Visible] User returned after saving - refreshing data')
 
       if (selectedRepo.value && selectedBranch.value) {
         const [owner, name] = selectedRepo.value.split('/')
@@ -824,7 +819,6 @@ const handleVisibilityChange = async () => {
       }
     }
 
-    lastVisitTime.value = Date.now()
   }
 }
 
