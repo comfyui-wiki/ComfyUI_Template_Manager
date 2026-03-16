@@ -409,6 +409,7 @@
       v-model:selected-tag="selectedTag"
       v-model:selected-runs-on="selectedRunsOn"
       v-model:selected-diff-status="selectedDiffStatus"
+      v-model:selected-mode="selectedMode"
       v-model:search-query="searchQuery"
       v-model:sort-by="sortBy"
       :loading="loading"
@@ -546,6 +547,7 @@ const selectedModel = ref('all')
 const selectedTag = ref('all')
 const selectedRunsOn = ref('all') // all, api, opensource
 const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
+const selectedMode = ref('all') // all, app, normal
 const sortBy = ref('latest')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
@@ -1020,6 +1022,13 @@ const filteredTemplates = computed(() => {
     templates = templates.filter(t => t.diffStatus === selectedDiffStatus.value)
   }
 
+  // Filter by mode (app vs normal)
+  if (selectedMode.value === 'app') {
+    templates = templates.filter(t => t.name?.endsWith('.app'))
+  } else if (selectedMode.value === 'normal') {
+    templates = templates.filter(t => !t.name?.endsWith('.app'))
+  }
+
   // Sort
   if (sortBy.value === 'default') {
     // Keep natural order from index.json (preserves the order from your branch)
@@ -1075,6 +1084,7 @@ const clearFilters = () => {
   selectedTag.value = 'all'
   selectedRunsOn.value = 'all'
   selectedDiffStatus.value = 'all'
+  selectedMode.value = 'all'
   searchQuery.value = ''
 }
 
