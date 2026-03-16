@@ -123,6 +123,23 @@
             </SelectContent>
           </Select>
 
+          <!-- Mode Filter -->
+          <Select :model-value="selectedMode" @update:model-value="$emit('update:selectedMode', $event)">
+            <SelectTrigger class="w-[180px]">
+              <SelectValue placeholder="All Templates" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Templates</SelectItem>
+              <SelectItem value="app">
+                <div class="flex items-center gap-2">
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded">APP</span>
+                  <span>App Mode</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="normal">Normal Mode</SelectItem>
+            </SelectContent>
+          </Select>
+
           <!-- Diff Status Filter (only show when authenticated and viewing a branch) -->
           <Select
             v-if="isMounted && status === 'authenticated' && selectedBranch"
@@ -158,7 +175,7 @@
 
           <!-- Clear Filters Button -->
           <Button
-            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || searchQuery"
+            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || searchQuery"
             variant="outline"
             size="sm"
             @click="$emit('clear-filters')"
@@ -272,6 +289,7 @@ const props = defineProps<{
   selectedTag: string
   selectedRunsOn: string
   selectedDiffStatus: string
+  selectedMode: string
   searchQuery: string
   sortBy: string
   loading: boolean
@@ -295,6 +313,7 @@ defineEmits<{
   'update:selectedTag': [value: string]
   'update:selectedRunsOn': [value: string]
   'update:selectedDiffStatus': [value: string]
+  'update:selectedMode': [value: string]
   'update:searchQuery': [value: string]
   'update:sortBy': [value: string]
   'clear-filters': []

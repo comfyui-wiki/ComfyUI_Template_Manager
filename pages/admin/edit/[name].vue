@@ -228,10 +228,21 @@
               <div>
             <Card>
               <CardHeader>
-                <CardTitle>Template Details</CardTitle>
-                <CardDescription>
-                  {{ isCreateMode ? 'Create a new template' : 'Edit the template information' }}
-                </CardDescription>
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>Template Details</CardTitle>
+                    <CardDescription>
+                      {{ isCreateMode ? 'Create a new template' : 'Edit the template information' }}
+                    </CardDescription>
+                  </div>
+                  <AIAssistBatch
+                    :context="aiContext"
+                    :available-tags="availableTags"
+                    :available-models="availableModels"
+                    :disabled="!canEditCurrentRepo"
+                    @apply="handleAIBatchApply"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <form @submit.prevent="() => {}" class="space-y-6">
@@ -1219,6 +1230,7 @@ import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
 import AIAssistant from '~/components/AIAssistant.vue'
+import AIAssistBatch from '~/components/AIAssistBatch.vue'
 import LogosEditor from '~/components/LogosEditor.vue'
 import LogoManager from '~/components/LogoManager.vue'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
@@ -1476,8 +1488,17 @@ const aiContext = computed(() => ({
   title: form.value.title,
   description: form.value.description,
   tags: form.value.tags,
-  models: form.value.models
+  models: form.value.models,
+  category: form.value.category
 }))
+
+// Handler for AI batch fill (all fields at once)
+const handleAIBatchApply = (suggestion: { title: string; description: string; tags: string[]; models: string[] }) => {
+  if (suggestion.title) form.value.title = suggestion.title
+  if (suggestion.description) form.value.description = suggestion.description
+  form.value.tags = suggestion.tags ?? []
+  form.value.models = suggestion.models ?? []
+}
 
 // Select existing model from dropdown
 const selectModel = (model: string) => {
