@@ -55,6 +55,7 @@ interface UpdateTemplateRequest {
   files?: {
     workflow?: {
       content: string // base64
+      extension?: string // '.app.json' or '.json' (default)
     }
     thumbnails?: Array<{
       index: number
@@ -579,7 +580,7 @@ export default defineEventHandler(async (event) => {
       const { data: currentWorkflowFile } = await octokit.repos.getContent({
         owner,
         repo: repoName,
-        path: `templates/${templateName}.json`,
+        path: files?.workflow?.extension === '.app.json' ? `templates/${templateName}.app.json` : `templates/${templateName}.json`,
         ref: branch
       })
 
@@ -704,13 +705,14 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      const workflowExtension = files?.workflow?.extension === '.app.json' ? '.app.json' : '.json'
       tree.push({
-        path: `templates/${templateName}.json`,
+        path: `templates/${templateName}${workflowExtension}`,
         mode: '100644' as const,
         type: 'blob' as const,
         content: workflowContent
       })
-      console.log('[Update Template] ✓ Added workflow to tree: templates/${templateName}.json')
+      console.log(`[Update Template] ✓ Added workflow to tree: templates/${templateName}${workflowExtension}`)
     } else {
       console.log('[Update Template] ⚠️ No workflow file to update (files?.workflow?.content is missing)')
     }

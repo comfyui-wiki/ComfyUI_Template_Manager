@@ -3259,7 +3259,8 @@ const handleSubmit = async () => {
       const workflowFile = new File([workflowBlob], 'workflow.json', { type: 'application/json' })
       const workflowBase64 = await fileToBase64(workflowFile)
       filesData.workflow = {
-        content: workflowBase64.split(',')[1] // Remove data URL prefix
+        content: workflowBase64.split(',')[1], // Remove data URL prefix
+        extension: workflowFileManagerRef.value?.isAppWorkflow ? '.app.json' : '.json'
       }
     }
 

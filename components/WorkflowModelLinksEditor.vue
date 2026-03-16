@@ -439,6 +439,14 @@ const config = ref<any>(null)
 const directoryRules = computed(() => config.value?.directoryRules || {})
 const customNodeRules = computed(() => config.value?.customNodeRules || [])
 
+// Resolve directory for a node type. directoryRules value can be a string or an array of strings
+// (indexed by model position within the node). Falls back to first element / string if index OOB.
+const getDirectory = (nodeType: string, modelIndex: number = 0): string => {
+  const rule = directoryRules.value[nodeType]
+  if (Array.isArray(rule)) return rule[modelIndex] ?? rule[0] ?? ''
+  return rule || ''
+}
+
 // Supported models lookup: model_name → { url, directory }
 const supportedModelsMap = ref<Map<string, { url: string; directory: string }>>(new Map())
 
@@ -632,7 +640,7 @@ const parseWorkflow = () => {
       models.push({
         name: model.name || '',
         url: model.url || '',
-        directory: model.directory || directoryRules.value[node.type] || '',
+        directory: model.directory || getDirectory(node.type),
         valid: false,
         nameValid: null,
         urlValid: null
@@ -641,14 +649,15 @@ const parseWorkflow = () => {
 
     // Add missing models (auto-fill URL/directory from supported models list if available)
     const existingNames = models.map(m => m.name)
-    for (const file of modelFiles) {
+    for (let fileIdx = 0; fileIdx < modelFiles.length; fileIdx++) {
+      const file = modelFiles[fileIdx]
       const fileName = file.split(/[\\\/]/).pop()
       if (!existingNames.includes(fileName)) {
         const supported = fileName ? supportedModelsMap.value.get(fileName) : undefined
         models.push({
           name: fileName,
           url: supported?.url ?? '',
-          directory: supported?.directory || directoryRules.value[node.type] || '',
+          directory: supported?.directory || getDirectory(node.type, fileIdx),
           autoFilled: !!supported,
           valid: false,
           nameValid: null,
@@ -849,7 +858,7 @@ const addModel = (nodeInfo: any) => {
   nodeInfo.existingModels.push({
     name: '',
     url: '',
-    directory: directoryRules.value[nodeInfo.node.type] || '',
+    directory: getDirectory(nodeInfo.node.type),
     valid: false,
     nameValid: null,
     urlValid: null

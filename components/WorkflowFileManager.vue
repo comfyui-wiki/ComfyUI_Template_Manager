@@ -12,7 +12,7 @@
           <div>
             <div class="font-semibold text-sm">Workflow File</div>
             <div class="font-mono text-xs text-muted-foreground">
-              {{ templateName === 'new' ? (extractedTemplateName ? `${extractedTemplateName}.json` : 'workflow.json') : `${templateName}.json` }}
+              {{ templateName === 'new' ? (extractedTemplateName ? `${extractedTemplateName}${isAppWorkflow ? '.app.json' : '.json'}` : 'workflow.json') : `${templateName}.json` }}
             </div>
           </div>
         </div>
@@ -619,6 +619,7 @@ interface InputFileRef {
   filename: string // Actual filename from workflow JSON
   nodeId: number
   nodeType: string
+  mediaType: string // image, video, audio, 3d
   exists: boolean
   previewUrl?: string
   size?: number
@@ -698,6 +699,7 @@ const showNamingNotes = ref(false)
 
 // Template name editing state (create mode)
 const extractedTemplateName = ref<string>('')
+const isAppWorkflow = ref(false) // True if the uploaded file was .app.json
 const isEditingTemplateName = ref(false)
 const editingTemplateNameValue = ref<string>('')
 const duplicateNameWarning = ref<string | null>(null)
@@ -957,6 +959,7 @@ const parseWorkflowForInputFiles = (workflowJson: string): InputFileRef[] => {
             filename, // Use actual filename from workflow (backend handles prefixes)
             nodeId: node.id,
             nodeType,
+            mediaType: getMediaTypeFromNodeType(nodeType),
             exists: false, // Will be checked against GitHub
           })
         }
@@ -1211,11 +1214,14 @@ const validateTemplateName = (filename: string): { valid: boolean; name?: string
     return { valid: false, error: 'File must have .json extension' }
   }
 
-  const nameWithoutExt = filename.slice(0, -5) // Remove '.json'
+  // Remove '.json' extension, support both '.app.json' and '.json'
+  const nameWithoutExt = filename.endsWith('.app.json')
+    ? filename.slice(0, -9) // Remove '.app.json'
+    : filename.slice(0, -5) // Remove '.json'
 
   // Check if there are other dots in the name (not allowed)
   if (nameWithoutExt.includes('.')) {
-    return { valid: false, error: 'Template name cannot contain dots (except .json extension)' }
+    return { valid: false, error: 'Template name cannot contain dots (except .json and .app.json extensions)' }
   }
 
   // Check for valid characters (alphanumeric, dashes, underscores only)
@@ -1253,6 +1259,7 @@ const handleWorkflowReupload = async (event: Event) => {
 
       // Store extracted template name for editing
       extractedTemplateName.value = validation.name!
+      isAppWorkflow.value = file.name.endsWith('.app.json')
       // Reset editing state
       isEditingTemplateName.value = false
       editingTemplateNameValue.value = ''
@@ -1733,7 +1740,8 @@ defineExpose({
   resetFormatChanges,
   inputFileRefs, // Expose input file refs for parent
   outputFileRefs, // Expose output file refs for parent
-  reuploadedOutputFiles // Expose reuploaded output files for parent
+  reuploadedOutputFiles, // Expose reuploaded output files for parent
+  isAppWorkflow // Expose app workflow flag for parent
 })
 
 // Trigger output file upload
