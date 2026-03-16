@@ -26,7 +26,8 @@
     "VAELoader": "vae",
     "ModelPatchLoader": "model_patches",
     "AudioEncoderLoader": "audio_encoders",
-    "LatentUpscaleModelLoader": "latent_upscale_models"
+    "LatentUpscaleModelLoader": "latent_upscale_models",
+    "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
   "noteTemplate": {
     "header": "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n",

@@ -55,6 +55,7 @@ interface CreateTemplateRequest {
   files: {
     workflow: {
       content: string // base64
+      extension?: string // '.app.json' or '.json' (default)
     }
     thumbnails?: Array<{
       index: number
@@ -483,8 +484,9 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const workflowExtension = files.workflow.extension === '.app.json' ? '.app.json' : '.json'
     tree.push({
-      path: `templates/${templateName}.json`,
+      path: `templates/${templateName}${workflowExtension}`,
       mode: '100644' as const,
       type: 'blob' as const,
       content: workflowContent
