@@ -428,6 +428,7 @@
       @refresh="refreshTemplates"
       @edit-template="editTemplate"
       @view-template="viewTemplate"
+      @edit-thumbnail-field="openThumbnailFieldEditor"
     />
 
     <!-- PR Browser Dialog -->
@@ -484,6 +485,16 @@
       v-if="isMounted"
       v-model:open="showLocalSettings"
     />
+
+    <!-- Thumbnail Field Editor -->
+    <ThumbnailFieldEditor
+      v-if="isMounted && thumbnailFieldTemplate"
+      v-model:open="showThumbnailFieldEditor"
+      :template="thumbnailFieldTemplate"
+      :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+      :branch="selectedBranch || 'main'"
+      @saved="handleThumbnailFieldSaved"
+    />
   </div>
 </template>
 
@@ -504,6 +515,7 @@ import CreatorManager from '~/components/CreatorManager.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
 import TemplateMainContent from '~/components/TemplateMainContent.vue'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
+import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 
 const { status } = useAuth()
 const route = useRoute()
@@ -558,6 +570,8 @@ const showLocalSettings = ref(false)
 const showCreatorManager = ref(false)
 const prNoticeDismissed = ref(false)
 const isMounted = ref(false) // Track if component is mounted (client-side only)
+const showThumbnailFieldEditor = ref(false)
+const thumbnailFieldTemplate = ref<any>(null)
 
 // Logo configuration
 const logoMapping = ref<Record<string, string>>({})
@@ -1103,6 +1117,22 @@ const viewTemplate = (template: any) => {
   const url = `https://github.com/${repo}/blob/${branch}/templates/${template.name}.json`
   console.log('[View Template] Opening:', url)
   window.open(url, '_blank')
+}
+
+const openThumbnailFieldEditor = (template: any) => {
+  thumbnailFieldTemplate.value = template
+  showThumbnailFieldEditor.value = true
+}
+
+const handleThumbnailFieldSaved = (updatedTemplate: any) => {
+  // Update the template in-place so the badge disappears without a full reload
+  for (const category of categories.value) {
+    const t = category.templates?.find((t: any) => t.name === updatedTemplate.name)
+    if (t) {
+      t.thumbnail = updatedTemplate.thumbnail
+      break
+    }
+  }
 }
 
 const scrollToSidebar = () => {

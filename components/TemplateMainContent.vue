@@ -258,6 +258,7 @@
             :repo-base-url="repoBaseUrl"
             @edit="$emit('edit-template', template)"
             @view="$emit('view-template', template)"
+            @edit-thumbnail-field="$emit('edit-thumbnail-field', template)"
           />
         </div>
       </div>
@@ -320,6 +321,7 @@ defineEmits<{
   'refresh': []
   'edit-template': [template: any]
   'view-template': [template: any]
+  'edit-thumbnail-field': [template: any]
 }>()
 
 // Computed
