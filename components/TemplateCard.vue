@@ -125,6 +125,22 @@
 
       <!-- Category Badge -->
       <div class="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
+        <!-- Thumbnail field edit button (always visible when canEdit) -->
+        <span
+          v-if="canEdit"
+          class="cursor-pointer hover:opacity-80 shadow-lg"
+          :title="template.thumbnail?.length ? 'Edit thumbnail field' : 'thumbnail field missing — click to set'"
+          @click.stop="$emit('edit-thumbnail-field', template)"
+        >
+          <span v-if="!template.thumbnail?.length" class="px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded">
+            no thumb
+          </span>
+          <span v-else class="flex items-center justify-center w-5 h-5 bg-black/50 text-white rounded">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </span>
+        </span>
         <!-- Missing Output Files Badge -->
         <span
           v-if="missingOutputFilesCount > 0"
@@ -367,7 +383,7 @@ const props = defineProps<{
   repoBaseUrl?: string
 }>()
 
-defineEmits(['edit', 'view'])
+defineEmits(['edit', 'view', 'edit-thumbnail-field'])
 
 const imageError = ref(false)
 const sliderPosition = ref(50) // For compareSlider, start at 50%

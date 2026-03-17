@@ -88,6 +88,49 @@
             </CardContent>
           </Card>
 
+          <!-- Output Files -->
+          <Card v-if="outputFiles.length > 0">
+            <CardHeader>
+              <CardTitle class="text-base">Output Files</CardTitle>
+              <p class="text-xs text-muted-foreground mt-1">Files produced by this workflow</p>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-3">
+                <div
+                  v-for="file in outputFiles"
+                  :key="file.nodeId"
+                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-3"
+                >
+                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <!-- Icon by mediaType -->
+                    <div class="w-10 h-10 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <svg v-if="file.mediaType === 'image'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <svg v-else-if="file.mediaType === 'video'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.277A1 1 0 0121 8.623v6.754a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                      </svg>
+                      <svg v-else-if="file.mediaType === 'audio'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+                      </svg>
+                      <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium text-sm truncate">{{ file.nodeType }}</p>
+                      <div class="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <span>Node #{{ file.nodeId }}</span>
+                        <span>•</span>
+                        <span class="capitalize">{{ file.mediaType || 'unknown' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <!-- Thumbnails -->
           <Card v-if="thumbnails.length > 0">
             <CardHeader>
@@ -255,6 +298,11 @@ const isOpen = ref(props.open || false)
 const loading = ref(false)
 const thumbnails = ref<any[]>([])
 const inputFiles = ref<any[]>([])
+
+const outputFiles = computed(() => {
+  if (!props.template?.io?.outputs || !Array.isArray(props.template.io.outputs)) return []
+  return props.template.io.outputs
+})
 
 watch(() => props.open, (value) => {
   isOpen.value = value || false
