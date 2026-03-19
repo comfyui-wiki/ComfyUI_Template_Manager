@@ -706,7 +706,7 @@
 
                   <!-- Creator / Username -->
                   <div class="space-y-2">
-                    <Label for="username">Creator (optional)</Label>
+                    <Label for="username">Creator <span class="text-red-500">*</span></Label>
                     <div class="relative">
                       <!-- Selected creator preview + trigger -->
                       <div
@@ -770,7 +770,8 @@
                         </div>
                       </div>
                     </div>
-                    <p class="text-xs text-muted-foreground">
+                    <p v-if="!form.username?.trim()" class="text-xs text-red-600">⚠️ Creator is required</p>
+                    <p v-else class="text-xs text-muted-foreground">
                       The creator who made this workflow template.
                     </p>
                   </div>
@@ -1812,15 +1813,20 @@ const missingFields = computed(() => {
     missing.push('Open Source Status')
   }
 
+  // Required: Creator
+  if (!form.value.username?.trim()) {
+    missing.push('Creator')
+  }
+
   return missing
 })
 
 // Computed: Completion status with required vs optional fields
 const completionStatus = computed(() => {
   // Required fields count
-  // In create mode: 10 required (title, description, category, thumbnails, workflow, tags, models, date, sizeGB, openSource)
-  // In edit mode: 9 required (same but no workflow)
-  const totalRequired = isCreateMode.value ? 10 : 9
+  // In create mode: 11 required (title, description, category, thumbnails, workflow, tags, models, date, sizeGB, openSource, creator)
+  // In edit mode: 10 required (same but no workflow)
+  const totalRequired = isCreateMode.value ? 11 : 10
   let completedRequired = 0
 
   // Required fields
@@ -1851,6 +1857,9 @@ const completionStatus = computed(() => {
 
   // Open Source Status (now required)
   if (form.value.openSource !== null && form.value.openSource !== undefined) completedRequired++
+
+  // Creator (now required)
+  if (form.value.username?.trim()) completedRequired++
 
   // Optional fields
   let completedOptional = 0
