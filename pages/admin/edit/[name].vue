@@ -371,6 +371,35 @@
 
                   </div>
 
+                  <!-- Thumbnail Field (index.json reference) -->
+                  <div v-if="!isCreateMode" class="space-y-2 pt-2 border-t">
+                    <div class="flex items-center justify-between">
+                      <Label class="text-sm font-medium">Thumbnail Field</Label>
+                      <Button variant="outline" size="sm" class="h-7 text-xs gap-1" @click="showThumbnailFieldEditor = true">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
+                      </Button>
+                    </div>
+                    <!-- Current values -->
+                    <div v-if="originalTemplate?.thumbnail?.length" class="space-y-1">
+                      <div
+                        v-for="(path, i) in originalTemplate.thumbnail"
+                        :key="i"
+                        class="flex items-center gap-1.5 px-2 py-1 bg-muted rounded text-xs font-mono"
+                      >
+                        <svg class="w-3 h-3 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        {{ path }}
+                      </div>
+                    </div>
+                    <div v-else class="px-2 py-1.5 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                      Not set — click Edit to configure
+                    </div>
+                  </div>
+
                   <!-- Display Title -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
@@ -1113,6 +1142,34 @@
             <!-- Right Column: Preview (sticky) -->
             <div class="lg:col-span-1">
               <div class="sticky top-24 space-y-4">
+              <!-- Open Actions (non-create mode only) -->
+              <div v-if="!isCreateMode" class="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="flex-1 text-xs h-9 gap-1.5"
+                  @click="openInCloud"
+                  title="Open this template in ComfyUI Cloud"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  </svg>
+                  Open in Cloud
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="flex-1 text-xs h-9 gap-1.5"
+                  @click="openInLocal"
+                  title="Open this template in local ComfyUI"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Open in Local
+                </Button>
+              </div>
+
               <!-- Template Preview -->
               <Card>
                 <CardHeader>
@@ -1142,6 +1199,7 @@
                   />
                 </CardContent>
               </Card>
+
               </div>
             </div>
           </div>
@@ -1151,6 +1209,16 @@
       <!-- Close flex container -->
     </div>
     <!-- Close pt-[73px] container -->
+
+    <!-- Thumbnail Field Editor -->
+    <ThumbnailFieldEditor
+      v-if="!isCreateMode && originalTemplate"
+      v-model:open="showThumbnailFieldEditor"
+      :template="originalTemplate"
+      :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+      :branch="selectedBranch || 'main'"
+      @saved="(updated) => { originalTemplate.thumbnail = updated.thumbnail }"
+    />
 
     <!-- Thumbnail Converter Dialog -->
     <Dialog v-model:open="isConverterDialogOpen">
@@ -1226,6 +1294,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
+import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
 import CategoryOrderSidebar from '~/components/CategoryOrderSidebar.vue'
 import WorkflowModelLinksEditor from '~/components/WorkflowModelLinksEditor.vue'
@@ -1238,6 +1307,16 @@ import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
 const templateName = route.params.name as string
+
+const openInCloud = () => {
+  window.open(`https://cloud.comfy.org/?template=${templateName}`, '_blank')
+}
+
+const openInLocal = () => {
+  const base = localStorage.getItem('comfyui_local_base_url')
+  if (base) window.open(`${base}?template=${templateName}`, '_blank')
+  else window.dispatchEvent(new CustomEvent('open-local-settings'))
+}
 
 // Detect if this is create mode (when name is 'new')
 const isCreateMode = computed(() => templateName === 'new')
@@ -1260,6 +1339,7 @@ const loading = ref(true)
 const error = ref('')
 const isSubmitting = ref(false)
 const originalTemplate = ref<any>(null)
+const showThumbnailFieldEditor = ref(false)
 const thumbnailFiles = ref<File[]>([])
 const thumbnailFileInputs = ref<any[]>([])
 const thumbnailReuploadStatus = ref<{ success: boolean; message: string } | null>(null)

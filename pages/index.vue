@@ -410,6 +410,7 @@
       v-model:selected-runs-on="selectedRunsOn"
       v-model:selected-diff-status="selectedDiffStatus"
       v-model:selected-mode="selectedMode"
+      v-model:selected-thumbnail-status="selectedThumbnailStatus"
       v-model:search-query="searchQuery"
       v-model:sort-by="sortBy"
       :loading="loading"
@@ -553,14 +554,15 @@ const {
 
 // State
 const loading = ref(true)
-const searchQuery = ref('')
-const selectedCategory = ref('all')
-const selectedModel = ref('all')
-const selectedTag = ref('all')
-const selectedRunsOn = ref('all') // all, api, opensource
-const selectedDiffStatus = ref('all') // all, new, modified, deleted, unchanged
-const selectedMode = ref('all') // all, app, normal
-const sortBy = ref('latest')
+const searchQuery = useLocalStorage('tmgr_searchQuery', '')
+const selectedCategory = useLocalStorage('tmgr_selectedCategory', 'all')
+const selectedModel = useLocalStorage('tmgr_selectedModel', 'all')
+const selectedTag = useLocalStorage('tmgr_selectedTag', 'all')
+const selectedRunsOn = useLocalStorage('tmgr_selectedRunsOn', 'all') // all, api, opensource
+const selectedDiffStatus = useLocalStorage('tmgr_selectedDiffStatus', 'all') // all, new, modified, deleted, unchanged
+const selectedMode = useLocalStorage('tmgr_selectedMode', 'all') // all, app, normal
+const selectedThumbnailStatus = useLocalStorage('tmgr_selectedThumbnailStatus', 'all') // all, missing
+const sortBy = useLocalStorage('tmgr_sortBy', 'latest')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
 const showUsageUpdateModal = ref(false)
@@ -1036,6 +1038,11 @@ const filteredTemplates = computed(() => {
     templates = templates.filter(t => t.diffStatus === selectedDiffStatus.value)
   }
 
+  // Filter by thumbnail status
+  if (selectedThumbnailStatus.value === 'missing') {
+    templates = templates.filter(t => !t.thumbnail?.length)
+  }
+
   // Filter by mode (app vs normal)
   if (selectedMode.value === 'app') {
     templates = templates.filter(t => t.name?.endsWith('.app'))
@@ -1099,6 +1106,7 @@ const clearFilters = () => {
   selectedRunsOn.value = 'all'
   selectedDiffStatus.value = 'all'
   selectedMode.value = 'all'
+  selectedThumbnailStatus.value = 'all'
   searchQuery.value = ''
 }
 

@@ -371,15 +371,28 @@ export default defineEventHandler(async (event) => {
         // Delete thumbnails that are no longer needed (e.g., thumbnail 2)
         for (let i = newRequiredCount + 1; i <= oldRequiredCount; i++) {
           const filename = `${templateName}-${i}.${mediaSubtype}`
-          console.log(`[Update Template] Marking ${filename} for deletion`)
+          const thumbPath = `templates/${filename}`
 
-          // To delete a file in Git, we set sha to null
-          tree.push({
-            path: `templates/${filename}`,
-            mode: '100644' as const,
-            type: 'blob' as const,
-            sha: null as any // null sha means delete
-          })
+          // Verify the thumbnail exists before marking for deletion
+          let thumbExists = false
+          try {
+            await octokit.repos.getContent({ owner, repo: repoName, path: thumbPath, ref: branch })
+            thumbExists = true
+          } catch (e: any) {
+            if (e.status !== 404) throw e
+          }
+
+          if (thumbExists) {
+            console.log(`[Update Template] Marking ${filename} for deletion`)
+            tree.push({
+              path: thumbPath,
+              mode: '100644' as const,
+              type: 'blob' as const,
+              sha: null as any
+            })
+          } else {
+            console.warn(`[Update Template] Thumbnail not found, skipping deletion: ${thumbPath}`)
+          }
         }
       }
 
@@ -750,18 +763,34 @@ export default defineEventHandler(async (event) => {
 
         // If format changed, delete old file first
         if (inputFile.deleteOldFile) {
-          // Check if old file needs prefix too (based on current workflow files)
+          // Determine which name the old file was stored under
           const oldFileActualName = currentWorkflowFiles.includes(inputFile.deleteOldFile)
             ? inputFile.deleteOldFile
             : `${templateName}_${inputFile.deleteOldFile}`
 
-          console.log(`[Update Template] Deleting old file: ${oldFileActualName}`)
-          tree.push({
-            path: `input/${oldFileActualName}`,
-            mode: '100644' as const,
-            type: 'blob' as const,
-            sha: null as any // null sha means delete
-          })
+          const oldFilePath = `input/${oldFileActualName}`
+
+          // Verify the file actually exists in the repo before marking for deletion.
+          // Passing sha: null for a non-existent path causes GitRPC::BadObjectState.
+          let oldFileExists = false
+          try {
+            await octokit.repos.getContent({ owner, repo: repoName, path: oldFilePath, ref: branch })
+            oldFileExists = true
+          } catch (e: any) {
+            if (e.status !== 404) throw e
+          }
+
+          if (oldFileExists) {
+            console.log(`[Update Template] Deleting old file: ${oldFilePath}`)
+            tree.push({
+              path: oldFilePath,
+              mode: '100644' as const,
+              type: 'blob' as const,
+              sha: null as any
+            })
+          } else {
+            console.warn(`[Update Template] Old file not found, skipping deletion: ${oldFilePath}`)
+          }
         }
 
         // Create blob for input file content
