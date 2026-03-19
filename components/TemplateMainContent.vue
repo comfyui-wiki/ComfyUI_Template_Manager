@@ -84,98 +84,114 @@
         </div>
 
         <!-- Filters Row -->
-        <div class="flex flex-wrap gap-4 mb-6 items-center">
-          <!-- Model Filter -->
-          <Select :model-value="selectedModel" @update:model-value="$emit('update:selectedModel', $event)">
-            <SelectTrigger class="w-[200px]">
-              <SelectValue placeholder="Model Filter" />
-            </SelectTrigger>
-            <SelectContent class="max-h-[300px]">
-              <SelectItem value="all">All Models</SelectItem>
-              <SelectItem v-for="model in allModels" :key="model" :value="model">
-                {{ model }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+        <div class="flex flex-wrap gap-2 mb-6 items-center">
 
-          <!-- Tag Filter (Use Case) -->
-          <Select :model-value="selectedTag" @update:model-value="$emit('update:selectedTag', $event)">
-            <SelectTrigger class="w-[200px]">
-              <SelectValue placeholder="Use Case" />
-            </SelectTrigger>
-            <SelectContent class="max-h-[300px]">
-              <SelectItem value="all">All Tags</SelectItem>
-              <SelectItem v-for="tag in allTags" :key="tag" :value="tag">
-                {{ tag }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <!-- Model Filter -->
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Model</span>
+            <FilterCombobox
+              :model-value="selectedModel"
+              :items="allModels"
+              @update:model-value="$emit('update:selectedModel', $event)"
+            />
+          </div>
+
+          <!-- Tag Filter -->
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Tag</span>
+            <FilterCombobox
+              :model-value="selectedTag"
+              :items="allTags"
+              @update:model-value="$emit('update:selectedTag', $event)"
+            />
+          </div>
 
           <!-- Type Filter -->
-          <Select :model-value="selectedRunsOn" @update:model-value="$emit('update:selectedRunsOn', $event)">
-            <SelectTrigger class="w-[200px]">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="api">API</SelectItem>
-              <SelectItem value="opensource">Open Source</SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Type</span>
+            <Select :model-value="selectedRunsOn" @update:model-value="$emit('update:selectedRunsOn', $event)">
+              <SelectTrigger class="h-8 text-xs" :class="selectedRunsOn !== 'all' ? 'w-[120px] border-primary' : 'w-[80px]'">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="api">API</SelectItem>
+                <SelectItem value="opensource">Open Source</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Thumbnail Filter -->
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Thumb</span>
+            <Select :model-value="selectedThumbnailStatus" @update:model-value="$emit('update:selectedThumbnailStatus', $event)">
+              <SelectTrigger class="h-8 text-xs" :class="selectedThumbnailStatus !== 'all' ? 'w-[100px] border-orange-500 text-orange-600' : 'w-[80px]'">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="missing">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></span>
+                    Missing
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <!-- Mode Filter -->
-          <Select :model-value="selectedMode" @update:model-value="$emit('update:selectedMode', $event)">
-            <SelectTrigger class="w-[180px]">
-              <SelectValue placeholder="All Templates" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Templates</SelectItem>
-              <SelectItem value="app">
-                <div class="flex items-center gap-2">
-                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded">APP</span>
-                  <span>App Mode</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="normal">Normal Mode</SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Mode</span>
+            <Select :model-value="selectedMode" @update:model-value="$emit('update:selectedMode', $event)">
+              <SelectTrigger class="h-8 text-xs" :class="selectedMode !== 'all' ? 'w-[100px] border-primary' : 'w-[80px]'">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="app">
+                  <div class="flex items-center gap-1.5">
+                    <span class="px-1 py-0.5 text-[9px] font-bold bg-indigo-600 text-white rounded">APP</span>
+                    App
+                  </div>
+                </SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <!-- Diff Status Filter (only show when authenticated and viewing a branch) -->
-          <Select
-            v-if="isMounted && status === 'authenticated' && selectedBranch"
-            :model-value="selectedDiffStatus"
-            @update:model-value="$emit('update:selectedDiffStatus', $event)"
-          >
-            <SelectTrigger class="w-[220px]">
-              <SelectValue placeholder="Changes vs Main" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Templates</SelectItem>
-              <SelectItem value="new">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                  <span>New vs Main</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="modified">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-                  <span>Modified vs Main</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="deleted">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                  <span>Deleted vs Main</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="unchanged">Identical to Main</SelectItem>
-            </SelectContent>
-          </Select>
+          <!-- Diff Status Filter -->
+          <div v-if="isMounted && status === 'authenticated' && selectedBranch" class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Changes</span>
+            <Select :model-value="selectedDiffStatus" @update:model-value="$emit('update:selectedDiffStatus', $event)">
+              <SelectTrigger class="h-8 text-xs" :class="selectedDiffStatus !== 'all' ? 'w-[110px] border-primary' : 'w-[80px]'">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="new">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>New
+                  </div>
+                </SelectItem>
+                <SelectItem value="modified">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0"></span>Modified
+                  </div>
+                </SelectItem>
+                <SelectItem value="deleted">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>Deleted
+                  </div>
+                </SelectItem>
+                <SelectItem value="unchanged">Identical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <!-- Clear Filters Button -->
           <Button
-            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || searchQuery"
+            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || selectedThumbnailStatus !== 'all' || searchQuery"
             variant="outline"
             size="sm"
             @click="$emit('clear-filters')"
@@ -274,6 +290,7 @@ import { Input } from '~/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
 import TemplateCard from '~/components/TemplateCard.vue'
+import FilterCombobox from '~/components/FilterCombobox.vue'
 
 const { status } = useAuth()
 
@@ -291,6 +308,7 @@ const props = defineProps<{
   selectedRunsOn: string
   selectedDiffStatus: string
   selectedMode: string
+  selectedThumbnailStatus: string
   searchQuery: string
   sortBy: string
   loading: boolean
@@ -315,6 +333,7 @@ defineEmits<{
   'update:selectedRunsOn': [value: string]
   'update:selectedDiffStatus': [value: string]
   'update:selectedMode': [value: string]
+  'update:selectedThumbnailStatus': [value: string]
   'update:searchQuery': [value: string]
   'update:sortBy': [value: string]
   'clear-filters': []

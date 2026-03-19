@@ -1660,7 +1660,10 @@ const cancelOutputFilenameEdit = () => {
   tempOutputFilename.value = ''
 }
 
-const saveOutputFilenameEdit = (nodeId: number) => {
+const saveOutputFilenameEdit = async (nodeId: number) => {
+  // Guard: if editing was already cancelled (e.g. Escape key fires blur), do nothing
+  if (editingOutputFilename.value !== nodeId) return
+
   const newFilename = tempOutputFilename.value.trim()
   const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
 
@@ -1711,23 +1714,39 @@ const saveOutputFilenameEdit = (nodeId: number) => {
     // Emit updated files
     emit('outputFilesUpdated', reuploadedOutputFiles.value)
   } else if (newFilename) {
-    // New filename set without uploaded file
-    // Don't mark as exists, will be checked later when workflow is loaded
+    // New filename set without uploaded file - check repo existence
     fileRef.exists = false
-    outputFileWarnings.value.set(nodeId.toString(), `📝 Filename set: ${newFilename}. Upload a file or it will be included in metadata.`)
-    setTimeout(() => {
+    fileRef.size = undefined
+    fileRef.previewUrl = undefined
+    outputFileWarnings.value.set(nodeId.toString(), `🔍 Checking if ${newFilename} exists in output/...`)
+    cancelOutputFilenameEdit()
+
+    // Async check against repo
+    const [owner, repoName] = props.repo.split('/')
+    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${newFilename}`
+    try {
+      const response = await fetch(url, { method: 'HEAD' })
+      if (response.ok) {
+        fileRef.exists = true
+        const sizeHeader = response.headers.get('content-length')
+        if (sizeHeader) fileRef.size = parseInt(sizeHeader, 10)
+        if (isImageFile(newFilename)) fileRef.previewUrl = url
+        outputFileWarnings.value.delete(nodeId.toString())
+      } else {
+        fileRef.exists = false
+        outputFileWarnings.value.set(nodeId.toString(), `⚠️ File not found in output/ folder of ${props.branch} branch.`)
+        setTimeout(() => outputFileWarnings.value.delete(nodeId.toString()), 5000)
+      }
+    } catch {
+      fileRef.exists = false
       outputFileWarnings.value.delete(nodeId.toString())
-    }, 3000)
+    }
+    return
   } else {
     // Empty filename - reset
     fileRef.exists = false
     fileRef.size = undefined
     fileRef.previewUrl = undefined
-  }
-
-  // Clear any warnings on old filename
-  if (oldFilename) {
-    outputFileWarnings.value.delete(nodeId.toString())
   }
 
   cancelOutputFilenameEdit()
