@@ -324,7 +324,7 @@
       <div class="space-y-3">
         <div
           v-for="fileRef in inputFileRefs"
-          :key="fileRef.filename"
+          :key="fileRef.nodeId"
           class="border rounded-lg"
           :class="inputFileWarnings.has(fileRef.filename) ? 'border-amber-300' : (fileRef.exists ? 'border-border' : 'border-amber-200')"
         >
@@ -349,20 +349,20 @@
                 <!-- Editable filename -->
                 <div class="flex items-center gap-2 group">
                   <input
-                    v-if="editingFilename === fileRef.filename"
+                    v-if="editingFilename === fileRef.nodeId"
                     v-model="tempFilename"
                     type="text"
                     class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                    @keyup.enter="saveFilenameEdit(fileRef.filename)"
+                    @keyup.enter="saveFilenameEdit(fileRef.nodeId, fileRef.filename)"
                     @keyup.esc="cancelFilenameEdit"
-                    @blur="saveFilenameEdit(fileRef.filename)"
+                    @blur="saveFilenameEdit(fileRef.nodeId, fileRef.filename)"
                   />
                   <div v-else class="font-mono text-sm truncate">{{ fileRef.filename }}</div>
                   <button
-                    v-if="editingFilename !== fileRef.filename"
+                    v-if="editingFilename !== fileRef.nodeId"
                     type="button"
                     class="opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click="startFilenameEdit(fileRef.filename)"
+                    @click="startFilenameEdit(fileRef.nodeId, fileRef.filename)"
                     title="Edit filename"
                   >
                     <svg class="w-3 h-3 text-muted-foreground hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -434,7 +434,12 @@
           <!-- Warning Message -->
           <div v-if="inputFileWarnings.has(fileRef.filename)"
                class="px-3 pb-3 pt-0">
-            <div class="p-2 rounded bg-amber-100 border border-amber-300 text-xs text-amber-800">
+            <div class="p-2 rounded text-xs"
+                 :class="inputFileWarnings.get(fileRef.filename)?.startsWith('✅')
+                   ? 'bg-green-50 border border-green-300 text-green-800'
+                   : inputFileWarnings.get(fileRef.filename)?.startsWith('❌')
+                   ? 'bg-red-50 border border-red-300 text-red-800'
+                   : 'bg-amber-100 border border-amber-300 text-amber-800'">
               {{ inputFileWarnings.get(fileRef.filename) }}
             </div>
           </div>
@@ -444,7 +449,7 @@
       <!-- Hidden file inputs for each input file -->
       <input
         v-for="fileRef in inputFileRefs"
-        :key="'input-' + fileRef.filename"
+        :key="'input-' + fileRef.nodeId"
         :ref="el => setInputFileRef(fileRef.filename, el)"
         type="file"
         class="hidden"
@@ -591,7 +596,12 @@
           <!-- Warning Message -->
           <div v-if="outputFileWarnings.has(fileRef.nodeId.toString())"
                class="px-3 pb-3 pt-0">
-            <div class="p-2 rounded bg-amber-100 border border-amber-300 text-xs text-amber-800">
+            <div class="p-2 rounded text-xs"
+                 :class="outputFileWarnings.get(fileRef.nodeId.toString())?.startsWith('✅')
+                   ? 'bg-green-50 border border-green-300 text-green-800'
+                   : outputFileWarnings.get(fileRef.nodeId.toString())?.startsWith('❌')
+                   ? 'bg-red-50 border border-red-300 text-red-800'
+                   : 'bg-amber-100 border border-amber-300 text-amber-800'">
               {{ outputFileWarnings.get(fileRef.nodeId.toString()) }}
             </div>
           </div>
@@ -705,7 +715,7 @@ const editingTemplateNameValue = ref<string>('')
 const duplicateNameWarning = ref<string | null>(null)
 
 // Filename editing state (input files)
-const editingFilename = ref<string | null>(null)
+const editingFilename = ref<number | null>(null) // uses nodeId as key to avoid collision when two slots share the same filename
 const tempFilename = ref<string>('')
 
 // Filename editing state (output files - by nodeId)
@@ -1334,6 +1344,8 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
   // Clear previous warning
   inputFileWarnings.value.delete(originalFilename)
 
+  try {
+
   // Validate file size and format
   const isImage = file.type.startsWith('image/')
   const isVideo = file.type.startsWith('video/')
@@ -1422,13 +1434,14 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
     inputFileWarnings.value.set(effectiveFilename, sizeWarning)
   } else {
     const formatMsg = isWebP ? 'WebP format is optimal!' : isMP4 ? 'MP4 format is accepted!' : 'File format is valid!'
+    // For replacements where slot name stays the same, show actual uploaded filename explicitly
+    const nameNote = (effectiveFilename === originalFilename && file.name !== originalFilename)
+      ? ` (saved as "${effectiveFilename}")`
+      : ''
     inputFileWarnings.value.set(effectiveFilename,
-      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
+      `✅ File queued for upload: ${file.name}${nameNote} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
     )
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      inputFileWarnings.value.delete(effectiveFilename)
-    }, 3000)
+    // Do NOT auto-clear — keep message visible so user knows upload is queued
   }
 
   // Emit rename and updated files
@@ -1439,6 +1452,13 @@ const handleInputFileUpload = async (event: Event, originalFilename: string) => 
 
   // Reset input
   input.value = ''
+  } catch (err: any) {
+    console.error('[WorkflowFileManager] Error handling input file upload:', err)
+    inputFileWarnings.value.set(originalFilename,
+      `❌ Upload failed: ${err?.message || 'Unknown error'}`
+    )
+    input.value = ''
+  }
 }
 
 // Handle file conversion request
@@ -1571,11 +1591,14 @@ const handleConvertedFileReceived = (file: File, targetFilename: string, oldFile
 const resetFormatChanges = () => {
   formatChangedFiles.value.clear()
   formatChangeNotice.value = null
+  // Clear all queued-upload success messages after save
+  inputFileWarnings.value.clear()
+  outputFileWarnings.value.clear()
 }
 
 // Filename editing functions
-const startFilenameEdit = (filename: string) => {
-  editingFilename.value = filename
+const startFilenameEdit = (nodeId: number, filename: string) => {
+  editingFilename.value = nodeId
   tempFilename.value = filename
 }
 
@@ -1584,7 +1607,7 @@ const cancelFilenameEdit = () => {
   tempFilename.value = ''
 }
 
-const saveFilenameEdit = (oldFilename: string) => {
+const saveFilenameEdit = (nodeId: number, oldFilename: string) => {
   const newFilename = tempFilename.value.trim()
 
   // If no change or empty, cancel
@@ -1605,8 +1628,8 @@ const saveFilenameEdit = (oldFilename: string) => {
   // Get the file if it was uploaded
   const file = reuploadedInputFiles.value.get(oldFilename)
 
-  // Find and update the file ref
-  const index = inputFileRefs.value.findIndex(f => f.filename === oldFilename)
+  // Find and update the file ref by nodeId (not filename, to avoid collision when two slots share same name)
+  const index = inputFileRefs.value.findIndex(f => f.nodeId === nodeId)
   if (index !== -1) {
     const oldRef = inputFileRefs.value[index]
     const newRef = {
@@ -1783,6 +1806,8 @@ const handleOutputFileUpload = async (event: Event, nodeId: number) => {
   // Clear previous warning
   outputFileWarnings.value.delete(nodeIdStr)
 
+  try {
+
   // Find the output file ref
   const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
   if (!fileRef) return
@@ -1841,12 +1866,9 @@ const handleOutputFileUpload = async (event: Event, nodeId: number) => {
   } else {
     const formatMsg = isWebP ? 'WebP format is optimal!' : isMP4 ? 'MP4 format is accepted!' : 'File format is valid!'
     outputFileWarnings.value.set(nodeIdStr,
-      `✅ File uploaded successfully: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
+      `✅ File queued for upload: ${file.name} (${fileSizeMB.toFixed(2)}MB). ${formatMsg}`
     )
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      outputFileWarnings.value.delete(nodeIdStr)
-    }, 3000)
+    // Do NOT auto-clear — keep message visible so user knows upload is queued
   }
 
   // Emit updated files
@@ -1854,6 +1876,13 @@ const handleOutputFileUpload = async (event: Event, nodeId: number) => {
 
   // Reset input
   input.value = ''
+  } catch (err: any) {
+    console.error('[WorkflowFileManager] Error handling output file upload:', err)
+    outputFileWarnings.value.set(nodeIdStr,
+      `❌ Upload failed: ${err?.message || 'Unknown error'}`
+    )
+    input.value = ''
+  }
 }
 
 // Handle output file conversion request
