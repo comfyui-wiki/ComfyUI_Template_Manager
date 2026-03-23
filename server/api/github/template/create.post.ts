@@ -3,7 +3,7 @@ import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
-import { syncTemplateToAllLocales, updateI18nJson } from '~/server/utils/i18n-sync'
+import { syncTemplateToAllLocales, updateI18nJson, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 
 interface CreateTemplateRequest {
   repo: string
@@ -359,14 +359,46 @@ export default defineEventHandler(async (event) => {
     try {
       console.log('[Create Template] Syncing template to all locale files...')
 
-      // Sync template to all locale index files
+      // Read i18n.json once and share it between both operations to avoid
+      // race conditions where concurrent creates each read the old HEAD and
+      // overwrite each other's entries.
+      const i18nConfig = await loadI18nConfig(octokit, repo, branch)
+      const sharedI18nData = await readI18nJson(octokit, repo, branch, i18nConfig)
+
+      // Update i18n.json with new template translations (mutates sharedI18nData in-place)
+      const i18nUpdate = await updateI18nJson(
+        octokit,
+        repo,
+        branch,
+        templateName,
+        {
+          title: metadata.title,
+          description: metadata.description,
+          category: metadata.category,
+          tags: metadata.tags
+        },
+        sharedI18nData
+      )
+
+      // Add i18n.json update to tree
+      tree.push({
+        path: i18nUpdate.path,
+        mode: '100644' as const,
+        type: 'blob' as const,
+        content: i18nUpdate.content
+      })
+
+      console.log('[Create Template] Updated i18n.json with translation placeholders')
+
+      // Sync template to all locale index files, reusing the same i18nData
       const localeFileUpdates = await syncTemplateToAllLocales(
         octokit,
         repo,
         branch,
         targetCategoryIndex,
         newTemplate,
-        templateOrder
+        templateOrder,
+        sharedI18nData
       )
 
       // Add locale file updates to tree
@@ -380,30 +412,6 @@ export default defineEventHandler(async (event) => {
       }
 
       console.log(`[Create Template] Synced template to ${localeFileUpdates.length} locale file(s)`)
-
-      // Update i18n.json with new template translations
-      const i18nUpdate = await updateI18nJson(
-        octokit,
-        repo,
-        branch,
-        templateName,
-        {
-          title: metadata.title,
-          description: metadata.description,
-          category: metadata.category,
-          tags: metadata.tags
-        }
-      )
-
-      // Add i18n.json update to tree
-      tree.push({
-        path: i18nUpdate.path,
-        mode: '100644' as const,
-        type: 'blob' as const,
-        content: i18nUpdate.content
-      })
-
-      console.log('[Create Template] Updated i18n.json with translation placeholders')
 
     } catch (error: any) {
       console.error('[Create Template] Failed to sync i18n files:', error)

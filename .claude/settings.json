@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Read(//Users/linmoumou/Documents/comfy/workflow_templates/templates/**)",
-      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/site/**)"
+      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/site/**)",
+      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/scripts/**)",
+      "Bash(python3 -c \":*)"
     ]
   }
 }

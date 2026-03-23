@@ -3,7 +3,7 @@ import { getServerSession } from '#auth'
 import { readFile } from 'fs/promises'
 import { resolve } from 'path'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
-import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations } from '~/server/utils/i18n-sync'
+import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -479,6 +479,11 @@ export default defineEventHandler(async (event) => {
         console.log('[i18n] Starting multi-language sync for template:', templateName)
         console.log('[i18n] Repo:', repo, 'Branch:', branch)
 
+        // Read i18n.json once and share it between trackOutdatedTranslations and
+        // syncUpdatedTemplateToAllLocales to avoid reading a stale HEAD twice.
+        const i18nConfig = await loadI18nConfig(octokit, repo, branch)
+        const sharedI18nData = await readI18nJson(octokit, repo, branch, i18nConfig)
+
         // Check if English title/description changed and track outdated translations
         // Also sync new tags and categories to i18n.json
         if (metadata.title || metadata.description || metadata.tags || metadata.category) {
@@ -501,7 +506,8 @@ export default defineEventHandler(async (event) => {
             templateData.title,
             templateData.description,
             templateData.tags,
-            categoryToSync
+            categoryToSync,
+            sharedI18nData
           )
 
           if (i18nUpdate) {
@@ -537,7 +543,7 @@ export default defineEventHandler(async (event) => {
           modelCount: templateData.models?.length || 0
         })
 
-        // Sync template to all locale index files
+        // Sync template to all locale index files, reusing the same i18nData
         console.log('[i18n] Calling syncUpdatedTemplateToAllLocales...')
         const localeFileUpdates = await syncUpdatedTemplateToAllLocales(
           octokit,
@@ -546,7 +552,8 @@ export default defineEventHandler(async (event) => {
           finalCategoryIndex,
           templateData,
           categoryChanged ? oldCategoryIndex : undefined,
-          indexData // Pass updated indexData to preserve template order
+          indexData, // Pass updated indexData to preserve template order
+          sharedI18nData
         )
 
         console.log('[i18n] Received', localeFileUpdates.length, 'locale file updates')

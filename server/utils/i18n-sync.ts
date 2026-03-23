@@ -119,7 +119,9 @@ export async function loadI18nConfig(
 }
 
 /**
- * Read JSON file from GitHub
+ * Read JSON file from GitHub.
+ * Uses Git Blobs API for large files to avoid the ~1MB silent truncation
+ * that occurs with repos.getContent, which would cause partial overwrites.
  */
 async function readJsonFromGitHub(
   octokit: Octokit,
@@ -137,10 +139,25 @@ async function readJsonFromGitHub(
       ref: branch
     })
 
-    if ('content' in data && data.content) {
-      const content = Buffer.from(data.content, 'base64').toString('utf-8')
-      return JSON.parse(content)
+    if (!('sha' in data) || !data.sha) {
+      return null
     }
+
+    // Always use Git Blobs API to avoid silent truncation of large files
+    const { data: blob } = await octokit.git.getBlob({
+      owner,
+      repo: repoName,
+      file_sha: data.sha
+    })
+
+    let content: string
+    if (blob.encoding === 'base64') {
+      content = Buffer.from(blob.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+    } else {
+      content = blob.content
+    }
+
+    return JSON.parse(content)
   } catch (error: any) {
     // If file doesn't exist (404), return empty structure
     if (error.status === 404) {
@@ -149,14 +166,12 @@ async function readJsonFromGitHub(
     }
     throw error
   }
-
-  return null
 }
 
 /**
  * Read current i18n.json from GitHub
  */
-async function readI18nJson(
+export async function readI18nJson(
   octokit: Octokit,
   repo: string,
   branch: string,
@@ -207,10 +222,11 @@ export async function syncTemplateToAllLocales(
   branch: string,
   categoryIndex: number,
   templateData: TemplateData,
-  templateOrder?: string[]
+  templateOrder?: string[],
+  existingI18nData?: I18nData
 ): Promise<FileUpdate[]> {
   const config = await loadI18nConfig(octokit, repo, branch)
-  const i18nData = await readI18nJson(octokit, repo, branch, config)
+  const i18nData = existingI18nData ?? await readI18nJson(octokit, repo, branch, config)
   const fileUpdates: FileUpdate[] = []
 
   // Process each locale
@@ -287,10 +303,11 @@ export async function updateI18nJson(
   repo: string,
   branch: string,
   templateName: string,
-  templateData: { title: string; description: string; category?: string; tags?: string[] }
+  templateData: { title: string; description: string; category?: string; tags?: string[] },
+  existingI18nData?: I18nData
 ): Promise<FileUpdate> {
   const config = await loadI18nConfig(octokit, repo, branch)
-  const i18nData = await readI18nJson(octokit, repo, branch, config)
+  const i18nData = existingI18nData ?? await readI18nJson(octokit, repo, branch, config)
 
   // Initialize template entry if it doesn't exist
   if (!i18nData.templates[templateName]) {
@@ -445,10 +462,11 @@ export async function trackOutdatedTranslations(
   newTitle: string,
   newDescription: string,
   newTags?: string[],
-  newCategory?: string
+  newCategory?: string,
+  existingI18nData?: I18nData
 ): Promise<FileUpdate | null> {
   const config = await loadI18nConfig(octokit, repo, branch)
-  const i18nData = await readI18nJson(octokit, repo, branch, config)
+  const i18nData = existingI18nData ?? await readI18nJson(octokit, repo, branch, config)
   const allLangCodes = config.supportedLocales.map(l => l.code)
 
   let hasChanges = false
@@ -546,7 +564,8 @@ export async function syncUpdatedTemplateToAllLocales(
   categoryIndex: number,
   templateData: TemplateData,
   oldCategoryIndex?: number,
-  masterIndexData?: any[] // Add parameter to pass updated index data
+  masterIndexData?: any[], // Add parameter to pass updated index data
+  existingI18nData?: I18nData
 ): Promise<FileUpdate[]> {
   console.log(`[i18n-sync] syncUpdatedTemplateToAllLocales called for template: ${templateData.name}`)
   console.log(`[i18n-sync] New category index: ${categoryIndex}`)
@@ -557,7 +576,7 @@ export async function syncUpdatedTemplateToAllLocales(
   const config = await loadI18nConfig(octokit, repo, branch)
   console.log(`[i18n-sync] Loaded config with ${config.supportedLocales.length} locales`)
 
-  const i18nData = await readI18nJson(octokit, repo, branch, config)
+  const i18nData = existingI18nData ?? await readI18nJson(octokit, repo, branch, config)
   console.log(`[i18n-sync] Loaded i18n.json with ${Object.keys(i18nData.templates || {}).length} templates`)
 
   // Load master (English) file to get correct template order
