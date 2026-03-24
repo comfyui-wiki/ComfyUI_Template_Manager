@@ -4,7 +4,9 @@
       "Read(//Users/linmoumou/Documents/comfy/workflow_templates/templates/**)",
       "Read(//Users/linmoumou/Documents/comfy/workflow_templates/site/**)",
       "Read(//Users/linmoumou/Documents/comfy/workflow_templates/scripts/**)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Read(//Users/linmoumou/Documents/comfy/workflow_templates/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''io'''', {}\\), indent=2\\)\\)\")"
     ]
   }
 }
