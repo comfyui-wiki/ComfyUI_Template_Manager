@@ -136,8 +136,85 @@
             <CardHeader>
               <CardTitle class="text-base">Thumbnails & Media</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div class="space-y-3">
+            <CardContent class="space-y-4">
+              <!-- Large Preview Area -->
+              <div
+                class="relative w-full rounded-lg overflow-hidden bg-muted border select-none"
+                style="aspect-ratio: 1 / 1; max-height: 320px;"
+                ref="previewContainer"
+                @mouseenter="previewHovered = true"
+                @mouseleave="previewHovered = false"
+              >
+                <!-- hoverDissolve variant -->
+                <template v-if="thumbnailVariant === 'hoverDissolve' && thumbnails.length >= 2">
+                  <img
+                    :src="thumbnails[0].url"
+                    alt="Thumbnail 1"
+                    class="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                    :class="previewHovered ? 'opacity-0' : 'opacity-100'"
+                    draggable="false"
+                  />
+                  <img
+                    :src="thumbnails[1].url"
+                    alt="Thumbnail 2"
+                    class="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                    :class="previewHovered ? 'opacity-100' : 'opacity-0'"
+                    draggable="false"
+                  />
+                  <div class="absolute bottom-2 left-2 px-2 py-0.5 bg-black/50 text-white text-xs rounded backdrop-blur-sm pointer-events-none">
+                    Hover Dissolve — hover to preview
+                  </div>
+                </template>
+
+                <!-- compareSlider variant -->
+                <template v-else-if="thumbnailVariant === 'compareSlider' && thumbnails.length >= 2">
+                  <img
+                    :src="thumbnails[0].url"
+                    alt="Thumbnail 1"
+                    class="absolute inset-0 w-full h-full object-cover"
+                    draggable="false"
+                  />
+                  <img
+                    :src="thumbnails[1].url"
+                    alt="Thumbnail 2"
+                    class="absolute inset-0 w-full h-full object-cover"
+                    :style="{ clipPath: `inset(0 ${100 - previewSlider}% 0 0)` }"
+                    draggable="false"
+                  />
+                  <div
+                    class="absolute inset-y-0 w-0.5 bg-white/60 backdrop-blur-sm pointer-events-none z-10"
+                    :style="{ left: previewSlider + '%' }"
+                  />
+                  <div class="absolute bottom-2 left-2 px-2 py-0.5 bg-black/50 text-white text-xs rounded backdrop-blur-sm pointer-events-none">
+                    Compare Slider — move mouse to compare
+                  </div>
+                </template>
+
+                <!-- Single / default -->
+                <template v-else>
+                  <img
+                    :src="thumbnails[0].url"
+                    alt="Thumbnail"
+                    class="w-full h-full object-cover cursor-zoom-in"
+                    draggable="false"
+                    @click="openLightbox(0)"
+                  />
+                </template>
+
+                <!-- Fullscreen button -->
+                <button
+                  class="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded transition-colors z-20"
+                  title="View fullscreen"
+                  @click="openLightbox(0)"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Download list -->
+              <div class="space-y-2">
                 <div
                   v-for="(thumb, index) in thumbnails"
                   :key="index"
@@ -148,26 +225,101 @@
                       v-if="thumb.url"
                       :src="thumb.url"
                       :alt="`Thumbnail ${index + 1}`"
-                      class="w-16 h-16 object-cover rounded"
+                      class="w-14 h-14 object-cover rounded cursor-zoom-in hover:opacity-80 transition-opacity"
+                      @click="openLightbox(index)"
                     />
-                    <svg v-else class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg v-else class="w-14 h-14 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <div>
-                      <p class="font-medium">{{ thumb.filename }}</p>
+                      <p class="font-medium text-sm">{{ thumb.filename }}</p>
                       <p class="text-xs text-muted-foreground">{{ thumb.type }}</p>
                     </div>
                   </div>
-                  <Button @click="downloadThumbnail(thumb)" size="sm" variant="outline" class="gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Download
-                  </Button>
+                  <div class="flex items-center gap-2">
+                    <Button @click="openLightbox(index)" size="sm" variant="ghost" class="gap-1 px-2 h-8 text-xs" title="Preview">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </Button>
+                    <Button @click="downloadThumbnail(thumb)" size="sm" variant="outline" class="gap-2">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          <!-- Lightbox -->
+          <Teleport to="body">
+            <div
+              v-if="lightboxOpen"
+              class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+              @click.self="closeLightbox"
+              @keydown.esc="closeLightbox"
+            >
+              <!-- Navigation: prev -->
+              <button
+                v-if="thumbnails.length > 1"
+                class="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-10"
+                @click="lightboxIndex = (lightboxIndex - 1 + thumbnails.length) % thumbnails.length"
+              >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              <!-- Image -->
+              <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3">
+                <img
+                  :src="thumbnails[lightboxIndex]?.url"
+                  :alt="`Thumbnail ${lightboxIndex + 1}`"
+                  class="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+                />
+                <div class="flex items-center gap-3 text-white/80 text-sm">
+                  <span>{{ thumbnails[lightboxIndex]?.filename }}</span>
+                  <span v-if="thumbnails.length > 1">{{ lightboxIndex + 1 }} / {{ thumbnails.length }}</span>
+                </div>
+              </div>
+
+              <!-- Navigation: next -->
+              <button
+                v-if="thumbnails.length > 1"
+                class="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-10"
+                @click="lightboxIndex = (lightboxIndex + 1) % thumbnails.length"
+              >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <!-- Close button -->
+              <button
+                class="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                @click="closeLightbox"
+              >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <!-- Dot indicators -->
+              <div v-if="thumbnails.length > 1" class="absolute bottom-4 flex items-center gap-2">
+                <button
+                  v-for="(_, i) in thumbnails"
+                  :key="i"
+                  class="w-2 h-2 rounded-full transition-colors"
+                  :class="i === lightboxIndex ? 'bg-white' : 'bg-white/40 hover:bg-white/60'"
+                  @click="lightboxIndex = i"
+                />
+              </div>
+            </div>
+          </Teleport>
 
           <!-- Branch Information -->
           <Card>
@@ -277,10 +429,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import { useMouseInElement } from '@vueuse/core'
 
 interface Props {
   open?: boolean
@@ -299,9 +452,58 @@ const loading = ref(false)
 const thumbnails = ref<any[]>([])
 const inputFiles = ref<any[]>([])
 
+// Preview state
+const previewContainer = ref<HTMLElement | null>(null)
+const previewHovered = ref(false)
+const previewSlider = ref(50)
+const { elementX, elementWidth, isOutside } = useMouseInElement(previewContainer)
+
+watch(
+  [previewHovered, elementX, elementWidth, isOutside],
+  ([hovered, x, width, outside]) => {
+    if (!hovered || thumbnailVariant.value !== 'compareSlider') return
+    if (!outside && width > 0) {
+      previewSlider.value = (x / width) * 100
+    }
+  }
+)
+
+// Lightbox state
+const lightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+
+const openLightbox = (index: number) => {
+  lightboxIndex.value = index
+  lightboxOpen.value = true
+}
+
+const closeLightbox = () => {
+  lightboxOpen.value = false
+}
+
+// Handle keyboard navigation in lightbox
+const handleKeydown = (e: KeyboardEvent) => {
+  if (!lightboxOpen.value) return
+  if (e.key === 'Escape') closeLightbox()
+  if (e.key === 'ArrowLeft') lightboxIndex.value = (lightboxIndex.value - 1 + thumbnails.value.length) % thumbnails.value.length
+  if (e.key === 'ArrowRight') lightboxIndex.value = (lightboxIndex.value + 1) % thumbnails.value.length
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+
 const outputFiles = computed(() => {
   if (!props.template?.io?.outputs || !Array.isArray(props.template.io.outputs)) return []
   return props.template.io.outputs
+})
+
+const thumbnailVariant = computed(() => {
+  return props.template?.thumbnailVariant || 'none'
 })
 
 watch(() => props.open, (value) => {

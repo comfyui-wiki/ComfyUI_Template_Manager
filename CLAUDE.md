@@ -12,12 +12,14 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 ## Key Features
 
 ### 1. Template Management
+
 - Browse templates by category
 - Edit template metadata (title, description, tags, models, etc.)
 - Reorder templates within categories via drag-and-drop
 - Live preview of changes
 
 ### 2. Thumbnail Management
+
 - Upload and convert images/videos to WebP format
 - Variants: None, Hover Dissolve, Compare Slider, Zoom Hover
 - Automatic format detection and converter
@@ -26,6 +28,7 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 - High-quality scaling with before/after comparison
 
 ### 3. Workflow & Input File Management
+
 - Upload/download workflow.json with validation
 - **Automatic Input File Verification**: Parses workflow to detect LoadImage/LoadAudio/LoadVideo nodes
 - **Smart Warnings**: Shows missing files from `input/` folder with visual indicators
@@ -33,12 +36,14 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 - **File Preview**: Image previews for uploaded files
 
 ### 4. GitHub Integration
+
 - OAuth authentication via GitHub
 - Direct commits to selected branch
 - Branch selection support
 - Atomic updates with git tree API
 
 ### 5. Multi-language (i18n) Synchronization
+
 - **Automatic sync across 11 languages**: en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR
 - **Create mode**: New templates sync to all locale files with English placeholders
 - **Update mode**: Technical fields sync while preserving existing translations
@@ -49,6 +54,7 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 **See**: `docs/i18n-outdated-translations.md` for detailed guide
 
 ### 6. AI Translation (Optional Feature)
+
 - **DeepSeek API Integration**: AI-powered translation for template metadata
 - **Translation Modes**:
   - Single Cell: Translate individual fields
@@ -134,6 +140,7 @@ DEEPSEEK_MODEL=deepseek-chat                                 # Optional, default
 ```
 
 **Note on AI Translation:**
+
 - If `DEEPSEEK_API_KEY` is not set, the AI translation feature will be disabled
 - The system automatically uses `NEXTAUTH_URL` domain for origin verification
 - Configure security settings (rate limits, whitelist) in `config/i18n-config.json`
@@ -142,6 +149,7 @@ DEEPSEEK_MODEL=deepseek-chat                                 # Optional, default
 ### nuxt.config.ts
 
 Key settings:
+
 - **SSR enabled** (kept enabled for optimal SEO and initial page load, despite minor hydration warnings)
 - Auth: `@sidebase/nuxt-auth` with GitHub provider
 - FFmpeg excluded from Vite optimization
@@ -156,13 +164,15 @@ Key settings:
 
 All configuration files are stored in `/config/` and served via the API endpoint `/api/config/[name].json`:
 
-**`/config/template-naming-rules.json`**:
+`**/config/template-naming-rules.json`**:
+
 - Template naming conventions (snake_case with type prefixes)
 - Category-specific prefix rules
 - Best practices and examples
 - Used by: `WorkflowFileManager` component
 
-**`/config/workflow-model-config.json`**:
+`**/config/workflow-model-config.json**`:
+
 - Workflow model type definitions
 - URL patterns for model validation
 - Used by: `WorkflowModelLinksEditor` component and edit page
@@ -174,27 +184,32 @@ All configuration files are stored in `/config/` and served via the API endpoint
 ### Key Implementation Details
 
 **Multi-language Synchronization**:
+
 - Templates automatically sync to 11 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR)
 - Outdated translations tracked in `i18n.json` when English content changes
 - Compatible with existing Python `sync_data.py` workflow
 
 **AI Translation**:
+
 - Optional DeepSeek API integration for bulk translation
 - Supports single-cell, batch single-language, and multi-language modes
 - Security: rate limiting, origin verification, whitelist support
 
 **File Management**:
+
 - Automatic workflow input file verification (LoadImage/LoadAudio/LoadVideo nodes)
 - Smart format detection for thumbnails and input files
 - Conversion tools: `ThumbnailConverter.vue` (WebP), `InputAssetConverter.vue` (flexible formats)
 - Size warnings: Images >2MB, Videos >4MB
 
 **GitHub Integration**:
+
 - Direct commits to selected branch
 - Dual-mode data fetching (CDN cached vs fresh API)
 - User's OAuth token for all operations (5000 req/hour)
 
 **Configuration System**:
+
 - All config files in `/config/` directory
 - Served via API endpoint with whitelist security
 - Template naming rules with category-specific prefixes
@@ -204,6 +219,7 @@ All configuration files are stored in `/config/` and served via the API endpoint
 ## API Endpoints
 
 ### GET `/api/config/[name].json`
+
 Serves configuration files from `/config/` directory with whitelist security and 60s cache.
 
 **Allowed Configs**: `template-naming-rules.json`, `workflow-model-config.json`
@@ -211,9 +227,11 @@ Serves configuration files from `/config/` directory with whitelist security and
 ---
 
 ### POST `/api/github/template/update`
+
 Updates template metadata and files (workflow, thumbnails, input files) via GitHub API.
 
 **Key Parameters**:
+
 - `repo`, `branch`, `templateName`
 - `metadata`: title, description, category, tags, models, etc.
 - `files`: workflow (base64), thumbnails (base64), inputFiles (base64)
@@ -223,6 +241,7 @@ Updates template metadata and files (workflow, thumbnails, input files) via GitH
 ---
 
 ### POST `/api/ai/translate/multi-lang`
+
 Translates text to multiple languages in one API call (AI Translation feature).
 
 **Request**: `{ sourceText, sourceLang, targetLangs[] }`
@@ -236,12 +255,14 @@ Translates text to multiple languages in one API call (AI Translation feature).
 ## Key Components
 
 ### ThumbnailConverter.vue
+
 Converts images/videos to WebP format for thumbnails (400x400 or 350x350).
 
 **Props**: `initialFile?: File`
 **Emits**: `converted: File`
 
 ### InputAssetConverter.vue
+
 Flexible converter for input assets with multiple format/resize options.
 
 **Props**: `initialFile?: File, targetFilename?: string`
@@ -249,11 +270,13 @@ Flexible converter for input assets with multiple format/resize options.
 **Formats**: WebP, JPEG, PNG | **Resize**: None, %, dimensions, max dimension
 
 ### ThumbnailPreview.vue
+
 Preview component supporting variants: none, hoverDissolve, compareSlider, zoomHover.
 
 **Props**: `variant: string, images: File[], className?: string, hoverZoom?: number`
 
 ### WorkflowFileManager.vue
+
 Manages workflow JSON and input files with automatic file verification.
 
 **Props**: `templateName, repo, branch, workflowContent?`
@@ -289,11 +312,13 @@ npm run type-check
 ```
 
 ### Authentication Flow
+
 1. Sign in with GitHub → OAuth → Callback → Session with access token
 2. Access token used for all GitHub API calls
 3. Session stored in cookies
 
 ### Git Workflow
+
 Each save creates one commit: `Update template: {templateName}`
 
 Includes: `templates/index.json`, workflow JSON, thumbnails, input files

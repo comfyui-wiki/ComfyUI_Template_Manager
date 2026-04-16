@@ -1,6 +1,7 @@
 {
   "customNodeRules": [
-    "DownloadAndLoadDepthAnythingV2Model"
+    "DownloadAndLoadDepthAnythingV2Model",
+    "MelBandRoFormerModelLoader"
   ],
   "directoryRules": {
     "CheckpointLoaderSimple": "checkpoints",
