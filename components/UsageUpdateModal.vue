@@ -31,7 +31,7 @@
                   Upload CSV File
                 </Button>
                 <p class="text-xs text-muted-foreground mt-2">
-                  CSV format: Metric, workflow_name, usage_count
+                  CSV format: series, workflow_name, then per-day counts (summed automatically)
                 </p>
               </div>
             </div>
@@ -43,10 +43,14 @@
               <CardTitle class="text-sm">Expected CSV Format</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre class="text-xs bg-muted p-3 rounded overflow-x-auto">Metric,workflow_name,"Date Range"
-Total Events of execution_start,flux_dev_checkpoint_example,372
-Total Events of execution_start,image_qwen_Image_2512,1847
+              <pre class="text-xs bg-muted p-3 rounded overflow-x-auto">series,workflow_name,14-Apr-2026,15-Apr-2026,...,21-Apr-2026
+execution_start,api_grok_image_edit,5231.0,5601.0,...,691.0
+execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
 ...</pre>
+              <p class="text-xs text-muted-foreground mt-2">
+                Each row's date columns are summed to compute total usage. Only rows with
+                <code class="bg-muted-foreground/10 px-1 rounded">series = execution_start</code> are counted.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -72,13 +76,16 @@ Total Events of execution_start,image_qwen_Image_2512,1847
                   <div class="text-xs text-muted-foreground">Templates Found</div>
                 </div>
                 <div class="p-3 bg-green-50 rounded-lg">
-                  <div class="text-2xl font-bold text-green-600">{{ totalUsage }}</div>
+                  <div class="text-2xl font-bold text-green-600">{{ totalUsage.toLocaleString() }}</div>
                   <div class="text-xs text-muted-foreground">Total Usage</div>
                 </div>
                 <div class="p-3 bg-purple-50 rounded-lg">
                   <div class="text-2xl font-bold text-purple-600">12</div>
                   <div class="text-xs text-muted-foreground">Index Files</div>
                 </div>
+              </div>
+              <div v-if="dateRangeLabel" class="mt-3 text-center text-xs text-muted-foreground">
+                Aggregated over {{ dateColumnCount }} day(s): {{ dateRangeLabel }}
               </div>
             </CardContent>
           </Card>
@@ -100,7 +107,7 @@ Total Events of execution_start,image_qwen_Image_2512,1847
                   <tbody>
                     <tr v-for="(value, name) in previewData" :key="name" class="border-b">
                       <td class="p-2 font-mono">{{ name }}</td>
-                      <td class="p-2 text-right font-semibold">{{ value }}</td>
+                      <td class="p-2 text-right font-semibold">{{ value.toLocaleString() }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -200,6 +207,7 @@ const emit = defineEmits<{
 const isOpen = ref(props.open)
 const fileInput = ref<HTMLInputElement>()
 const parsedData = ref<Record<string, number> | null>(null)
+const dateColumns = ref<string[]>([])
 const error = ref('')
 const success = ref('')
 const isSubmitting = ref(false)
@@ -241,35 +249,114 @@ const totalUsage = computed(() => {
   return Object.values(parsedData.value).reduce((sum, count) => sum + count, 0)
 })
 
-// Computed: Preview data (first 10)
+// Computed: Preview data (first 10), sorted by usage desc for usefulness
 const previewData = computed(() => {
-  if (!parsedData.value) return {}
-  const entries = Object.entries(parsedData.value)
+  if (!parsedData.value) return {} as Record<string, number>
+  const entries = Object.entries(parsedData.value).sort((a, b) => b[1] - a[1])
   return Object.fromEntries(entries.slice(0, 10))
 })
 
-// Parse CSV file
-const parseCSV = (text: string): Record<string, number> => {
-  const lines = text.trim().split('\n')
-  const result: Record<string, number> = {}
+// Computed: Number of date columns aggregated
+const dateColumnCount = computed(() => dateColumns.value.length)
 
-  // Skip header line (line 0)
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line) continue
+// Computed: Date range label (first → last)
+const dateRangeLabel = computed(() => {
+  const cols = dateColumns.value
+  if (cols.length === 0) return ''
+  if (cols.length === 1) return cols[0]
+  return `${cols[0]} → ${cols[cols.length - 1]}`
+})
 
-    // Parse CSV line (handle quoted fields)
-    const match = line.match(/^[^,]*,([^,]+),(\d+)$/)
-    if (match) {
-      const templateName = match[1].trim()
-      const usage = parseInt(match[2], 10)
-      if (templateName && !isNaN(usage)) {
-        result[templateName] = usage
+// Split a CSV line, respecting double-quoted fields
+const splitCsvLine = (line: string): string[] => {
+  const cells: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
       }
+    } else if (ch === ',' && !inQuotes) {
+      cells.push(current)
+      current = ''
+    } else {
+      current += ch
     }
   }
+  cells.push(current)
+  return cells.map((c) => c.trim())
+}
 
-  return result
+/**
+ * Parse the trend-breakdown CSV.
+ *
+ * Expected header: `series,workflow_name,<date1>,<date2>,...,<dateN>`
+ * Each data row has a `series` (e.g. `execution_start`), a workflow name, and one
+ * numeric count per date column. Totals are computed by summing the date
+ * columns for each row.
+ */
+const parseCSV = (text: string): { data: Record<string, number>; dates: string[] } => {
+  const lines = text.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim().length > 0)
+  if (lines.length === 0) {
+    return { data: {}, dates: [] }
+  }
+
+  const header = splitCsvLine(lines[0])
+  if (header.length < 3) {
+    throw new Error('CSV must have at least series, workflow_name, and one date column')
+  }
+
+  const seriesIdx = header.findIndex((h) => h.toLowerCase() === 'series')
+  const nameIdx = header.findIndex((h) => h.toLowerCase() === 'workflow_name')
+
+  if (seriesIdx === -1 || nameIdx === -1) {
+    throw new Error('CSV header must include "series" and "workflow_name" columns')
+  }
+
+  const valueIdxs: number[] = []
+  const dates: string[] = []
+  for (let i = 0; i < header.length; i++) {
+    if (i === seriesIdx || i === nameIdx) continue
+    valueIdxs.push(i)
+    dates.push(header[i])
+  }
+
+  if (valueIdxs.length === 0) {
+    throw new Error('CSV does not contain any date columns to sum')
+  }
+
+  const result: Record<string, number> = {}
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = splitCsvLine(lines[i])
+    if (cells.length < header.length) continue
+
+    const series = (cells[seriesIdx] || '').toLowerCase()
+    // Only count actual executions, matching what the old "Total Events" metric represented.
+    if (series !== 'execution_start') continue
+
+    const templateName = cells[nameIdx]
+    if (!templateName) continue
+
+    let total = 0
+    for (const idx of valueIdxs) {
+      const raw = cells[idx]
+      if (!raw) continue
+      const num = parseFloat(raw)
+      if (!isNaN(num)) total += num
+    }
+
+    const rounded = Math.round(total)
+    // Aggregate duplicates defensively in case a name appears on multiple rows.
+    result[templateName] = (result[templateName] || 0) + rounded
+  }
+
+  return { data: result, dates }
 }
 
 // Handle file upload
@@ -284,18 +371,22 @@ const handleFileUpload = async (event: Event) => {
 
   try {
     const text = await file.text()
-    const data = parseCSV(text)
+    const { data, dates } = parseCSV(text)
 
     if (Object.keys(data).length === 0) {
       throw new Error('No valid data found in CSV file')
     }
 
     parsedData.value = data
-    console.log(`[Usage Update] Parsed ${Object.keys(data).length} templates from CSV`)
+    dateColumns.value = dates
+    console.log(
+      `[Usage Update] Parsed ${Object.keys(data).length} templates from CSV across ${dates.length} day(s)`
+    )
   } catch (err: any) {
     console.error('[Usage Update] Parse error:', err)
     error.value = `Failed to parse CSV: ${err.message}`
     parsedData.value = null
+    dateColumns.value = []
   } finally {
     // Reset input
     input.value = ''
@@ -305,6 +396,7 @@ const handleFileUpload = async (event: Event) => {
 // Reset upload
 const resetUpload = () => {
   parsedData.value = null
+  dateColumns.value = []
   error.value = ''
   success.value = ''
   updateProgress.value = { current: 0, total: 0 }
