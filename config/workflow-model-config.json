@@ -28,6 +28,7 @@
     "ModelPatchLoader": "model_patches",
     "AudioEncoderLoader": "audio_encoders",
     "LatentUpscaleModelLoader": "latent_upscale_models",
+    "FrameInterpolationModelLoader": "frame_interpolation",
     "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
   "noteTemplate": {
