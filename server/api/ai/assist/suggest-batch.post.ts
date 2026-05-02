@@ -1,5 +1,6 @@
 import { getServerSession } from '#auth'
 import { checkRateLimit, checkOrigin } from '~/server/utils/rate-limiter'
+import aiAssistantPromptsImport from '~/config/ai-assistant-prompts.json'
 
 interface RequestBody {
   context: {
@@ -69,21 +70,7 @@ export default defineEventHandler(async (event) => {
       hasCustomSystemPrompt: !!body.customSystemPrompt
     })
 
-    const { readFile } = await import('fs/promises')
-    const { join } = await import('path')
-
-    let promptsConfig: Record<string, PromptConfig>
-    try {
-      const configPath = join(process.cwd(), 'config', 'ai-assistant-prompts.json')
-      const configContent = await readFile(configPath, 'utf-8')
-      promptsConfig = JSON.parse(configContent)
-    } catch (error: any) {
-      console.error('[AI Assist Batch] Failed to load prompt config:', error)
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Failed to load prompt configuration'
-      })
-    }
+    const promptsConfig = aiAssistantPromptsImport as Record<string, PromptConfig>
 
     const promptConfig = promptsConfig.all
     if (!promptConfig) {

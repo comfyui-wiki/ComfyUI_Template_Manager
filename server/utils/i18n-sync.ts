@@ -1,5 +1,6 @@
 import type { Octokit } from '@octokit/rest'
 import { formatTemplateJson } from './json-formatter'
+import i18nConfigLocal from '~/config/i18n-config.json'
 
 /**
  * i18n Configuration Interface
@@ -101,21 +102,9 @@ export async function loadI18nConfig(
     console.warn(`[i18n-sync] Failed to load i18n config from repo: ${error.message}`)
   }
 
-  // Fallback to local config
+  // Fallback to local config (static import for Vercel compatibility)
   console.log(`[i18n-sync] Falling back to local i18n config...`)
-  const fs = await import('fs/promises')
-  const path = await import('path')
-  const configPath = path.join(process.cwd(), 'config', 'i18n-config.json')
-
-  try {
-    const content = await fs.readFile(configPath, 'utf-8')
-    const config = JSON.parse(content)
-    console.log(`[i18n-sync] ✓ Loaded local i18n config from: ${configPath}`)
-    return config
-  } catch (error) {
-    console.error('[i18n-sync] ✗ Failed to load local i18n config:', error)
-    throw new Error('Could not load i18n configuration')
-  }
+  return i18nConfigLocal as I18nConfig
 }
 
 /**

@@ -1,7 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
-import { readFile } from 'fs/promises'
-import { resolve } from 'path'
+import bundleMappingRulesImport from '~/config/bundle-mapping-rules.json'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 
@@ -437,9 +436,7 @@ export default defineEventHandler(async (event) => {
             console.log(`[Update Template] Template "${templateName}" not found in bundles.json, adding it...`)
 
             // Load bundle mapping rules
-            const configPath = resolve(process.cwd(), 'config/bundle-mapping-rules.json')
-            console.log('[Update Template] Loading bundle mapping rules from:', configPath)
-            const bundleMappingRules = JSON.parse(await readFile(configPath, 'utf-8'))
+            const bundleMappingRules = bundleMappingRulesImport
 
             // Determine which bundle to add the template to
             const categoryTitle = categoryChanged ? metadata.category : currentCategoryTitle

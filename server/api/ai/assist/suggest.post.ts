@@ -1,5 +1,6 @@
 import { getServerSession } from '#auth'
 import { checkRateLimit, checkOrigin } from '~/server/utils/rate-limiter'
+import aiAssistantPromptsImport from '~/config/ai-assistant-prompts.json'
 
 interface RequestBody {
   fieldType: 'tags' | 'title' | 'description'
@@ -69,22 +70,7 @@ export default defineEventHandler(async (event) => {
       context: body.context
     })
 
-    // Load prompt configuration
-    const { readFile } = await import('fs/promises')
-    const { join } = await import('path')
-
-    let promptsConfig: Record<string, PromptConfig>
-    try {
-      const configPath = join(process.cwd(), 'config', 'ai-assistant-prompts.json')
-      const configContent = await readFile(configPath, 'utf-8')
-      promptsConfig = JSON.parse(configContent)
-    } catch (error: any) {
-      console.error('[AI Assist] Failed to load prompt config:', error)
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Failed to load prompt configuration'
-      })
-    }
+    const promptsConfig = aiAssistantPromptsImport as Record<string, PromptConfig>
 
     if (!promptsConfig || !promptsConfig[body.fieldType]) {
       throw createError({

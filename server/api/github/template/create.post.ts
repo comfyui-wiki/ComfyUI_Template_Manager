@@ -1,7 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
-import { readFile } from 'fs/promises'
-import { resolve } from 'path'
+import bundleMappingRulesImport from '~/config/bundle-mapping-rules.json'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncTemplateToAllLocales, updateI18nJson, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 
@@ -312,9 +311,7 @@ export default defineEventHandler(async (event) => {
       }
 
       // Load bundle mapping rules
-      const configPath = resolve(process.cwd(), 'config/bundle-mapping-rules.json')
-      console.log('[Create Template] Loading bundle mapping rules from:', configPath)
-      const bundleMappingRules = JSON.parse(await readFile(configPath, 'utf-8'))
+      const bundleMappingRules = bundleMappingRulesImport
 
       // Determine which bundle to add the template to based on category
       const targetBundle = bundleMappingRules.categoryMapping[metadata.category] || bundleMappingRules.defaultBundle
