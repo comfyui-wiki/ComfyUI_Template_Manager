@@ -29,6 +29,7 @@
     "AudioEncoderLoader": "audio_encoders",
     "LatentUpscaleModelLoader": "latent_upscale_models",
     "FrameInterpolationModelLoader": "frame_interpolation",
+    "LoadBackgroundRemovalModel": "background_removal",
     "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
   "noteTemplate": {
