@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Match html class toggle from `@nuxtjs/color-mode` (see module tailwind hook when using @nuxtjs/tailwind)
+  darkMode: ['selector', '[class~="dark"]'],
   content: [
     './components/**/*.{js,vue,ts}',
     './layouts/**/*.vue',

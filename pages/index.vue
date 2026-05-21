@@ -14,6 +14,8 @@
             <div class="flex items-center gap-2 flex-wrap">
               <LoginButton />
 
+              <ColorModeSwitcher />
+
               <Button
                 v-if="isMounted"
                 @click="showLocalSettings = true"
@@ -105,16 +107,16 @@
               <a
                 :href="`https://github.com/${selectedRepo || 'Comfy-Org/workflow_templates'}/tree/${selectedBranch || 'main'}`"
                 target="_blank"
-                class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors group"
+                class="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors group"
                 :title="`View on GitHub: ${selectedRepo || 'Comfy-Org/workflow_templates'} @ ${selectedBranch || 'main'}`"
               >
-                <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 16 16">
+                <svg class="w-4 h-4 text-muted-foreground" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
                 </svg>
-                <span class="font-mono font-medium text-gray-700">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span>
-                <span class="text-gray-400">@</span>
-                <span class="font-mono font-semibold text-gray-900">{{ selectedBranch || 'main' }}</span>
-                <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="font-mono font-medium text-foreground">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span>
+                <span class="text-muted-foreground/70">@</span>
+                <span class="font-mono font-semibold text-foreground">{{ selectedBranch || 'main' }}</span>
+                <svg class="w-3 h-3 text-muted-foreground group-hover:text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
@@ -311,15 +313,15 @@
     </div>
 
     <!-- Browsing PR Notice Banner (always show when viewing PR branch) -->
-    <div v-if="isMounted && isViewingPR && !prNoticeDismissed" class="border-b bg-purple-50">
+    <div v-if="isMounted && isViewingPR && !prNoticeDismissed" class="border-b bg-purple-50 dark:bg-purple-950/45 dark:border-purple-900">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16">
+          <svg class="w-5 h-5 text-purple-600 dark:text-purple-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 16 16">
             <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 1a1.75 1.75 0 100 3.5A1.75 1.75 0 005 1zM3.25 12a1.75 1.75 0 113.5 0 1.75 1.75 0 01-3.5 0z"/>
           </svg>
           <div class="flex-1">
-            <p class="text-sm text-purple-900 font-medium">Browsing PR Branch - Read-Only Mode</p>
-            <p class="text-xs text-purple-800 mt-1">
+            <p class="text-sm text-purple-900 dark:text-purple-100 font-medium">Browsing PR Branch - Read-Only Mode</p>
+            <p class="text-xs text-purple-800 dark:text-purple-200/90 mt-1">
               You're viewing a pull request branch <span class="font-mono font-semibold">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span> @ <span class="font-mono font-semibold">{{ selectedBranch || 'main' }}</span>.
               Editing is disabled. To make changes, please switch to a branch you have write access to.
             </p>
@@ -328,7 +330,7 @@
                 v-if="status === 'authenticated'"
                 size="sm"
                 variant="outline"
-                class="h-7 text-xs bg-white hover:bg-purple-50"
+                class="h-7 text-xs bg-background/90 dark:bg-purple-950/60 hover:bg-purple-50 dark:hover:bg-purple-900/70"
                 @click="scrollToSidebar"
               >
                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -338,7 +340,7 @@
               </Button>
             </div>
           </div>
-          <button @click="prNoticeDismissed = true" class="text-purple-600 hover:text-purple-800">
+          <button @click="prNoticeDismissed = true" class="text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -348,15 +350,15 @@
     </div>
 
     <!-- Permission Notice Banner (only show if no write access to repository at all) -->
-    <div v-if="isMounted && status === 'authenticated' && !hasRepoWriteAccess && !isViewingPR && !noticeDismissed" class="border-b bg-blue-50">
+    <div v-if="isMounted && status === 'authenticated' && !hasRepoWriteAccess && !isViewingPR && !noticeDismissed" class="border-b bg-blue-50 dark:bg-sky-950/35 dark:border-sky-900">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5 text-blue-600 dark:text-sky-300 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div class="flex-1">
-            <p class="text-sm text-blue-900 font-medium">Read-only mode</p>
-            <p class="text-xs text-blue-800 mt-1">
+            <p class="text-sm text-blue-900 dark:text-sky-100 font-medium">Read-only mode</p>
+            <p class="text-xs text-blue-800 dark:text-sky-200/90 mt-1">
               You're viewing <span class="font-mono font-semibold">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span> @ <span class="font-mono font-semibold">{{ selectedBranch || 'main' }}</span> in read-only mode.
               To create or edit templates:
             </p>
@@ -365,7 +367,7 @@
                 v-if="!hasFork"
                 size="sm"
                 variant="outline"
-                class="h-7 text-xs bg-white hover:bg-blue-50"
+                class="h-7 text-xs bg-background/90 dark:bg-sky-950/55 hover:bg-blue-50 dark:hover:bg-sky-900/60"
                 @click="scrollToSidebar"
               >
                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -377,7 +379,7 @@
                 v-else
                 size="sm"
                 variant="outline"
-                class="h-7 text-xs bg-white hover:bg-blue-50"
+                class="h-7 text-xs bg-background/90 dark:bg-sky-950/55 hover:bg-blue-50 dark:hover:bg-sky-900/60"
                 @click="scrollToSidebar"
               >
                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -387,7 +389,7 @@
               </Button>
             </div>
           </div>
-          <button @click="dismissNotice" class="text-blue-600 hover:text-blue-800">
+          <button @click="dismissNotice" class="text-blue-600 hover:text-blue-800 dark:text-sky-300 dark:hover:text-sky-100">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>

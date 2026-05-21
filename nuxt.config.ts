@@ -24,8 +24,11 @@ export default defineNuxtConfig({
     componentDir: './components/ui'
   },
 
+  // Default: match OS (Appearance). Users can persist light/dark via ColorModeSwitcher.
   colorMode: {
-    classSuffix: ''
+    classSuffix: '',
+    preference: 'system',
+    fallback: 'light'
   },
 
   // Auth configuration
