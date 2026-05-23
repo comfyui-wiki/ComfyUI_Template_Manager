@@ -10,17 +10,17 @@
           Discard Changes & Sync Fork
         </DialogTitle>
         <DialogDescription class="space-y-3 pt-2">
-          <div class="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
-            <p class="text-yellow-800 font-medium mb-2">⚠️ This will permanently discard:</p>
-            <ul class="list-disc list-inside space-y-1 ml-2 text-yellow-700">
+          <div class="dm-callout-warn p-3 text-sm space-y-2">
+            <p class="font-medium text-inherit">⚠️ This will permanently discard:</p>
+            <ul class="list-disc list-inside space-y-1 ml-2 opacity-90">
               <li>{{ aheadBy }} commit{{ aheadBy !== 1 ? 's' : '' }} on your fork's main branch</li>
               <li>All local changes</li>
             </ul>
           </div>
 
-          <div class="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-            <p class="text-blue-800 font-medium mb-2">📝 How to proceed:</p>
-            <ol class="list-decimal list-inside space-y-2 ml-2 text-blue-700 text-xs">
+          <div class="dm-callout-info p-3 text-sm space-y-2">
+            <p class="font-medium text-inherit mb-0">📝 How to proceed:</p>
+            <ol class="list-decimal list-inside space-y-2 ml-2 text-xs opacity-90">
               <li>We'll open your fork on GitHub</li>
               <li>Click the <strong>"Sync fork"</strong> button</li>
               <li>Choose <strong>"Discard commits"</strong> to force sync</li>
@@ -28,7 +28,7 @@
             </ol>
           </div>
 
-          <p class="text-xs text-gray-600 italic">
+          <p class="text-xs text-muted-foreground italic">
             💡 This is the safest way to ensure your fork syncs correctly with upstream.
           </p>
         </DialogDescription>
@@ -83,9 +83,9 @@
           </p>
         </div>
 
-        <div class="p-3 bg-green-50 border border-green-200 rounded text-xs">
-          <p class="text-green-800 font-medium mb-1">✓ Your changes will be safe!</p>
-          <p class="text-green-700">
+        <div class="dm-callout-success p-3 rounded text-xs border-0">
+          <p class="font-medium mb-1 text-inherit">✓ Your changes will be safe!</p>
+          <p class="opacity-90">
             Your {{ aheadBy }} commit{{ aheadBy !== 1 ? 's' : '' }} will be saved to the backup branch.
             Then we'll guide you to sync your fork on GitHub.
           </p>
@@ -119,17 +119,17 @@
   <Dialog v-model:open="showGitHubGuideDialog">
     <DialogContent class="max-w-lg">
       <DialogHeader>
-        <DialogTitle class="text-green-600">✓ Backup Created Successfully!</DialogTitle>
+        <DialogTitle class="text-green-600 dark:text-green-400">✓ Backup Created Successfully!</DialogTitle>
         <DialogDescription class="space-y-4 pt-3">
-          <div class="bg-green-50 border border-green-200 rounded p-3 text-sm">
-            <p class="text-green-800">
+          <div class="dm-callout-success p-3 text-sm">
+            <p class="text-sm text-inherit">
               ✓ Your changes have been saved to branch: <code class="font-mono font-semibold">{{ createdBranchName }}</code>
             </p>
           </div>
 
-          <div class="bg-blue-50 border border-blue-200 rounded p-4">
-            <p class="text-blue-800 font-medium mb-3">📝 Next: Sync your fork on GitHub</p>
-            <ol class="list-decimal list-inside space-y-2 text-blue-700 text-sm ml-2">
+          <div class="dm-callout-info p-4 border-0">
+            <p class="font-medium mb-3 text-inherit">📝 Next: Sync your fork on GitHub</p>
+            <ol class="list-decimal list-inside space-y-2 text-sm ml-2 opacity-90">
               <li>Click the button below to open your fork</li>
               <li>Look for the <strong>"Sync fork"</strong> button (yellow banner)</li>
               <li>Click <strong>"Update branch"</strong> or <strong>"Discard commits"</strong></li>
@@ -137,7 +137,7 @@
             </ol>
           </div>
 
-          <div class="flex items-center gap-2 p-3 bg-gray-50 rounded text-xs text-gray-600">
+          <div class="flex items-center gap-2 p-3 dm-muted-row text-xs text-muted-foreground">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -163,15 +163,15 @@
   <Dialog v-model:open="showErrorDialog">
     <DialogContent class="max-w-md">
       <DialogHeader>
-        <DialogTitle class="text-red-600">✗ Error</DialogTitle>
+        <DialogTitle class="text-red-600 dark:text-red-400">✗ Error</DialogTitle>
         <DialogDescription class="pt-2">
           <div class="space-y-3 text-sm">
-            <p class="text-red-700">{{ errorMessage }}</p>
+            <p class="text-destructive">{{ errorMessage }}</p>
 
             <!-- Permission error helper -->
-            <div v-if="isPermissionError" class="bg-blue-50 border border-blue-200 rounded p-3 mt-3">
-              <p class="text-blue-800 font-medium mb-2">🔧 How to fix:</p>
-              <ol class="list-decimal list-inside space-y-1 text-blue-700 text-xs">
+            <div v-if="isPermissionError" class="dm-callout-info p-3 mt-3 border-0">
+              <p class="font-medium mb-2 text-sm text-inherit">🔧 How to fix:</p>
+              <ol class="list-decimal list-inside space-y-1 text-xs opacity-90">
                 <li>Click "Sign Out" in the top right</li>
                 <li>Sign in again with GitHub</li>
                 <li>Authorize the permissions</li>

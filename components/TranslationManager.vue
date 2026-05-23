@@ -1142,8 +1142,8 @@ const saveAllChanges = async () => {
                 v-for="item in filteredItems"
                 :key="item.key"
                 :class="{
-                  'bg-red-50': item.isOutdated,
-                  'bg-amber-50': !item.isOutdated && item.untranslatedLangs.length > 0
+                  'bg-red-50 dark:bg-red-950/40': item.isOutdated,
+                  'bg-amber-50 dark:bg-amber-950/35': !item.isOutdated && item.untranslatedLangs.length > 0
                 }"
               >
                 <!-- Checkbox column -->
@@ -1228,9 +1228,9 @@ const saveAllChanges = async () => {
                     class="text-sm p-1.5 rounded min-h-[32px] border"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
-                      'bg-amber-100 border-amber-300': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
-                      'bg-blue-50 border-blue-200': lang.code === 'en',
-                      'bg-green-50 border-green-400 border-2': isCellModified(item.key, lang.code),
+                      'bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:border-amber-700': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
+                      'bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800': lang.code === 'en',
+                      'bg-green-50 border-green-400 border-2 dark:bg-green-950/40 dark:border-green-600': isCellModified(item.key, lang.code),
                       'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code),
                       'cursor-pointer hover:bg-accent transition-colors': !(lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')),
                       'cursor-not-allowed opacity-60': lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')
@@ -1285,18 +1285,18 @@ const saveAllChanges = async () => {
             </div>
 
             <!-- Success Message -->
-            <div v-if="saveSuccess" class="text-xs text-green-600 flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div v-if="saveSuccess" class="text-xs dm-callout-success px-3 py-2 rounded-md flex items-center gap-2 flex-wrap">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>Translations saved and synced successfully!</span>
-              <a :href="saveSuccess.commitUrl" target="_blank" class="text-blue-600 hover:underline font-mono">
+              <a :href="saveSuccess.commitUrl" target="_blank" class="text-primary hover:underline font-mono dark:text-blue-400">
                 {{ saveSuccess.commitSha.substring(0, 7) }}
               </a>
             </div>
 
             <!-- Error Message -->
-            <div v-if="saveError" class="text-xs text-red-600 flex items-center gap-2">
+            <div v-if="saveError" class="text-xs dm-callout-danger px-3 py-2 rounded-md flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -1325,7 +1325,7 @@ const saveAllChanges = async () => {
             <span>Progress</span>
             <span>{{ batchProgress.current }} / {{ batchProgress.total }}</span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+          <div class="w-full bg-muted rounded-full h-2.5">
             <div
               class="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
               :style="{ width: `${batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0}%` }"

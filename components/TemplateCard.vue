@@ -239,7 +239,7 @@
 
       <div class="mt-auto space-y-2">
         <!-- Read-only notice -->
-        <div v-if="!canEdit" class="px-2 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+        <div v-if="!canEdit" class="px-2 py-1.5 rounded text-xs dm-callout-info opacity-95">
           <div class="flex items-start gap-1">
             <svg class="w-3 h-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />

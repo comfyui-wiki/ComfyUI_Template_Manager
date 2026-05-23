@@ -154,7 +154,7 @@
         </div>
 
         <!-- Feedback (inside scrollable area so it's never clipped) -->
-        <div v-if="feedback" :class="['px-3 py-2 rounded text-xs', feedback.ok ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800']">
+        <div v-if="feedback" :class="['px-3 py-2 rounded text-xs', feedback.ok ? 'dm-callout-success' : 'dm-callout-danger']">
           {{ feedback.message }}
         </div>
       </div>

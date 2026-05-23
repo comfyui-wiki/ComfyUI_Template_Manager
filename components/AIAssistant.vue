@@ -49,9 +49,9 @@
         <!-- Scrollable Content Area -->
         <div class="flex-1 overflow-y-auto space-y-4 py-4 px-1">
           <!-- System Prompt (editable) -->
-          <div class="space-y-2 border border-amber-200 rounded-md p-3 bg-amber-50/30">
+          <div class="dm-callout-amber-soft border p-3 space-y-2">
             <div class="flex items-center justify-between">
-              <Label class="text-sm font-medium text-amber-700">
+              <Label class="text-sm font-medium text-amber-800 dark:text-amber-200">
                 <svg class="inline w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
                 </svg>
@@ -79,7 +79,7 @@
               :disabled="loading"
             />
 
-            <div class="text-xs text-amber-600 flex items-start gap-1">
+            <div class="text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1">
               <svg class="w-3 h-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
               </svg>
@@ -88,9 +88,9 @@
           </div>
 
           <!-- Template Context (editable) -->
-          <div class="space-y-2 border border-blue-200 rounded-md p-3 bg-blue-50/30">
+          <div class="dm-callout-blue-soft border p-3 space-y-2">
             <div class="flex items-center justify-between">
-              <Label class="text-sm font-medium text-blue-700">Template Context (Editable)</Label>
+              <Label class="text-sm font-medium text-blue-800 dark:text-blue-200">Template Context (Editable)</Label>
               <Button
                 type="button"
                 variant="ghost"
@@ -113,7 +113,7 @@
               :disabled="loading"
             />
 
-            <div class="text-xs text-blue-600 flex items-start gap-1">
+            <div class="text-xs text-blue-800 dark:text-blue-300 flex items-start gap-1">
               <svg class="w-3 h-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
               </svg>
@@ -137,18 +137,18 @@
           </div>
 
           <!-- Error Message -->
-          <div v-if="error" class="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+          <div v-if="error" class="dm-callout-danger text-sm p-3 border-0">
             {{ error }}
           </div>
 
           <!-- Result -->
           <div v-if="result !== null" class="space-y-2">
-            <Label class="text-sm font-medium text-green-600">AI Suggestion</Label>
-            <div class="bg-green-50 p-3 rounded-md text-sm">
+            <Label class="text-sm font-medium text-green-700 dark:text-green-400">AI Suggestion</Label>
+            <div class="dm-callout-success p-3 text-sm border-0">
               <!-- Tags field -->
               <div v-if="fieldType === 'tags'">
                 <!-- Empty array = no new tags needed -->
-                <div v-if="Array.isArray(result) && result.length === 0" class="flex items-center gap-2 text-green-700">
+                <div v-if="Array.isArray(result) && result.length === 0" class="flex items-center gap-2 text-green-800 dark:text-green-300">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>

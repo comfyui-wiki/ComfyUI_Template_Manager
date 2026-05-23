@@ -14,9 +14,9 @@
           v-if="notification"
           class="p-3 rounded-lg text-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300"
           :class="{
-            'bg-green-50 text-green-800 border border-green-200': notification.type === 'success',
-            'bg-red-50 text-red-800 border border-red-200': notification.type === 'error',
-            'bg-blue-50 text-blue-800 border border-blue-200': notification.type === 'info'
+            'bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/40 dark:text-green-200 dark:border-green-800': notification.type === 'success',
+            'bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900': notification.type === 'error',
+            'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-800': notification.type === 'info'
           }"
         >
           <span>{{ notification.message }}</span>
@@ -80,24 +80,24 @@
           </CardHeader>
           <CardContent>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div class="text-center p-3 bg-gray-50 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ stats.totalModels }}</div>
+              <div class="text-center p-3 dm-muted-row">
+                <div class="text-2xl font-bold text-foreground">{{ stats.totalModels }}</div>
                 <div class="text-xs text-muted-foreground">Total Models</div>
               </div>
-              <div class="text-center p-3 bg-green-50 rounded-lg">
-                <div class="text-2xl font-bold text-green-600">{{ stats.validModels }}</div>
+              <div class="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950/35">
+                <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ stats.validModels }}</div>
                 <div class="text-xs text-muted-foreground">Valid Links</div>
               </div>
-              <div class="text-center p-3 bg-yellow-50 rounded-lg cursor-pointer hover:bg-yellow-100" @click="scrollToFirstMissing">
-                <div class="text-2xl font-bold text-yellow-600">{{ stats.missingLinks }}</div>
+              <div class="text-center p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/35 cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-950/55" @click="scrollToFirstMissing">
+                <div class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ stats.missingLinks }}</div>
                 <div class="text-xs text-muted-foreground">Missing Links</div>
               </div>
-              <div class="text-center p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100" @click="scrollToFirstInvalid">
-                <div class="text-2xl font-bold text-red-600">{{ stats.invalidLinks }}</div>
+              <div class="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/35 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50" @click="scrollToFirstInvalid">
+                <div class="text-2xl font-bold text-red-600 dark:text-red-400">{{ stats.invalidLinks }}</div>
                 <div class="text-xs text-muted-foreground">Invalid Links</div>
               </div>
-              <div class="text-center p-3 bg-blue-50 rounded-lg">
-                <div class="text-2xl font-bold text-blue-600">{{ stats.errorFormats }}</div>
+              <div class="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950/35">
+                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ stats.errorFormats }}</div>
                 <div class="text-xs text-muted-foreground">Format Errors</div>
               </div>
             </div>
@@ -112,9 +112,9 @@
             :ref="el => { if (el) nodeRefs[index] = el }"
             class="border rounded-lg p-4"
             :class="{
-              'border-red-300 bg-red-50': nodeInfo.hasErrors,
-              'border-yellow-300 bg-yellow-50': nodeInfo.hasWarnings && !nodeInfo.hasErrors,
-              'border-green-300 bg-green-50': !nodeInfo.hasErrors && !nodeInfo.hasWarnings
+              'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40': nodeInfo.hasErrors,
+              'border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/35': nodeInfo.hasWarnings && !nodeInfo.hasErrors,
+              'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/35': !nodeInfo.hasErrors && !nodeInfo.hasWarnings
             }"
           >
             <!-- Node Header -->
@@ -122,10 +122,10 @@
               <div class="flex items-center gap-2">
                 <span class="font-medium text-sm">{{ nodeInfo.node.type }}</span>
                 <span class="text-xs text-muted-foreground">ID: {{ nodeInfo.node.id }}</span>
-                <span v-if="nodeInfo.node._source === 'subgraph'" class="text-xs px-2 py-0.5 bg-purple-100 text-purple-800 rounded">
+                <span v-if="nodeInfo.node._source === 'subgraph'" class="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/55 dark:text-purple-200">
                   📦 Subgraph
                 </span>
-                <span v-if="nodeInfo.isCustomNode" class="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded" title="Custom node - manual link addition required">
+                <span v-if="nodeInfo.isCustomNode" class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/55 dark:text-blue-200" title="Custom node - manual link addition required">
                   🔧 Custom Node
                 </span>
               </div>
@@ -156,7 +156,7 @@
               <div
                 v-for="(model, modelIndex) in nodeInfo.existingModels"
                 :key="`${nodeInfo.node.id}-model-${modelIndex}`"
-                class="p-3 bg-white rounded border"
+                class="p-3 bg-card rounded border"
                 :class="{
                   'border-red-300': !model.valid,
                   'border-green-300': model.valid
@@ -192,7 +192,7 @@
                       <Label class="text-xs">Model URL</Label>
                       <span
                         v-if="model.autoFilled"
-                        class="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium leading-none"
+                        class="text-[10px] px-1.5 py-0.5 rounded font-medium leading-none bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
                         title="URL auto-filled from supported models list"
                       >✓ auto</span>
                     </div>
@@ -230,7 +230,7 @@
                       :href="model.url"
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="inline-flex items-center gap-1 mt-1 text-[10px] text-orange-600 hover:text-orange-700 hover:underline"
+                      class="inline-flex items-center gap-1 mt-1 text-[10px] text-orange-600 hover:text-orange-500 hover:underline dark:text-orange-400 dark:hover:text-orange-300"
                     >
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -275,12 +275,12 @@
               </Button>
 
               <!-- Custom Node Info -->
-              <div v-if="nodeInfo.isCustomNode" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+              <div v-if="nodeInfo.isCustomNode" class="mt-3 p-3 dm-callout-info rounded text-xs border-0">
                 <div class="flex items-start gap-2">
-                  <svg class="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div class="text-blue-900">
+                  <div class="opacity-95">
                     <div class="font-semibold mb-1">💡 Custom Node Detected</div>
                     <p>This is a custom node. Please manually add model download links to the generated note below. The workflow will work without embedding links in properties.</p>
                   </div>
@@ -347,13 +347,13 @@
       </div>
 
       <!-- Instructions -->
-      <Card v-if="workflowData" class="border-blue-200 bg-blue-50">
+      <Card v-if="workflowData" class="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/35">
         <CardContent class="pt-4">
           <div class="flex items-start gap-3">
-            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <div class="text-sm text-blue-900">
+            <div class="text-sm text-foreground opacity-95">
               <div class="font-semibold mb-1">📝 Next Steps</div>
               <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Click <strong>"Download Updated JSON"</strong> to save the workflow with model links</li>

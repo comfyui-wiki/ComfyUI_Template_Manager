@@ -65,9 +65,9 @@
           </div>
 
           <!-- Template Context (editable) -->
-          <div class="space-y-2 border border-blue-200 rounded-md p-3 bg-blue-50/30">
+          <div class="dm-callout-blue-soft border p-3 space-y-2 rounded-md">
             <div class="flex items-center justify-between">
-              <Label class="text-sm font-medium text-blue-700">Current Template Context (editable)</Label>
+              <Label class="text-sm font-medium text-blue-800 dark:text-blue-200">Current Template Context (editable)</Label>
               <Button
                 type="button"
                 variant="ghost"
@@ -88,8 +88,8 @@
           </div>
 
           <!-- System Prompt (collapsible) -->
-          <details class="border border-amber-200 rounded-md bg-amber-50/30">
-            <summary class="px-3 py-2 text-sm font-medium text-amber-700 cursor-pointer">
+          <details class="dm-callout-amber-soft border rounded-md overflow-hidden">
+            <summary class="px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-200 cursor-pointer">
               AI System Prompt (Advanced)
             </summary>
             <div class="px-3 pb-3 space-y-2">
@@ -113,13 +113,13 @@
           </details>
 
           <!-- Error -->
-          <div v-if="error" class="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+          <div v-if="error" class="dm-callout-danger text-sm p-3 border-0">
             {{ error }}
           </div>
 
           <!-- Result (Editable) -->
-          <div v-if="result" class="space-y-3 border border-green-200 rounded-md p-4 bg-green-50/50">
-            <Label class="text-sm font-medium text-green-700">AI Result — Edit before applying</Label>
+          <div v-if="result" class="space-y-3 dm-callout-success p-4">
+            <Label class="text-sm font-medium text-green-900 dark:text-green-200">AI Result — Edit before applying</Label>
 
             <div class="space-y-3">
               <div class="space-y-1.5">

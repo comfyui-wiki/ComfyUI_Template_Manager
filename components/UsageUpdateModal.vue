@@ -11,7 +11,7 @@
       <div class="space-y-4 py-4">
         <!-- Upload Section -->
         <div v-if="!parsedData" class="space-y-3">
-          <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+          <div class="border-2 border-dashed border-border rounded-lg p-8 text-center">
             <input
               ref="fileInput"
               type="file"
@@ -20,7 +20,7 @@
               class="hidden"
             />
             <div class="space-y-3">
-              <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-12 h-12 mx-auto text-muted-foreground mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <div>
@@ -71,16 +71,16 @@ execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
             </CardHeader>
             <CardContent>
               <div class="grid grid-cols-3 gap-4 text-center">
-                <div class="p-3 bg-blue-50 rounded-lg">
-                  <div class="text-2xl font-bold text-blue-600">{{ Object.keys(parsedData).length }}</div>
+                <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/35">
+                  <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ Object.keys(parsedData).length }}</div>
                   <div class="text-xs text-muted-foreground">Templates Found</div>
                 </div>
-                <div class="p-3 bg-green-50 rounded-lg">
-                  <div class="text-2xl font-bold text-green-600">{{ totalUsage.toLocaleString() }}</div>
+                <div class="p-3 rounded-lg bg-green-50 dark:bg-green-950/35">
+                  <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ totalUsage.toLocaleString() }}</div>
                   <div class="text-xs text-muted-foreground">Total Usage</div>
                 </div>
-                <div class="p-3 bg-purple-50 rounded-lg">
-                  <div class="text-2xl font-bold text-purple-600">12</div>
+                <div class="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/35">
+                  <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">12</div>
                   <div class="text-xs text-muted-foreground">Index Files</div>
                 </div>
               </div>
@@ -120,7 +120,7 @@ execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
         </div>
 
         <!-- Error Message -->
-        <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+        <div v-if="error" class="dm-callout-danger p-3 rounded-lg text-sm border-0">
           <div class="flex items-start gap-2">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -130,7 +130,7 @@ execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
         </div>
 
         <!-- Success Message -->
-        <div v-if="success" class="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <div v-if="success" class="dm-callout-success p-3 rounded-lg text-sm border-0">
           <div class="flex items-start gap-2">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -145,7 +145,7 @@ execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
             <span class="font-medium">Updating templates...</span>
             <span class="text-muted-foreground">{{ updateProgress.current }} / {{ updateProgress.total }}</span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div class="w-full bg-muted rounded-full h-2 overflow-hidden">
             <div
               class="bg-primary h-2 transition-all duration-300"
               :style="{ width: `${(updateProgress.current / updateProgress.total) * 100}%` }"

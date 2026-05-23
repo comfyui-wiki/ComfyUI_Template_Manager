@@ -20,7 +20,7 @@
                 'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
                 selectedState === state
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  : 'bg-muted hover:bg-muted/80 text-foreground'
               ]"
             >
               {{ state.charAt(0).toUpperCase() + state.slice(1) }}
@@ -51,7 +51,7 @@
           <div
             v-for="pr in pullRequests"
             :key="pr.number"
-            class="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+            class="border rounded-lg p-4 hover:bg-accent/80 dark:hover:bg-accent/40 transition-colors"
           >
             <div class="flex items-start gap-3">
               <!-- Status Icon -->
@@ -74,7 +74,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0">
-                    <h3 class="font-medium text-gray-900 truncate">
+                    <h3 class="font-medium text-foreground truncate">
                       {{ pr.title }}
                     </h3>
                     <div class="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
@@ -83,7 +83,7 @@
                       <span>{{ pr.user.login }}</span>
                       <span>•</span>
                       <span>{{ formatDate(pr.created_at) }}</span>
-                      <span v-if="pr.draft" class="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs font-medium">Draft</span>
+                      <span v-if="pr.draft" class="px-2 py-0.5 bg-muted rounded text-xs font-medium text-muted-foreground">Draft</span>
                     </div>
                     <div class="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span class="flex items-center gap-1">
@@ -107,19 +107,19 @@
                   <div>
                     <span
                       v-if="pr.status === 'open'"
-                      class="inline-flex items-center px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium"
+                      class="inline-flex items-center px-2.5 py-1 bg-green-100 text-green-800 dark:bg-green-950/55 dark:text-green-200 rounded-full text-xs font-medium"
                     >
                       Open
                     </span>
                     <span
                       v-else-if="pr.status === 'merged'"
-                      class="inline-flex items-center px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium"
+                      class="inline-flex items-center px-2.5 py-1 bg-purple-100 text-purple-800 dark:bg-purple-950/55 dark:text-purple-200 rounded-full text-xs font-medium"
                     >
                       Merged
                     </span>
                     <span
                       v-else
-                      class="inline-flex items-center px-2.5 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium"
+                      class="inline-flex items-center px-2.5 py-1 bg-red-100 text-red-800 dark:bg-red-950/55 dark:text-red-200 rounded-full text-xs font-medium"
                     >
                       Closed
                     </span>
@@ -128,11 +128,11 @@
 
                 <!-- Branch Info -->
                 <div class="mt-2 text-xs">
-                  <span class="px-2 py-1 bg-gray-100 rounded font-mono">
+                  <span class="px-2 py-1 bg-muted rounded font-mono">
                     {{ pr.head.ref }}
                   </span>
                   <span class="mx-2 text-muted-foreground">→</span>
-                  <span class="px-2 py-1 bg-gray-100 rounded font-mono">
+                  <span class="px-2 py-1 bg-muted rounded font-mono">
                     {{ pr.base.ref }}
                   </span>
                 </div>

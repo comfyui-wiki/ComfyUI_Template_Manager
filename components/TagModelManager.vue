@@ -376,7 +376,7 @@ const displayKey = (key: string) => {
                   <!-- Inline rename editing row -->
                   <div
                     v-if="editingItem === item.key"
-                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-border/40"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 border-b border-border/40"
                   >
                     <Input
                       ref="renameInputRef"
@@ -403,8 +403,8 @@ const displayKey = (key: string) => {
                     class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent/50 border-b border-border/40 transition-colors group"
                     :class="{
                       'bg-accent': selectedItems.has(item.key),
-                      'bg-red-50 hover:bg-red-100': pendingDeletes.has(item.key),
-                      'bg-amber-50 hover:bg-amber-100': pendingRenames.has(item.key)
+                      'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50': pendingDeletes.has(item.key),
+                      'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/45': pendingRenames.has(item.key)
                     }"
                     @click="toggleSelection(item.key)"
                   >
@@ -469,7 +469,7 @@ const displayKey = (key: string) => {
                   <!-- Inline rename editing row -->
                   <div
                     v-if="editingItem === item.key"
-                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-border/40"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 border-b border-border/40"
                   >
                     <Input
                       ref="renameInputRef"
@@ -496,8 +496,8 @@ const displayKey = (key: string) => {
                     class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent/50 border-b border-border/40 transition-colors group"
                     :class="{
                       'bg-accent': selectedItems.has(item.key),
-                      'bg-red-50 hover:bg-red-100': pendingDeletes.has(item.key),
-                      'bg-amber-50 hover:bg-amber-100': pendingRenames.has(item.key)
+                      'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50': pendingDeletes.has(item.key),
+                      'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/45': pendingRenames.has(item.key)
                     }"
                     @click="toggleSelection(item.key)"
                   >
@@ -629,7 +629,7 @@ const displayKey = (key: string) => {
           </div>
 
           <!-- Success / Error messages -->
-          <div v-if="saveSuccess" class="mx-5 mt-3 flex-shrink-0 p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800 flex items-start gap-2">
+          <div v-if="saveSuccess" class="mx-5 mt-3 flex-shrink-0 dm-callout-success p-3 rounded-md text-sm flex items-start gap-2">
             <svg class="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
@@ -641,7 +641,7 @@ const displayKey = (key: string) => {
             </div>
           </div>
 
-          <div v-if="saveError" class="mx-5 mt-3 flex-shrink-0 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800 flex items-start gap-2">
+          <div v-if="saveError" class="mx-5 mt-3 flex-shrink-0 dm-callout-danger p-3 rounded-md text-sm flex items-start gap-2">
             <svg class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>

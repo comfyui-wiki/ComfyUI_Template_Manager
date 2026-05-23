@@ -31,8 +31,8 @@
         </Select>
 
         <!-- Fork prompt if no fork exists -->
-        <div v-if="!hasFork" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-          <p class="text-blue-800 mb-2">
+        <div v-if="!hasFork" class="mt-2 p-3 dm-callout-info rounded text-sm">
+          <p class="mb-2 opacity-95">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -57,20 +57,20 @@
         </div>
 
         <!-- Fork outdated warning - Only show when current repo IS the fork -->
-        <div v-if="isCurrentRepoFork && forkCompareStatus?.isBehind" class="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
-          <p class="text-yellow-800 mb-2 font-medium flex items-center gap-1">
+        <div v-if="isCurrentRepoFork && forkCompareStatus?.isBehind" class="mt-2 p-3 dm-callout-warn text-sm">
+          <p class="mb-2 font-medium flex items-center gap-1 opacity-95">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             Fork is {{ forkCompareStatus.behindBy }} commit{{ forkCompareStatus.behindBy > 1 ? 's' : '' }} behind
           </p>
-          <p class="text-yellow-700 text-xs mb-2">
+          <p class="text-xs mb-2 opacity-90">
             Your fork is outdated. Sync to get the latest templates from upstream.
           </p>
 
           <!-- Show different options based on whether fork is also ahead -->
           <div v-if="forkCompareStatus.isAhead" class="space-y-2">
-            <p class="text-orange-700 text-xs font-medium flex items-center gap-1 mb-2">
+            <p class="text-orange-700 dark:text-orange-400 text-xs font-medium flex items-center gap-1 mb-2">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -96,7 +96,7 @@
             <div class="pt-1">
               <button
                 @click="showAdvancedSyncOptions = !showAdvancedSyncOptions"
-                class="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-800 transition-colors w-full justify-center"
+                class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center"
               >
                 <svg
                   class="w-3 h-3 transition-transform"
@@ -171,8 +171,8 @@
         </div>
 
         <!-- Fork up to date notice - Only show when current repo IS the fork -->
-        <div v-if="isCurrentRepoFork && forkCompareStatus && !forkCompareStatus.isBehind && !forkCompareStatus.isAhead" class="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
-          <p class="text-green-700 flex items-center gap-1">
+        <div v-if="isCurrentRepoFork && forkCompareStatus && !forkCompareStatus.isBehind && !forkCompareStatus.isAhead" class="mt-2 p-2 dm-callout-success text-xs">
+          <p class="flex items-center gap-1 opacity-95">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -210,7 +210,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                 </svg>
                 <span class="font-mono text-sm">{{ branch.name }}</span>
-                <span v-if="branch.isDefault" class="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                <span v-if="branch.isDefault" class="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950/55 dark:text-blue-200 px-1.5 py-0.5 rounded">
                   default
                 </span>
               </div>

@@ -16,7 +16,7 @@
           <input
             v-model="prTitle"
             type="text"
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Enter PR title..."
           />
         </div>
@@ -27,13 +27,13 @@
           <textarea
             v-model="prDescription"
             rows="8"
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm resize-none"
+            class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm resize-none"
             placeholder="Enter PR description..."
           />
         </div>
 
         <!-- Error Message -->
-        <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+        <div v-if="error" class="dm-callout-danger p-3 rounded-lg text-sm border-0">
           <div class="flex items-start gap-2">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

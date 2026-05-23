@@ -47,7 +47,7 @@
       />
 
       <!-- Success / Error messages -->
-      <div v-if="saveSuccess" class="mx-6 mt-3 flex-shrink-0 p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800 flex items-center gap-2">
+      <div v-if="saveSuccess" class="mx-6 mt-3 flex-shrink-0 dm-callout-success p-3 rounded-md text-sm flex items-center gap-2">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
@@ -56,7 +56,7 @@
           {{ saveSuccess.commitSha.substring(0, 7) }}
         </a>
       </div>
-      <div v-if="saveError" class="mx-6 mt-3 flex-shrink-0 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+      <div v-if="saveError" class="mx-6 mt-3 flex-shrink-0 dm-callout-danger p-3 rounded-md text-sm">
         {{ saveError }}
       </div>
 
@@ -71,7 +71,7 @@
             v-for="template in filteredTemplates"
             :key="template.name"
             class="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/40 transition-colors"
-            :class="pendingChanges.has(template.name) ? 'bg-amber-50 hover:bg-amber-50' : ''"
+            :class="pendingChanges.has(template.name) ? 'bg-amber-50 hover:bg-amber-50 dark:bg-amber-950/30 dark:hover:bg-amber-950/40' : ''"
           >
             <!-- Thumbnail -->
             <div class="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted">

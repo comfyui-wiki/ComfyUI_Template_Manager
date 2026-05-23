@@ -22,9 +22,9 @@
               <CardTitle class="text-base">Workflow File</CardTitle>
             </CardHeader>
             <CardContent class="space-y-3">
-              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div class="flex items-center justify-between p-3 dm-muted-row">
                 <div class="flex items-center gap-3">
-                  <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-8 h-8 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <div>
@@ -53,18 +53,18 @@
                 <div
                   v-for="file in inputFiles"
                   :key="file.filename"
-                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-3"
+                  class="flex items-center justify-between p-3 dm-muted-row gap-3"
                 >
                   <div class="flex items-center gap-3 flex-1 min-w-0">
                     <!-- Image preview or icon -->
-                    <div class="w-16 h-16 rounded bg-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <div class="w-16 h-16 rounded bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                       <img
                         v-if="isImageFile(file.filename)"
                         :src="file.url"
                         :alt="file.filename"
                         class="w-full h-full object-cover"
                       />
-                      <svg v-else class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else class="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                     </div>
@@ -99,21 +99,21 @@
                 <div
                   v-for="file in outputFiles"
                   :key="file.nodeId"
-                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-3"
+                  class="flex items-center justify-between p-3 dm-muted-row gap-3"
                 >
                   <div class="flex items-center gap-3 flex-1 min-w-0">
                     <!-- Icon by mediaType -->
-                    <div class="w-10 h-10 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <svg v-if="file.mediaType === 'image'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                      <svg v-if="file.mediaType === 'image'" class="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      <svg v-else-if="file.mediaType === 'video'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else-if="file.mediaType === 'video'" class="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.277A1 1 0 0121 8.623v6.754a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
                       </svg>
-                      <svg v-else-if="file.mediaType === 'audio'" class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else-if="file.mediaType === 'audio'" class="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
                       </svg>
-                      <svg v-else class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else class="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                     </div>
@@ -142,11 +142,11 @@
                 <div
                   v-for="(thumb, index) in thumbnails"
                   :key="index"
-                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-3"
+                  class="flex items-center justify-between p-3 dm-muted-row gap-3"
                 >
                   <div class="flex items-center gap-3 flex-1 min-w-0">
                     <!-- Preview thumbnail -->
-                    <div class="w-16 h-16 rounded bg-gray-200 flex-shrink-0 overflow-hidden">
+                    <div class="w-16 h-16 rounded bg-muted flex-shrink-0 overflow-hidden">
                       <video
                         v-if="/\.(mp4|webm)$/i.test(thumb.filename)"
                         :src="thumb.url"
@@ -236,7 +236,7 @@
                     <span
                       v-for="model in template.models"
                       :key="model"
-                      class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium"
+                      class="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/55 dark:text-blue-200"
                     >
                       {{ model }}
                     </span>
@@ -249,7 +249,7 @@
                     <span
                       v-for="tag in template.tags"
                       :key="tag"
-                      class="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-medium"
+                      class="px-2 py-1 rounded text-xs font-medium bg-muted text-foreground"
                     >
                       {{ tag }}
                     </span>
@@ -261,7 +261,7 @@
                   <a
                     :href="template.tutorialUrl"
                     target="_blank"
-                    class="text-blue-600 hover:text-blue-800 underline text-sm flex items-center gap-1"
+                    class="underline text-primary hover:underline text-sm flex items-center gap-1 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     {{ template.tutorialUrl }}
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
