@@ -54,35 +54,75 @@ function getLanguageName(code: string): string {
 }
 
 /**
- * Parse AI response - handle various formats
+ * Extract a top-level JSON array from text, respecting string boundaries (greedy `\[[\s\S]*\]`
+ * often grabs the wrong bracket when translations contain `"` or `]`).
  */
-function parseAIResponse(text: string): any {
-  // 1. Try direct JSON parse
-  try {
-    return JSON.parse(text)
-  } catch {}
+function extractTopLevelJsonArray(text: string): string | null {
+  const start = text.indexOf('[')
+  if (start === -1) return null
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]
+    if (escape) {
+      escape = false
+      continue
+    }
+    if (inString && c === '\\') {
+      escape = true
+      continue
+    }
+    if (c === '"') {
+      inString = !inString
+      continue
+    }
+    if (inString) continue
+    if (c === '[') depth++
+    else if (c === ']') {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return null
+}
 
-  // 2. Extract JSON from markdown code blocks
-  const markdownMatch = text.match(/```json\s*\n([\s\S]*?)\n```/)
-  if (markdownMatch) {
-    try {
-      return JSON.parse(markdownMatch[1])
-    } catch {}
+/**
+ * Parse AI batch response — multiple strategies; callers log raw text on failure.
+ */
+function parseBatchTranslationResponse(text: string): Array<{ key: string; translation: string }> {
+  const trimmed = text.trim()
+
+  const tryNormalize = (
+    parsed: unknown
+  ): Array<{ key: string; translation: string }> => {
+    if (Array.isArray(parsed)) return parsed as Array<{ key: string; translation: string }>
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).translations)) {
+      return (parsed as any).translations
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).results)) {
+      return (parsed as any).results
+    }
+    throw new Error('not-array')
   }
 
-  // 3. Extract JSON array
-  const arrayMatch = text.match(/\[[\s\S]*\]/)
-  if (arrayMatch) {
-    try {
-      return JSON.parse(arrayMatch[0])
-    } catch {}
-  }
+  const attempts: string[] = [trimmed]
 
-  // 4. Extract JSON object
-  const objectMatch = text.match(/\{[\s\S]*\}/)
-  if (objectMatch) {
+  const md = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+  if (md) attempts.push(md[1].trim())
+
+  const balanced = extractTopLevelJsonArray(trimmed)
+  if (balanced) attempts.push(balanced)
+
+  for (const candidate of attempts) {
     try {
-      return JSON.parse(objectMatch[0])
+      return tryNormalize(JSON.parse(candidate))
+    } catch {}
+
+    try {
+      // Trailing commas
+      const relaxed = candidate.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}')
+      return tryNormalize(JSON.parse(relaxed))
     } catch {}
   }
 
@@ -170,7 +210,8 @@ export default defineEventHandler(async (event) => {
       sourceLang,
       targetLang: body.targetLang,
       systemPrompt: body.systemPrompt,
-      userPromptTemplate: '{sourceText}' // Use the prompt as-is
+      userPromptTemplate: '{sourceText}', // Use the prompt as-is
+      maxCompletionTokens: 8192
     })
 
     if (!result.success || !result.translation) {
@@ -183,14 +224,26 @@ export default defineEventHandler(async (event) => {
     // Parse the response
     let translations: Array<{ key: string; translation: string }>
     try {
-      translations = parseAIResponse(result.translation)
+      translations = parseBatchTranslationResponse(result.translation)
     } catch (error: any) {
-      console.error('[AI Batch Translate] Failed to parse response:', result.translation)
+      const raw = result.translation
+      const sample =
+        typeof raw === 'string'
+          ? `${raw.slice(0, 500)}${raw.length > 500 ? '…' : ''} (length ${raw.length})`
+          : ''
+      console.error('[AI Batch Translate] Failed to parse response:', sample)
       throw createError({
         statusCode: 500,
         statusMessage: `Failed to parse AI response: ${error.message}`
       })
     }
+
+    translations = translations.filter(
+      (t): t is { key: string; translation: string } =>
+        typeof t?.key === 'string' &&
+        typeof t?.translation === 'string' &&
+        t.key.length > 0
+    )
 
     // Validate response structure
     if (!Array.isArray(translations)) {

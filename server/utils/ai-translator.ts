@@ -10,6 +10,11 @@ interface TranslationRequest {
   targetLang: string
   systemPrompt?: string
   userPromptTemplate?: string
+  /**
+   * Max completion tokens from the model. Batch / multi-lang JSON responses need thousands;
+   * the old fixed 1000 caused truncated JSON → parse failures.
+   */
+  maxCompletionTokens?: number
 }
 
 interface TranslationResponse {
@@ -87,11 +92,20 @@ export async function translateText(request: TranslationRequest): Promise<Transl
     .replace('{targetLang}', getLanguageName(request.targetLang))
     .replace('{sourceText}', request.sourceText)
 
+  const estimatedNeed = Math.ceil(request.sourceText.length / 3)
+  const defaultMax =
+    request.userPromptTemplate === '{sourceText}' && estimatedNeed > 3500 ? 8192 : 4096
+  const maxTokens = Math.min(
+    request.maxCompletionTokens ?? defaultMax,
+    8192 // DeepSeek / typical chat limits; avoids runaway payloads
+  )
+
   console.log('[AI Translator] Translating:', {
     from: request.sourceLang,
     to: request.targetLang,
     textLength: request.sourceText.length,
-    model
+    model,
+    maxTokens
   })
 
   try {
@@ -108,7 +122,7 @@ export async function translateText(request: TranslationRequest): Promise<Transl
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,  // Lower temperature for more consistent translations
-        max_tokens: 1000
+        max_tokens: maxTokens
       })
     })
 
