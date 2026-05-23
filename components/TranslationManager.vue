@@ -1143,7 +1143,7 @@ const saveAllChanges = async () => {
                 :key="item.key"
                 :class="{
                   'bg-red-50 dark:bg-red-950/40': item.isOutdated,
-                  'bg-amber-50 dark:bg-amber-950/35': !item.isOutdated && item.untranslatedLangs.length > 0
+                  'bg-amber-100/30 dark:bg-amber-950/[0.12]': !item.isOutdated && item.untranslatedLangs.length > 0
                 }"
               >
                 <!-- Checkbox column -->
@@ -1228,7 +1228,7 @@ const saveAllChanges = async () => {
                     class="text-sm p-1.5 rounded min-h-[32px] border"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
-                      'bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:border-amber-700': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
+                      'bg-amber-100/40 border-amber-300/70 dark:bg-amber-950/[0.14] dark:border-amber-800/60': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
                       'bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800': lang.code === 'en',
                       'bg-green-50 border-green-400 border-2 dark:bg-green-950/40 dark:border-green-600': isCellModified(item.key, lang.code),
                       'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code),

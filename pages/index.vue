@@ -239,15 +239,15 @@
     </div>
 
     <!-- PR Login Required Banner -->
-    <div v-if="prId && status !== 'authenticated'" class="border-b bg-yellow-50">
+    <div v-if="prId && status !== 'authenticated'" class="border-b border-amber-200/55 bg-amber-100/35 dark:border-amber-900/45 dark:bg-amber-950/[0.14]">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5 text-amber-700 dark:text-amber-400/90 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           <div class="flex-1">
-            <p class="text-sm text-yellow-900 font-medium">Please log in first to view details of PR #{{ prId }}</p>
-            <p class="text-xs text-yellow-700 mt-1">After logging in, you can view the changed files, templates, and detailed information in this PR</p>
+            <p class="text-sm text-amber-950 dark:text-amber-100 font-medium">Please log in first to view details of PR #{{ prId }}</p>
+            <p class="text-xs text-amber-900/85 dark:text-amber-200/80 mt-1">After logging in, you can view the changed files, templates, and detailed information in this PR</p>
           </div>
           <LoginButton />
         </div>

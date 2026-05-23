@@ -85,18 +85,18 @@
       </div>
 
       <!-- Completion Progress Bar / Read-Only Notice -->
-      <div class="w-full px-4 py-2" :class="canEditCurrentRepo ? 'bg-muted/30' : 'bg-amber-50 border-t border-amber-200'">
+      <div class="w-full px-4 py-2" :class="canEditCurrentRepo ? 'bg-muted/30' : 'border-t border-amber-200/55 bg-amber-100/35 dark:border-amber-900/45 dark:bg-amber-950/[0.14]'">
         <div class="container mx-auto">
           <!-- Read-Only Mode Notice -->
           <div v-if="!canEditCurrentRepo" class="flex items-start gap-2">
-            <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-amber-700 dark:text-amber-400/90 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <div class="flex-1">
-              <p class="text-xs text-amber-900 font-medium">
+              <p class="text-xs text-amber-950 dark:text-amber-100 font-medium">
                 Read-Only Mode: Viewing <span class="font-mono">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span> @ <span class="font-mono">{{ selectedBranch || 'main' }}</span>
               </p>
-              <p class="text-xs text-amber-700 mt-0.5">
+              <p class="text-xs text-amber-900/85 dark:text-amber-200/80 mt-0.5">
                 You cannot edit or save changes on this branch.
               </p>
             </div>

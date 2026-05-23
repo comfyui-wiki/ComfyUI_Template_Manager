@@ -88,8 +88,8 @@
                 <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ stats.validModels }}</div>
                 <div class="text-xs text-muted-foreground">Valid Links</div>
               </div>
-              <div class="text-center p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/35 cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-950/55" @click="scrollToFirstMissing">
-                <div class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ stats.missingLinks }}</div>
+              <div class="text-center p-3 rounded-lg bg-amber-100/35 dark:bg-amber-950/[0.14] cursor-pointer hover:bg-amber-100/55 dark:hover:bg-amber-950/25" @click="scrollToFirstMissing">
+                <div class="text-2xl font-bold text-amber-800 dark:text-amber-300/95">{{ stats.missingLinks }}</div>
                 <div class="text-xs text-muted-foreground">Missing Links</div>
               </div>
               <div class="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/35 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50" @click="scrollToFirstInvalid">
@@ -113,7 +113,7 @@
             class="border rounded-lg p-4"
             :class="{
               'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40': nodeInfo.hasErrors,
-              'border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/35': nodeInfo.hasWarnings && !nodeInfo.hasErrors,
+              'border-amber-300/70 bg-amber-100/30 dark:border-amber-800/60 dark:bg-amber-950/[0.12]': nodeInfo.hasWarnings && !nodeInfo.hasErrors,
               'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/35': !nodeInfo.hasErrors && !nodeInfo.hasWarnings
             }"
           >
@@ -131,7 +131,7 @@
               </div>
               <div class="flex items-center gap-2">
                 <span v-if="nodeInfo.hasErrors" class="text-xs text-red-600 font-medium">Errors: {{ nodeInfo.errorCount }}</span>
-                <span v-if="nodeInfo.hasWarnings" class="text-xs text-yellow-600 font-medium">Warnings: {{ nodeInfo.warningCount }}</span>
+                <span v-if="nodeInfo.hasWarnings" class="text-xs text-amber-800 dark:text-amber-400/95 font-medium">Warnings: {{ nodeInfo.warningCount }}</span>
               </div>
             </div>
 

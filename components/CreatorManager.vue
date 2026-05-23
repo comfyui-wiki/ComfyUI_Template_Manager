@@ -71,7 +71,7 @@
             v-for="template in filteredTemplates"
             :key="template.name"
             class="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/40 transition-colors"
-            :class="pendingChanges.has(template.name) ? 'bg-amber-50 hover:bg-amber-50 dark:bg-amber-950/30 dark:hover:bg-amber-950/40' : ''"
+            :class="pendingChanges.has(template.name) ? 'bg-amber-100/35 hover:bg-amber-100/50 dark:bg-amber-950/[0.14] dark:hover:bg-amber-950/22' : ''"
           >
             <!-- Thumbnail -->
             <div class="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted">

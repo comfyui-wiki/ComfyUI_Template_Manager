@@ -62,8 +62,9 @@
  * Dark-mode aware callouts used inside dialogs / modals (avoid hard-coded *-50-only panels).
  */
 @layer components {
+  /* Warning / caution — muted yellow (less glare in light & dark) */
   .dm-callout-warn {
-    @apply rounded border border-yellow-200 bg-yellow-50 text-yellow-900 dark:border-yellow-800/80 dark:bg-yellow-950/40 dark:text-yellow-100;
+    @apply rounded border border-amber-200/55 bg-amber-100/35 text-amber-950 dark:border-amber-900/45 dark:bg-amber-950/[0.14] dark:text-amber-200;
   }
   .dm-callout-info {
     @apply rounded border border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800/80 dark:bg-blue-950/40 dark:text-blue-100;
@@ -76,7 +77,7 @@
   }
   /* Softer tinted panels (AI prompts, etc.) */
   .dm-callout-amber-soft {
-    @apply rounded-md border border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-100;
+    @apply rounded-md border border-amber-200/50 bg-amber-100/25 text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/[0.12] dark:text-amber-200;
   }
   .dm-callout-blue-soft {
     @apply rounded-md border border-blue-200 bg-blue-50/80 text-blue-900 dark:border-blue-800/70 dark:bg-blue-950/35 dark:text-blue-100;

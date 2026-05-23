@@ -404,7 +404,7 @@ const displayKey = (key: string) => {
                     :class="{
                       'bg-accent': selectedItems.has(item.key),
                       'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50': pendingDeletes.has(item.key),
-                      'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/45': pendingRenames.has(item.key)
+                      'bg-amber-100/30 hover:bg-amber-100/45 dark:bg-amber-950/[0.12] dark:hover:bg-amber-950/20': pendingRenames.has(item.key)
                     }"
                     @click="toggleSelection(item.key)"
                   >
@@ -497,7 +497,7 @@ const displayKey = (key: string) => {
                     :class="{
                       'bg-accent': selectedItems.has(item.key),
                       'bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50': pendingDeletes.has(item.key),
-                      'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/45': pendingRenames.has(item.key)
+                      'bg-amber-100/30 hover:bg-amber-100/45 dark:bg-amber-950/[0.12] dark:hover:bg-amber-950/20': pendingRenames.has(item.key)
                     }"
                     @click="toggleSelection(item.key)"
                   >
