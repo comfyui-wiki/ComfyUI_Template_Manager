@@ -11,11 +11,31 @@ import { Badge } from '@/components/ui/badge'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 import i18nConfig from '~/config/i18n-config.json'
 
-// Single source of truth with server i18n sync (must match config/i18n-config.json)
-const languages = i18nConfig.supportedLocales.map((loc) => ({
-  code: loc.code,
-  name: loc.name
-}))
+/** Map API/bundled i18n config to the shape used across this component */
+function mapSupportedLocales(cfg: typeof i18nConfig) {
+  return cfg.supportedLocales.map((loc) => ({
+    code: loc.code,
+    name: loc.name
+  }))
+}
+
+// Bundled defaults; overwritten when dialog opens via /api/config so deploys stay in sync
+const languages = ref(mapSupportedLocales(i18nConfig))
+
+async function hydrateFromI18nConfigApi() {
+  try {
+    const remote = await $fetch<typeof i18nConfig>('/api/config/i18n-config.json')
+    if (remote.supportedLocales?.length) {
+      languages.value = mapSupportedLocales(remote)
+    }
+    if (remote.aiTranslation?.systemPrompt) {
+      defaultSystemPrompt.value = remote.aiTranslation.systemPrompt
+      console.log('[TranslationManager] Loaded default system prompt')
+    }
+  } catch (error) {
+    console.error('[TranslationManager] Failed to load i18n-config.json (using bundled locales):', error)
+  }
+}
 
 const props = defineProps<{
   open: boolean
@@ -70,10 +90,11 @@ const warningTiming = ref<'opening' | 'saving'>('opening')
 
 // Visible languages (for table columns)
 const visibleLanguages = computed(() => {
+  const langs = languages.value
   if (activeLanguage.value === 'all') {
-    return languages
+    return langs
   }
-  return languages.filter(l => l.code === 'en' || l.code === activeLanguage.value)
+  return langs.filter(l => l.code === 'en' || l.code === activeLanguage.value)
 })
 
 // Load i18n data
@@ -113,19 +134,7 @@ const loadI18nData = async () => {
   }
 }
 
-// Load default system prompt from config
-const loadDefaultPrompt = async () => {
-  try {
-    const response = await $fetch('/api/config/i18n-config.json')
-    if (response && response.aiTranslation && response.aiTranslation.systemPrompt) {
-      defaultSystemPrompt.value = response.aiTranslation.systemPrompt
-      console.log('[TranslationManager] Loaded default system prompt')
-    }
-  } catch (error) {
-    console.error('[TranslationManager] Failed to load default prompt:', error)
-  }
-}
-
+// Hydrate locales + AI prompt whenever the dialog opens (avoids stale client bundle vs server config)
 // Watch dialog open state
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
@@ -140,11 +149,10 @@ watch(() => props.open, (isOpen) => {
       showMainBranchWarning.value = true
     }
 
+    void hydrateFromI18nConfigApi()
+
     if (!i18nData.value) {
       loadI18nData()
-    }
-    if (!defaultSystemPrompt.value) {
-      loadDefaultPrompt()
     }
   }
 })
@@ -171,12 +179,12 @@ const translationItems = computed(() => {
       // Title
       if (template.title) {
         const translations: Record<string, string> = {}
-        for (const lang of languages) {
+        for (const lang of languages.value) {
           translations[lang.code] = template.title[lang.code] || ''
         }
 
         const isOutdated = i18nData.value._status?.outdated_translations?.templates?.[key]?.fields?.includes('title') || false
-        const untranslatedLangs = languages
+        const untranslatedLangs = languages.value
           .filter(l => l.code !== 'en' && translations[l.code] === translations['en'])
           .map(l => l.code)
 
@@ -193,12 +201,12 @@ const translationItems = computed(() => {
       // Description
       if (template.description) {
         const translations: Record<string, string> = {}
-        for (const lang of languages) {
+        for (const lang of languages.value) {
           translations[lang.code] = template.description[lang.code] || ''
         }
 
         const isOutdated = i18nData.value._status?.outdated_translations?.templates?.[key]?.fields?.includes('description') || false
-        const untranslatedLangs = languages
+        const untranslatedLangs = languages.value
           .filter(l => l.code !== 'en' && translations[l.code] === translations['en'])
           .map(l => l.code)
 
@@ -217,14 +225,14 @@ const translationItems = computed(() => {
       const translations: Record<string, string> = {}
       translations['en'] = key // Key is the English text
 
-      for (const lang of languages) {
+      for (const lang of languages.value) {
         if (lang.code === 'en') {
           continue // Already set above
         }
         translations[lang.code] = (value as any)[lang.code] || key // Default to key if missing
       }
 
-      const untranslatedLangs = languages
+      const untranslatedLangs = languages.value
         .filter(l => l.code !== 'en' && translations[l.code] === key)
         .map(l => l.code)
 
@@ -268,7 +276,7 @@ const filteredItems = computed(() => {
   } else if (filterMode.value === 'new') {
     // Show items that are completely new (all non-English languages are untranslated)
     items = items.filter(item => {
-      const nonEnglishLangs = languages.filter(l => l.code !== 'en').length
+      const nonEnglishLangs = languages.value.filter(l => l.code !== 'en').length
       return item.untranslatedLangs.length === nonEnglishLangs
     })
   }
@@ -302,7 +310,7 @@ const stats = computed(() => {
   }).length
 
   // Count new items (completely untranslated in all languages)
-  const nonEnglishLangs = languages.filter(l => l.code !== 'en').length
+  const nonEnglishLangs = languages.value.filter(l => l.code !== 'en').length
   const newItems = translationItems.value.filter(item =>
     item.untranslatedLangs.length === nonEnglishLangs
   ).length
@@ -522,7 +530,7 @@ const openCustomPromptDialog = () => {
 
   // Load default prompt if not loaded
   if (!defaultSystemPrompt.value) {
-    loadDefaultPrompt()
+    void hydrateFromI18nConfigApi()
   }
 
   // Initialize custom prompt with default
@@ -584,7 +592,7 @@ const batchTranslate = async (customPrompt?: string) => {
       targetLang: batchTargetLang.value
     })
 
-    batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.find(l => l.code === batchTargetLang.value)?.name}...`
+    batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.value.find(l => l.code === batchTargetLang.value)?.name}...`
 
     // Call batch translation API
     const requestBody: any = {
@@ -671,7 +679,7 @@ const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
   showBatchDialog.value = true
 
   // Get all non-English language codes
-  const targetLangs = languages
+  const targetLangs = languages.value
     .filter(l => l.code !== 'en')
     .map(l => l.code)
 
@@ -770,7 +778,7 @@ const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
   showBatchDialog.value = true
 
   // Get all non-English language codes
-  const targetLangs = languages
+  const targetLangs = languages.value
     .filter(l => l.code !== 'en')
     .map(l => l.code)
 

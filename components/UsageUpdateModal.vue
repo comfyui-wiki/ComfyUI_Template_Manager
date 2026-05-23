@@ -193,12 +193,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 import i18nConfig from '~/config/i18n-config.json'
 
-/** Matches `templates/index*.json` count in `/api/github/usage/batch-update`. */
-const indexFileCount = i18nConfig.supportedLocales.length
+interface Props {
   open: boolean
   repo: string
   branch: string
 }
+
+/** Matches `templates/index*.json` count in `/api/github/usage/batch-update`. */
+const indexFileCount = i18nConfig.supportedLocales.length
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
