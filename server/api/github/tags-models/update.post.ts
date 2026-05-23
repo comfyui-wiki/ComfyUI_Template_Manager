@@ -14,7 +14,8 @@ const localeFiles = [
   'index.ru.json',
   'index.tr.json',
   'index.ar.json',
-  'index.pt-BR.json'
+  'index.pt-BR.json',
+  'index.fa.json'
 ]
 
 export default defineEventHandler(async (event) => {
@@ -107,7 +108,8 @@ export default defineEventHandler(async (event) => {
       'index.ru.json': 'ru',
       'index.tr.json': 'tr',
       'index.ar.json': 'ar',
-      'index.pt-BR.json': 'pt-BR'
+      'index.pt-BR.json': 'pt-BR',
+      'index.fa.json': 'fa'
     }
 
     // 1. Update all locale index files (remove tags/models from templates)

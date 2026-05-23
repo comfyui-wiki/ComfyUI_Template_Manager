@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented automatic multi-language synchronization for ComfyUI Template Manager. When creating or updating templates, the system now automatically syncs changes across all 11 supported language files and updates the i18n.json translation database.
+Implemented automatic multi-language synchronization for ComfyUI Template Manager. When creating or updating templates, the system now automatically syncs changes across all 12 supported language files and updates the i18n.json translation database.
 
 ## Implementation Date
 
@@ -21,6 +21,7 @@ Implemented automatic multi-language synchronization for ComfyUI Template Manage
 9. Turkish (tr)
 10. Arabic (ar)
 11. Brazilian Portuguese (pt-BR)
+12. Persian (fa)
 
 ## Files Created/Modified
 
@@ -39,7 +40,7 @@ Implemented automatic multi-language synchronization for ComfyUI Template Manage
 
 2. **`server/api/github/template/create.post.ts`**
    - Added i18n sync for new template creation
-   - Syncs template data to all 11 locale index files
+   - Syncs template data to all 12 locale index files
    - Updates i18n.json with English placeholders
 
 3. **`server/api/github/template/update.post.ts`**
@@ -59,7 +60,7 @@ When creating/updating a template:
    - `index.json` (English)
    - `index.zh.json` (Chinese)
    - `index.ja.json` (Japanese)
-   - ... (all 11 languages)
+   - ... (all 12 languages)
 3. **i18n.json Update** → Adds template with English placeholders:
    ```json
    {
@@ -116,7 +117,7 @@ User creates template
        ↓
 1. Update index.json (English)
        ↓
-2. Sync to all locale files (11 files)
+2. Sync to all locale files (12 files)
    - Add template with English placeholders
    - All technical fields copied as-is
        ↓
@@ -126,7 +127,7 @@ User creates template
        ↓
 4. Git commit (13+ files)
    - 1 index.json
-   - 11 locale index files
+   - 12 locale index files
    - 1 i18n.json
    - workflow.json
    - thumbnails
@@ -140,14 +141,14 @@ User updates template
        ↓
 1. Update index.json (English)
        ↓
-2. Sync to all locale files (11 files)
+2. Sync to all locale files (12 files)
    - Update technical fields only
    - Preserve existing translations
    - Update tags (will be re-translated by sync_data.py)
        ↓
 3. Git commit (12+ files)
    - 1 index.json
-   - 11 locale index files
+   - 12 locale index files
    - updated files
 ```
 
@@ -157,7 +158,7 @@ User updates template
 
 **New Behavior:**
 - Creates template in English `index.json`
-- Automatically syncs to all 11 locale files
+- Automatically syncs to all 12 locale files
 - Updates `i18n.json` with translation placeholders
 - Commits all files atomically
 
@@ -229,7 +230,7 @@ User updates template
    - Description: "This is a test"
    - Tags: ["Test", "Example"]
 2. Check that:
-   - Template appears in all 11 locale files
+   - Template appears in all 12 locale files
    - i18n.json has template entry with English placeholders
    - All technical fields are identical across locales
 

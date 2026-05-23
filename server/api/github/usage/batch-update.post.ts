@@ -31,7 +31,8 @@ export default defineEventHandler(async (event) => {
       'templates/index.ru.json',
       'templates/index.tr.json',
       'templates/index.ar.json',
-      'templates/index.pt-BR.json'
+      'templates/index.pt-BR.json',
+      'templates/index.fa.json'
     ]
     const [owner, repoName] = repo.split('/')
 

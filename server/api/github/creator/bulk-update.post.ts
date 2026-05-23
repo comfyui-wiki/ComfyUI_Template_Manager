@@ -13,7 +13,8 @@ const localeFiles = [
   'index.ru.json',
   'index.tr.json',
   'index.ar.json',
-  'index.pt-BR.json'
+  'index.pt-BR.json',
+  'index.fa.json'
 ]
 
 export default defineEventHandler(async (event) => {

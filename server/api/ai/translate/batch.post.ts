@@ -45,7 +45,8 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian (Русский)',
   tr: 'Turkish (Türkçe)',
   ar: 'Arabic (العربية)',
-  'pt-BR': 'Brazilian Portuguese (Português do Brasil)'
+  'pt-BR': 'Brazilian Portuguese (Português do Brasil)',
+  fa: 'Persian (فارسی)'
 }
 
 function getLanguageName(code: string): string {

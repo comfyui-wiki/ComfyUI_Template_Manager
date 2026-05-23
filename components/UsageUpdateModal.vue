@@ -80,7 +80,7 @@ execution_start,image_z_image_turbo,3875.0,2879.0,...,464.0
                   <div class="text-xs text-muted-foreground">Total Usage</div>
                 </div>
                 <div class="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/35">
-                  <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">12</div>
+                  <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ indexFileCount }}</div>
                   <div class="text-xs text-muted-foreground">Index Files</div>
                 </div>
               </div>
@@ -191,8 +191,10 @@ import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTit
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
+import i18nConfig from '~/config/i18n-config.json'
 
-interface Props {
+/** Matches `templates/index*.json` count in `/api/github/usage/batch-update`. */
+const indexFileCount = i18nConfig.supportedLocales.length
   open: boolean
   repo: string
   branch: string
@@ -444,8 +446,8 @@ const handleSubmit = async () => {
   success.value = ''
   isSubmitting.value = true
 
-  // Total index files to update (default index.json + 11 language files)
-  const totalFiles = 12
+  // Total index files touched by usage batch-update (aligned with config/i18n-config.json)
+  const totalFiles = indexFileCount
   updateProgress.value = { current: 0, total: totalFiles }
 
   try {

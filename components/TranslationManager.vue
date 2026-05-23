@@ -30,7 +30,8 @@ const languages = [
   { code: 'ru', name: 'Русский' },
   { code: 'tr', name: 'Türkçe' },
   { code: 'ar', name: 'العربية' },
-  { code: 'pt-BR', name: 'Português (Brasil)' }
+  { code: 'pt-BR', name: 'Português (Brasil)' },
+  { code: 'fa', name: 'فارسی' }
 ]
 
 // State

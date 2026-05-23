@@ -198,7 +198,7 @@ The application includes an optional AI-powered translation feature using the De
 ### Features
 
 - **One-Click Translation**: Translate individual fields with a single click
-- **Multiple Languages**: Support for 11 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR)
+- **Multiple Languages**: Support for 12 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR, fa)
 - **Security Protection**:
   - Rate limiting (20 requests/minute per user)
   - Origin verification (auto-detects from `NEXTAUTH_URL`)

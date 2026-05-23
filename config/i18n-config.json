@@ -57,6 +57,11 @@
       "code": "pt-BR",
       "name": "Português (Brasil)",
       "indexFile": "index.pt-BR.json"
+    },
+    {
+      "code": "fa",
+      "name": "فارسی",
+      "indexFile": "index.fa.json"
     }
   ],
   "i18nDataPath": {

@@ -44,7 +44,7 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
 
 ### 5. Multi-language (i18n) Synchronization
 
-- **Automatic sync across 11 languages**: en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR
+- **Automatic sync across 12 languages**: en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR, fa
 - **Create mode**: New templates sync to all locale files with English placeholders
 - **Update mode**: Technical fields sync while preserving existing translations
 - **Outdated Tracking**: Automatically marks templates when English content changes
@@ -106,7 +106,7 @@ This is a Nuxt 3-based admin interface for managing ComfyUI workflow templates. 
   template-naming-rules.json  # Template naming conventions
   workflow-model-config.json  # Workflow model configuration
   bundle-mapping-rules.json   # Bundle mapping configuration
-  i18n-config.json            # i18n configuration (11 languages)
+  i18n-config.json            # i18n configuration (12 languages)
 
 /docs
   i18n-outdated-translations.md # i18n outdated translations guide
@@ -185,7 +185,7 @@ All configuration files are stored in `/config/` and served via the API endpoint
 
 **Multi-language Synchronization**:
 
-- Templates automatically sync to 11 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR)
+- Templates automatically sync to 12 languages (en, zh, zh-TW, ja, ko, es, fr, ru, tr, ar, pt-BR, fa)
 - Outdated translations tracked in `i18n.json` when English content changes
 - Compatible with existing Python `sync_data.py` workflow
 

@@ -224,7 +224,7 @@ This feature is fully compatible with the existing Python `sync_data.py` script:
 ✓ Synced template to zh: index.zh.json
 ✓ Synced template to ja: index.ja.json
 ...
-[Create Template] Synced template to 11 locale file(s)
+[Create Template] Synced template to 12 locale file(s)
 [Create Template] Updated i18n.json with translation placeholders
 ```
 
@@ -235,7 +235,7 @@ This feature is fully compatible with the existing Python `sync_data.py` script:
 ✓ Updated template in en: index.json
 ✓ Updated template in zh: index.zh.json
 ...
-[Update Template] Synced template to 11 locale file(s)
+[Update Template] Synced template to 12 locale file(s)
 ```
 
 ## Troubleshooting

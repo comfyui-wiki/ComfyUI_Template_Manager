@@ -89,7 +89,8 @@ export default defineEventHandler(async (event) => {
       'index.ru.json',
       'index.tr.json',
       'index.ar.json',
-      'index.pt-BR.json'
+      'index.pt-BR.json',
+      'index.fa.json'
     ]
 
     const langCodeMap: Record<string, string> = {
@@ -103,7 +104,8 @@ export default defineEventHandler(async (event) => {
       'index.ru.json': 'ru',
       'index.tr.json': 'tr',
       'index.ar.json': 'ar',
-      'index.pt-BR.json': 'pt-BR'
+      'index.pt-BR.json': 'pt-BR',
+      'index.fa.json': 'fa'
     }
 
     for (const localeFile of localeFiles) {

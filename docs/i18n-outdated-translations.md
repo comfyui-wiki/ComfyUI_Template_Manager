@@ -296,7 +296,7 @@ The system uses the `tags` mapping in `i18n.json` to automatically translate tag
 
 When adding a new tag, the system automatically:
 1. Checks if the tag exists in `i18n.json`
-2. If not, creates English placeholders for all 11 languages:
+2. If not, creates English placeholders for all 12 languages:
    ```json
    {
      "tags": {
@@ -333,7 +333,7 @@ When updating a template, the console will display:
 ✓ Detected English title update for image_flux2
 ✓ Marked image_flux2 as needing translation update for: title
 [Update Template] Marked English updates in i18n.json for translation review
-[Update Template] Synced template to 11 locale file(s)
+[Update Template] Synced template to 12 locale file(s)
 ```
 
 ### Adding New Tags
@@ -345,7 +345,7 @@ When adding new tags:
 ✓ Added new tag to i18n.json: NewFeature
 ✓ Added new tag to i18n.json: Experimental
 [Update Template] Marked English updates in i18n.json for translation review
-[Update Template] Synced template to 11 locale file(s)
+[Update Template] Synced template to 12 locale file(s)
 ```
 
 ### Tags Translation Log
