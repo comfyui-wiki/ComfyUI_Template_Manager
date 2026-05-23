@@ -294,6 +294,17 @@ const filteredItems = computed(() => {
   return items
 })
 
+/** Checkbox selections must resolve from full section data, not the current filter/search view */
+function getSelectedTranslationItems() {
+  const byKey = new Map(translationItems.value.map(i => [i.key, i]))
+  const out: typeof translationItems.value = []
+  for (const key of selectedItems.value) {
+    const item = byKey.get(key)
+    if (item) out.push(item)
+  }
+  return out
+}
+
 // Statistics
 const stats = computed(() => {
   const total = translationItems.value.length
@@ -552,125 +563,128 @@ const batchTranslate = async (customPrompt?: string) => {
     return
   }
 
-  // Special handling for single item - translate to all languages
+  // User picked one target language: use batch API for 1 or many rows (respects the dropdown)
+  if (batchTargetLang.value && batchTargetLang.value !== 'all' && batchTargetLang.value !== 'en') {
+    const selectedRows = getSelectedTranslationItems()
+    if (selectedRows.length === 0) {
+      alert(
+        'Could not find the selected rows in the current section. This can happen if the list changed; try re-selecting the checkboxes.'
+      )
+      return
+    }
+
+    const itemsToTranslate: Array<{ key: string; text: string }> = []
+    for (const item of selectedRows) {
+      if (item.englishValue?.trim()) {
+        itemsToTranslate.push({ key: item.key, text: item.englishValue })
+      }
+    }
+
+    if (itemsToTranslate.length === 0) {
+      alert('Selected items have no English text to translate from. English is required as the source language.')
+      return
+    }
+
+    if (itemsToTranslate.length < selectedRows.length) {
+      console.warn(
+        '[TranslationManager] Some selected rows skipped (empty English):',
+        selectedRows.length - itemsToTranslate.length
+      )
+    }
+
+    batchTranslating.value = true
+    showBatchDialog.value = true
+    batchProgress.value = { current: 0, total: itemsToTranslate.length, status: 'Starting...' }
+
+    try {
+      console.log('[TranslationManager] Batch translating:', {
+        count: itemsToTranslate.length,
+        targetLang: batchTargetLang.value
+      })
+
+      batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.value.find(l => l.code === batchTargetLang.value)?.name}...`
+
+      const requestBody: any = {
+        items: itemsToTranslate,
+        sourceLang: 'en',
+        targetLang: batchTargetLang.value
+      }
+
+      if (customPrompt) {
+        requestBody.systemPrompt = customPrompt
+        console.log('[TranslationManager] Using custom system prompt for batch translation')
+      }
+
+      const response = await $fetch('/api/ai/translate/batch', {
+        method: 'POST',
+        body: requestBody
+      })
+
+      if (response.success) {
+        console.log('[TranslationManager] Batch translation completed:', {
+          succeeded: response.results.length,
+          failed: response.failed.length,
+          usage: response.usage
+        })
+
+        let successCount = 0
+        for (const result of response.results) {
+          const item = translationItems.value.find(i => i.key === result.key)
+          if (item) {
+            saveTranslation(result.key, batchTargetLang.value, result.translation)
+            successCount++
+          }
+        }
+
+        batchProgress.value.current = successCount
+        batchProgress.value.status = `Successfully translated ${successCount} items!`
+
+        if (response.failed.length > 0) {
+          console.warn('[TranslationManager] Some items failed:', response.failed)
+          batchProgress.value.status += ` (${response.failed.length} failed)`
+        }
+
+        selectedItems.value.clear()
+
+        setTimeout(() => {
+          showBatchDialog.value = false
+        }, 3000)
+      } else {
+        throw new Error('Batch translation failed')
+      }
+    } catch (error: any) {
+      console.error('[TranslationManager] Batch translation failed:', error)
+
+      let errorMessage = 'Batch translation failed.'
+      if (error.data?.message) {
+        errorMessage = error.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      batchProgress.value.status = `Error: ${errorMessage}`
+      alert(errorMessage)
+    } finally {
+      batchTranslating.value = false
+    }
+    return
+  }
+
+  // "All Languages" — single row uses one multi-lang call
   if (selectedItems.value.size === 1) {
     await translateSingleItemToAllLanguages(customPrompt)
     return
   }
 
-  // Handle "All Languages" option
-  if (batchTargetLang.value === 'all') {
-    await translateMultipleItemsToAllLanguages(customPrompt)
-    return
-  }
-
-  if (!batchTargetLang.value || batchTargetLang.value === 'en') {
-    alert('Please select a valid target language (non-English)')
-    return
-  }
-
-  batchTranslating.value = true
-  showBatchDialog.value = true
-  batchProgress.value = { current: 0, total: selectedItems.value.size, status: 'Starting...' }
-
-  try {
-    // Prepare items for batch translation
-    const itemsToTranslate: Array<{ key: string; text: string }> = []
-
-    for (const itemKey of selectedItems.value) {
-      const item = filteredItems.value.find(i => i.key === itemKey)
-      if (item && item.englishValue) {
-        itemsToTranslate.push({
-          key: itemKey,
-          text: item.englishValue
-        })
-      }
-    }
-
-    console.log('[TranslationManager] Batch translating:', {
-      count: itemsToTranslate.length,
-      targetLang: batchTargetLang.value
-    })
-
-    batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.value.find(l => l.code === batchTargetLang.value)?.name}...`
-
-    // Call batch translation API
-    const requestBody: any = {
-      items: itemsToTranslate,
-      sourceLang: 'en',
-      targetLang: batchTargetLang.value
-    }
-
-    // Add custom prompt if provided
-    if (customPrompt) {
-      requestBody.systemPrompt = customPrompt
-      console.log('[TranslationManager] Using custom system prompt for batch translation')
-    }
-
-    const response = await $fetch('/api/ai/translate/batch', {
-      method: 'POST',
-      body: requestBody
-    })
-
-    if (response.success) {
-      console.log('[TranslationManager] Batch translation completed:', {
-        succeeded: response.results.length,
-        failed: response.failed.length,
-        usage: response.usage
-      })
-
-      // Apply translations to i18nData
-      let successCount = 0
-      for (const result of response.results) {
-        const item = filteredItems.value.find(i => i.key === result.key)
-        if (item) {
-          saveTranslation(result.key, batchTargetLang.value, result.translation)
-          successCount++
-        }
-      }
-
-      batchProgress.value.current = successCount
-      batchProgress.value.status = `Successfully translated ${successCount} items!`
-
-      // Show failed items if any
-      if (response.failed.length > 0) {
-        console.warn('[TranslationManager] Some items failed:', response.failed)
-        batchProgress.value.status += ` (${response.failed.length} failed)`
-      }
-
-      // Clear selection after successful batch
-      selectedItems.value.clear()
-
-      // Auto-close dialog after 3 seconds
-      setTimeout(() => {
-        showBatchDialog.value = false
-      }, 3000)
-    } else {
-      throw new Error('Batch translation failed')
-    }
-  } catch (error: any) {
-    console.error('[TranslationManager] Batch translation failed:', error)
-
-    let errorMessage = 'Batch translation failed.'
-    if (error.data?.message) {
-      errorMessage = error.data.message
-    } else if (error.message) {
-      errorMessage = error.message
-    }
-
-    batchProgress.value.status = `Error: ${errorMessage}`
-    alert(errorMessage)
-  } finally {
-    batchTranslating.value = false
-  }
+  await translateMultipleItemsToAllLanguages(customPrompt)
 }
 
 // Translate single selected item to all languages
 const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
   const itemKey = Array.from(selectedItems.value)[0]
-  const item = filteredItems.value.find(i => i.key === itemKey)
+  const item = translationItems.value.find(i => i.key === itemKey)
 
-  if (!item || !item.englishValue) {
+  if (!item || !item.englishValue?.trim()) {
     alert('Cannot find item or English text')
     return
   }
@@ -767,10 +781,22 @@ const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
 // Translate multiple selected items to all languages
 const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
   const selectedKeys = Array.from(selectedItems.value)
-  const itemsToTranslate = filteredItems.value.filter(i => selectedKeys.includes(i.key))
+  const itemsToTranslate = selectedKeys
+    .map(k => translationItems.value.find(i => i.key === k))
+    .filter((i): i is NonNullable<typeof i> => i != null)
 
-  if (itemsToTranslate.length === 0 || itemsToTranslate.some(i => !i.englishValue)) {
-    alert('Cannot find items or English text')
+  if (
+    itemsToTranslate.length === 0
+    || itemsToTranslate.length !== selectedKeys.length
+    || itemsToTranslate.some(i => !i.englishValue?.trim())
+  ) {
+    if (itemsToTranslate.length !== selectedKeys.length) {
+      alert(
+        'Some selected rows could not be found or are missing English text. Re-select rows or clear filters/search, then try again.'
+      )
+    } else {
+      alert('Cannot find items or English text')
+    }
     return
   }
 
