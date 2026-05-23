@@ -139,14 +139,23 @@ export default defineEventHandler(async (event) => {
 
     const sourceLang = body.sourceLang || 'en'
 
+    // Load config first — enforces max items per HTTP request (matches client chunking)
+    const i18nCfg = getI18nConfig()
+    const maxPerRequest = Math.max(1, Number(i18nCfg.aiTranslation?.batchSize) || 30)
+    if (body.items.length > maxPerRequest) {
+      throw createError({
+        statusCode: 400,
+        statusMessage:
+          `Too many items (${body.items.length}) in one batch request. Maximum is ${maxPerRequest}. Translate in smaller chunks or redeploy an updated Translation Manager UI.`
+      })
+    }
+
     console.log('[AI Batch Translate] Request:', {
       itemCount: body.items.length,
       from: sourceLang,
       to: body.targetLang
     })
 
-    // Load config and build batch prompt
-    const i18nCfg = getI18nConfig()
     const jsonArray = JSON.stringify(body.items, null, 2)
 
     let userPrompt = body.batchPromptTemplate || i18nCfg.aiTranslation.batchTranslationTemplate

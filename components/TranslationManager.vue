@@ -19,14 +19,29 @@ function mapSupportedLocales(cfg: typeof i18nConfig) {
   }))
 }
 
+/** Chunk array for AI batch requests (sizes come from config `aiTranslation.batchSize`) */
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const n = Math.max(1, size)
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += n) {
+    out.push(arr.slice(i, i + n))
+  }
+  return out
+}
+
 // Bundled defaults; overwritten when dialog opens via /api/config so deploys stay in sync
 const languages = ref(mapSupportedLocales(i18nConfig))
+/** Max items per `/api/ai/translate/batch` request (must match server cap) */
+const aiBatchSize = ref(Math.max(1, Number(i18nConfig.aiTranslation?.batchSize) || 30))
 
 async function hydrateFromI18nConfigApi() {
   try {
     const remote = await $fetch<typeof i18nConfig>('/api/config/i18n-config.json')
     if (remote.supportedLocales?.length) {
       languages.value = mapSupportedLocales(remote)
+    }
+    if (remote.aiTranslation?.batchSize != null) {
+      aiBatchSize.value = Math.max(1, Number(remote.aiTranslation.batchSize) || 30)
     }
     if (remote.aiTranslation?.systemPrompt) {
       defaultSystemPrompt.value = remote.aiTranslation.systemPrompt
@@ -597,61 +612,77 @@ const batchTranslate = async (customPrompt?: string) => {
     batchProgress.value = { current: 0, total: itemsToTranslate.length, status: 'Starting...' }
 
     try {
+      const chunks = chunkArray(itemsToTranslate, aiBatchSize.value)
+
       console.log('[TranslationManager] Batch translating:', {
         count: itemsToTranslate.length,
+        batchSize: aiBatchSize.value,
+        chunks: chunks.length,
         targetLang: batchTargetLang.value
       })
 
-      batchProgress.value.status = `Translating ${itemsToTranslate.length} items to ${languages.value.find(l => l.code === batchTargetLang.value)?.name}...`
+      batchProgress.value.status = `Translating ${itemsToTranslate.length} items in ${chunks.length} batch(es), up to ${aiBatchSize.value} per API call…`
 
-      const requestBody: any = {
-        items: itemsToTranslate,
-        sourceLang: 'en',
-        targetLang: batchTargetLang.value
-      }
+      let successCount = 0
+      let missingInResponse = 0
 
-      if (customPrompt) {
-        requestBody.systemPrompt = customPrompt
-        console.log('[TranslationManager] Using custom system prompt for batch translation')
-      }
+      for (let c = 0; c < chunks.length; c++) {
+        const chunk = chunks[c]
+        const label = languages.value.find(l => l.code === batchTargetLang.value)?.name ?? batchTargetLang.value
+        batchProgress.value.status = `Batch ${c + 1}/${chunks.length}: ${chunk.length} items → ${label}…`
 
-      const response = await $fetch('/api/ai/translate/batch', {
-        method: 'POST',
-        body: requestBody
-      })
+        const requestBody: any = {
+          items: chunk,
+          sourceLang: 'en',
+          targetLang: batchTargetLang.value
+        }
 
-      if (response.success) {
-        console.log('[TranslationManager] Batch translation completed:', {
-          succeeded: response.results.length,
-          failed: response.failed.length,
-          usage: response.usage
-        })
-
-        let successCount = 0
-        for (const result of response.results) {
-          const item = translationItems.value.find(i => i.key === result.key)
-          if (item) {
-            saveTranslation(result.key, batchTargetLang.value, result.translation)
-            successCount++
+        if (customPrompt) {
+          requestBody.systemPrompt = customPrompt
+          if (c === 0) {
+            console.log('[TranslationManager] Using custom system prompt for batch translation')
           }
         }
 
-        batchProgress.value.current = successCount
-        batchProgress.value.status = `Successfully translated ${successCount} items!`
+        const response = await $fetch('/api/ai/translate/batch', {
+          method: 'POST',
+          body: requestBody
+        })
 
-        if (response.failed.length > 0) {
-          console.warn('[TranslationManager] Some items failed:', response.failed)
-          batchProgress.value.status += ` (${response.failed.length} failed)`
+        if (!response.success) {
+          throw new Error('Batch translation failed')
         }
 
-        selectedItems.value.clear()
+        missingInResponse += response.failed?.length ?? 0
 
-        setTimeout(() => {
-          showBatchDialog.value = false
-        }, 3000)
-      } else {
-        throw new Error('Batch translation failed')
+        for (const result of response.results) {
+          const item = translationItems.value.find(i => i.key === result.key)
+          if (item) {
+            saveTranslation(result.key, batchTargetLang.value!, result.translation)
+            successCount++
+          }
+        }
+        batchProgress.value.current = successCount
       }
+
+      batchProgress.value.status = `Successfully translated ${successCount} items!`
+
+      if (missingInResponse > 0) {
+        console.warn('[TranslationManager] Some keys missing in AI responses:', missingInResponse)
+        batchProgress.value.status += ` (${missingInResponse} missing in responses)`
+      }
+
+      console.log('[TranslationManager] Batch translation completed:', {
+        succeeded: successCount,
+        missingInResponse,
+        batches: chunks.length
+      })
+
+      selectedItems.value.clear()
+
+      setTimeout(() => {
+        showBatchDialog.value = false
+      }, 3000)
     } catch (error: any) {
       console.error('[TranslationManager] Batch translation failed:', error)
 
