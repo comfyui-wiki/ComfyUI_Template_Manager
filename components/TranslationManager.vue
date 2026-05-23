@@ -34,6 +34,11 @@ const languages = [
   { code: 'fa', name: 'فارسی' }
 ]
 
+/** Display label for selects: localized name + lowercase code, e.g. "Français (fr)" */
+function languageOptionLabel(lang: { code: string; name: string }) {
+  return `${lang.name} (${lang.code.toLowerCase()})`
+}
+
 // State
 const loading = ref(false)
 const saving = ref(false)
@@ -1010,7 +1015,7 @@ const saveAllChanges = async () => {
             </div>
 
             <Select v-model="activeLanguage">
-              <SelectTrigger class="w-[200px]">
+              <SelectTrigger class="min-w-[200px] max-w-[280px] w-[260px]">
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
               <SelectContent>
@@ -1020,7 +1025,7 @@ const saveAllChanges = async () => {
                   :key="lang.code"
                   :value="lang.code"
                 >
-                  {{ lang.name }}
+                  {{ languageOptionLabel(lang) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1048,7 +1053,7 @@ const saveAllChanges = async () => {
             </span>
 
             <Select v-model="batchTargetLang" class="flex-shrink-0">
-              <SelectTrigger class="w-[180px]">
+              <SelectTrigger class="min-w-[180px] max-w-[280px] w-[260px]">
                 <SelectValue placeholder="Target language" />
               </SelectTrigger>
               <SelectContent>
@@ -1060,7 +1065,7 @@ const saveAllChanges = async () => {
                   :key="lang.code"
                   :value="lang.code"
                 >
-                  {{ lang.name }}
+                  {{ languageOptionLabel(lang) }}
                 </SelectItem>
               </SelectContent>
             </Select>
