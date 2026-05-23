@@ -9,6 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
+import i18nConfig from '~/config/i18n-config.json'
+
+// Single source of truth with server i18n sync (must match config/i18n-config.json)
+const languages = i18nConfig.supportedLocales.map((loc) => ({
+  code: loc.code,
+  name: loc.name
+}))
 
 const props = defineProps<{
   open: boolean
@@ -18,28 +25,11 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-// Language configuration
-const languages = [
-  { code: 'en', name: 'English' },
-  { code: 'zh', name: '简体中文' },
-  { code: 'zh-TW', name: '繁體中文' },
-  { code: 'ja', name: '日本語' },
-  { code: 'ko', name: '한국어' },
-  { code: 'es', name: 'Español' },
-  { code: 'fr', name: 'Français' },
-  { code: 'ru', name: 'Русский' },
-  { code: 'tr', name: 'Türkçe' },
-  { code: 'ar', name: 'العربية' },
-  { code: 'pt-BR', name: 'Português (Brasil)' },
-  { code: 'fa', name: 'فارسی' }
-]
-
 /** Display label for selects: localized name + lowercase code, e.g. "Français (fr)" */
 function languageOptionLabel(lang: { code: string; name: string }) {
   return `${lang.name} (${lang.code.toLowerCase()})`
 }
 
-// State
 const loading = ref(false)
 const saving = ref(false)
 const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
