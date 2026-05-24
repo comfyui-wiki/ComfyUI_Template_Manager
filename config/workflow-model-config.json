@@ -31,7 +31,7 @@
     "FrameInterpolationModelLoader": "frame_interpolation",
     "OpticalFlowLoader": "optical_flow",
     "LoadMoGeModel": "geometry_estimation",
-    "OpticalFlowLoader": "optical_flow",
+    "LoadMediaPipeFaceLandmarker": "detection",
     "LoadBackgroundRemovalModel": "background_removal",
     "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
