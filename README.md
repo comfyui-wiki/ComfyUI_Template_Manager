@@ -2,6 +2,241 @@
 
 A modern web-based admin interface for managing ComfyUI workflow templates. This application allows you to browse, search, create, and manage workflow templates for ComfyUI with GitHub integration.
 
+## User Guide
+
+This guide is for **template maintainers**: run the admin app locally and browse, edit, and commit changes to the [`Comfy-Org/workflow_templates`](https://github.com/Comfy-Org/workflow_templates) repository via GitHub.
+
+### Recommended workflow
+
+```mermaid
+flowchart LR
+  A[Install and configure OAuth] --> B[Sign in with GitHub]
+  B --> C{Write access to main repo?}
+  C -->|No| D[Fork upstream]
+  C -->|Yes| E[Optional fork for experiments]
+  D --> F[Create a working branch]
+  E --> F
+  F --> G[Create or edit templates]
+  G --> H[Save → GitHub commit]
+  H --> I[Create PR → merge to main]
+```
+
+### 1. Setup
+
+#### 1.1 Run the admin app
+
+1. Clone this repo and install dependencies ([Installation](#installation) below).
+2. Configure `.env`: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
+3. Create a GitHub OAuth App with callback URL `http://localhost:3000/api/auth/callback/github` (use your production domain in production).
+4. Run `npm run dev` and open `http://localhost:3000`.
+
+> All GitHub write operations use the **signed-in user’s OAuth token**. You do not need a server-side `GITHUB_TOKEN`.
+
+#### 1.2 Connect to the template repository
+
+The default upstream repo is **`Comfy-Org/workflow_templates`**. The app does not copy template files locally; it reads and writes the remote repo through the GitHub API.
+
+#### 1.3 Sign in and fork
+
+1. Click **Sign in with GitHub** and authorize the app (`public_repo` and related scopes).
+2. In the left sidebar, open **Repository & Branch**:
+   - If you **do not** have write access to the main repo: click **Create Fork** to fork `Comfy-Org/workflow_templates` to your account.
+   - If you already have a fork: select it in the **Repository** dropdown (`your-username/workflow_templates`).
+3. When your fork is behind upstream, use **Sync Fork**. If histories have diverged, **Advanced Options** offers merge sync, Save & Reset, or Force Reset (use force reset with care).
+
+#### 1.4 Create and switch branches
+
+Next to **Branch**, click **New**:
+
+1. Enter a branch name (e.g. `feature/short-description` or `update/template_name`).
+2. Choose the base branch (usually `main`).
+3. After creation, the app switches to the new branch automatically.
+
+**Recommendation:** Do all template work on a **feature branch** and merge via PR. Avoid editing `main` directly when possible.
+
+| Scenario | Suggested flow |
+|----------|----------------|
+| First contribution | Fork → new branch from `main` → edit → **Create PR** |
+| Team with main-repo access | Still prefer branch + PR |
+| Review someone’s PR | **Browse PRs** → select PR → read-only PR branch view |
+
+Selected repo and branch are stored in browser `localStorage` and restored on the next visit.
+
+### 2. Browse and filter templates
+
+On the home page (`/`):
+
+- **Category sidebar** — filter by category.
+- **Search** — match name, title, or description.
+- **Filters** — model, tag, runs on (API / open source), diff status vs `main` (new / modified / deleted), missing thumbnails, and more.
+- **Sort** — default order, latest, oldest, usage, or name.
+
+Click a template card for details; on a writable branch you can open the editor.
+
+**Branch diff:** When the selected branch is not `main`, the sidebar shows change counts vs `main` to help scope your PR.
+
+### 3. Create a template
+
+**Entry:** Sign in, select a writable branch → **Create Template** → `/admin/edit/new`.
+
+#### 3.1 Steps
+
+1. **Upload workflow JSON** (WorkflowFileManager)
+   - Upload `workflow.json`; nodes are parsed and validated.
+   - Missing **input files** referenced by `LoadImage`, `LoadAudio`, `LoadVideo`, etc. are highlighted; upload and convert them in place.
+   - A suggested **template name** may be inferred from the workflow (must follow [naming rules](#35-naming-conventions)).
+2. Fill in **Template Details** (see [required fields](#32-required-and-optional-fields)).
+3. Configure **thumbnails** ([section 3.3](#33-thumbnails)).
+4. Optionally use **Category Order** on the left to set position within the category.
+5. Click **Create Template** — one commit to GitHub (`templates/index.json`, workflow, thumbnails, input files, and locale index sync).
+
+After success you return to the home page. If the edit page says “not found”, wait a moment for GitHub/CDN cache to update.
+
+#### 3.2 Required and optional fields
+
+| Field | Create | Edit | Notes |
+|-------|:------:|:----:|-------|
+| Workflow file | ✅ | — | Required when creating |
+| Template name | ✅ | — | `snake_case`; see [naming](#35-naming-conventions) |
+| Title | ✅ | ✅ | English; triggers i18n sync |
+| Description | ✅ | ✅ | English |
+| Category | ✅ | ✅ | Category and name-prefix hints |
+| Thumbnail(s) | ✅ | ✅ | Count depends on thumbnail effect |
+| Tags | ✅ | ✅ | At least one |
+| Models | ✅ | ✅ | At least one |
+| Date | ✅ | ✅ | Publish/update date |
+| Model size (GB) | ✅ | ✅ | `0` is allowed |
+| Open source | ✅ | ✅ | Whether it runs on open-source stack |
+| Creator | ✅ | ✅ | e.g. GitHub username |
+| Tutorial URL | — | Optional | |
+| VRAM (GB) | — | Optional | |
+| ComfyUI version | — | Optional | |
+| Custom nodes | — | Optional | Can be detected from workflow |
+| Model links | — | Optional | Download URLs in the workflow |
+| Thumbnail effect | — | Optional | See [thumbnails](#33-thumbnails) |
+
+The **Required Fields** progress bar and **Missing** list update as you type.
+
+#### 3.3 Thumbnails
+
+- **Format:** WebP recommended. **Thumbnail Converter** supports image/video → WebP, crop, and compress (aim for images &lt;100KB, videos &lt;1MB).
+- **Thumbnail effect:**
+  - `none` / `zoomHover` — 1 image
+  - `hoverDissolve` / `compareSlider` — 2 images (before/after or hover dissolve)
+- **Template Card Preview** on the right shows the card in real time.
+
+#### 3.4 What gets committed
+
+A single save typically updates:
+
+- `templates/index.json` (metadata and order within categories)
+- `templates/<template_name>.json` (workflow)
+- `templates/thumbnails/<name>.webp` (and `-2`, etc. for multi-image variants)
+- Missing files under `input/`
+- **12 locales** — `templates/index.<locale>.json` auto-sync (English placeholders on create; existing translations preserved on update)
+- `i18n.json` **outdated_translations** when English title/description change ([details](./docs/i18n-outdated-translations.md))
+
+#### 3.5 Naming conventions
+
+Rules live in `config/template-naming-rules.json`. The editor suggests a prefix from **Category**:
+
+| Category (examples) | Prefix | Example name |
+|---------------------|--------|--------------|
+| Image / Use cases | `image_` | `image_portrait_lighting` |
+| Video | `video_` | `video_animation_workflow` |
+| API | `api_` | `api_text_to_image` |
+| Getting Started | `gs_` | `gs_first_workflow` |
+| Utility | `utility_` | `utility_batch_processor` |
+
+Use **lowercase + underscores**, no spaces or hyphens; keep names under ~50 characters.
+
+### 4. Edit a template
+
+**Entry:** On a writable branch, click a template card → `/admin/edit/<template_name>`.
+
+Same form as create, plus:
+
+- Replace or download workflow and input files
+- Update metadata, thumbnails, and model links
+- **AI Assist Batch** (if `DEEPSEEK_API_KEY` is set) — draft title, description, tags, etc.
+
+**Save** is disabled when there are no changes or required fields are incomplete. Success shows a link to the commit SHA.
+
+### 5. Reorder templates within a category
+
+The **Category Order** sidebar on the edit page changes template order inside the current category in `index.json` (ComfyUI template list order).
+
+| Action | Description |
+|--------|-------------|
+| **Drag** | Reorder entries; the template you are editing is marked **Current** |
+| **Sort by usage** | Sort by `usage` descending |
+| **Restore order** | Revert to order loaded from GitHub when the page opened |
+| **Refresh** | Reload order from remote (discards unsaved reorder draft) |
+
+Reorder is saved with the template: the API writes `templateOrder` to `templates/index.json` and syncs locale index files.
+
+> Reorder-only saves still create a commit; the message may include `(reorder)`.
+
+### 6. Bulk tools on the home page
+
+When signed in on a writable branch:
+
+| Tool | Purpose |
+|------|---------|
+| **Translations** | Edit title/description across 12 languages; optional AI per field |
+| **Tags & Models** | Review and clean up tags and model references across templates |
+| **Creators** | Batch-assign creators |
+| **Update Usage** | Import `usage` from CSV (works with **Sort by usage**) |
+| **Create Template** | New template wizard |
+| **Browse PRs** | List PRs and switch to PR branch (read-only) |
+| **Create PR** | Open a PR to upstream when your branch has commits ahead of `main` |
+
+**Local Settings** (gear) — local ComfyUI paths for preview; not written to GitHub.
+
+### 7. Commits and pull requests
+
+1. Complete edits on your fork’s branch; each **Save** is one commit.
+2. On the home page, confirm branch diff stats vs `main`.
+3. Click **Create PR** toward `Comfy-Org/workflow_templates` → `main`.
+4. After merge, **Sync Fork** to refresh your fork.
+
+If the PR branch is behind its base, **Update** merges upstream into the PR branch.
+
+### 8. i18n and translations
+
+- **Auto-sync:** Saving syncs technical fields and English copy to locale files (`en`, `zh`, `zh-TW`, `ja`, `ko`, `es`, `fr`, `ru`, `tr`, `ar`, `pt-BR`, `fa`).
+- **Outdated markers:** Changing only English title/description does not overwrite other languages but flags entries in `i18n.json` → `outdated_translations`.
+- **Manual / AI translation:** Use **Translations**; optional DeepSeek setup in [AI Translation](#ai-translation-optional).
+
+See [i18n outdated translations](./docs/i18n-outdated-translations.md).
+
+### 9. Permissions and read-only mode
+
+| State | Behavior |
+|-------|----------|
+| Not signed in | Browse only; no create/edit/save |
+| Viewing a PR branch | Purple **Browsing PR Branch** banner; editing disabled |
+| No write access | Blue **Read-only mode**; fork or switch branch |
+| `main` (team policy) | Direct edits may be blocked; use a feature branch |
+
+The edit page shows **Read-Only Mode** and `repo @ branch` when applicable.
+
+### 10. FAQ
+
+**Template not found right after save?**  
+GitHub/CDN cache lag — wait and refresh, or reopen from the home page.
+
+**Create Template / Save disabled?**  
+Sign in, select a writable fork/branch, exit PR browse mode, and complete required fields.
+
+**Input file warnings?**  
+Referenced files must exist under `input/` in the repo; upload them in the Workflow section.
+
+**Slow video thumbnail conversion?**  
+First run downloads FFmpeg.wasm (~31MB); that is expected.
+
+---
+
 ## Features
 
 - **Template Management**: Browse, search, and filter ComfyUI workflow templates
@@ -54,7 +289,7 @@ A modern web-based admin interface for managing ComfyUI workflow templates. This
 
 ```bash
 git clone <repository-url>
-cd template_cms
+cd ComfyUI_Template_Manager
 ```
 
 ### 2. Install dependencies
@@ -156,40 +391,10 @@ template_cms/
 
 ## Documentation
 
-- [Architecture](./docs/architecture.md) - System architecture and design decisions
-- [API Reference](./docs/api.md) - API endpoints and data structures
-- [Components](./docs/components.md) - Component documentation
-- [Deployment](./docs/deployment.md) - Deployment guide
-- [Contributing](./docs/contributing.md) - Contributing guidelines
-
-## Usage
-
-### Browsing Templates
-
-1. Visit the home page to see all available templates
-2. Use the sidebar to filter by category
-3. Use search and filters to find specific templates
-4. Click on a template card to view details or edit (if authenticated)
-
-### Creating Templates
-
-1. Sign in with GitHub
-2. Select or fork a repository with write access
-3. Click "Create Template" button
-4. Fill in the template form:
-   - Upload workflow JSON file
-   - Add thumbnail images
-   - Configure metadata (title, description, tags, etc.)
-   - Optionally embed model references
-5. Submit to create the template
-
-### Repository Management
-
-1. Sign in with GitHub
-2. Use the repository/branch switcher in the sidebar
-3. Fork repositories or switch to your fork
-4. Create new branches for your changes
-5. View diff statistics comparing your branch to main
+- **[User Guide](#user-guide)** — setup, templates, reordering, bulk tools, and PR workflow (in this README)
+- [i18n outdated translations](./docs/i18n-outdated-translations.md) — multi-language sync and translation maintenance
+- [Branch comparison](./docs/branch-comparison.md) — branch diff and PR browsing
+- [AI translation security quickstart](./docs/SECURITY-QUICKSTART.md)
 
 ## AI Translation (Optional)
 
