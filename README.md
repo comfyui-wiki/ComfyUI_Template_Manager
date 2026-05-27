@@ -4,47 +4,35 @@ A modern web-based admin interface for managing ComfyUI workflow templates. This
 
 ## User Guide
 
-This guide is for **template maintainers**: run the admin app locally and browse, edit, and commit changes to the [`Comfy-Org/workflow_templates`](https://github.com/Comfy-Org/workflow_templates) repository via GitHub.
+This guide is for **template maintainers** using the deployed admin app to browse, edit, and commit changes to the [`Comfy-Org/workflow_templates`](https://github.com/Comfy-Org/workflow_templates) repository on GitHub.
 
 ### Recommended workflow
 
 ```mermaid
 flowchart LR
-  A[Install and configure OAuth] --> B[Sign in with GitHub]
-  B --> C{Write access to main repo?}
-  C -->|No| D[Fork upstream]
-  C -->|Yes| E[Optional fork for experiments]
-  D --> F[Create a working branch]
-  E --> F
-  F --> G[Create or edit templates]
-  G --> H[Save → GitHub commit]
-  H --> I[Create PR → merge to main]
+  A[Sign in with GitHub] --> B{Write access to main repo?}
+  B -->|No| C[Fork upstream]
+  B -->|Yes| D[Optional fork for experiments]
+  C --> E[Create a working branch]
+  D --> E
+  E --> F[Create or edit templates]
+  F --> G[Save → GitHub commit]
+  G --> H[Create PR → merge to main]
 ```
 
-### 1. Setup
+### 1. Repository and branch
 
-#### 1.1 Run the admin app
+The app works against **`Comfy-Org/workflow_templates`** on GitHub (no local copy of template files). All edits are commits on the remote repo using your GitHub account.
 
-1. Clone this repo and install dependencies ([Installation](#installation) below).
-2. Configure `.env`: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
-3. Create a GitHub OAuth App with callback URL `http://localhost:3000/api/auth/callback/github` (use your production domain in production).
-4. Run `npm run dev` and open `http://localhost:3000`.
+#### 1.1 Sign in and fork
 
-> All GitHub write operations use the **signed-in user’s OAuth token**. You do not need a server-side `GITHUB_TOKEN`.
-
-#### 1.2 Connect to the template repository
-
-The default upstream repo is **`Comfy-Org/workflow_templates`**. The app does not copy template files locally; it reads and writes the remote repo through the GitHub API.
-
-#### 1.3 Sign in and fork
-
-1. Click **Sign in with GitHub** and authorize the app (`public_repo` and related scopes).
+1. Open the deployed admin URL and click **Sign in with GitHub**.
 2. In the left sidebar, open **Repository & Branch**:
    - If you **do not** have write access to the main repo: click **Create Fork** to fork `Comfy-Org/workflow_templates` to your account.
    - If you already have a fork: select it in the **Repository** dropdown (`your-username/workflow_templates`).
 3. When your fork is behind upstream, use **Sync Fork**. If histories have diverged, **Advanced Options** offers merge sync, Save & Reset, or Force Reset (use force reset with care).
 
-#### 1.4 Create and switch branches
+#### 1.2 Create and switch branches
 
 Next to **Branch**, click **New**:
 
@@ -158,7 +146,7 @@ Same form as create, plus:
 
 - Replace or download workflow and input files
 - Update metadata, thumbnails, and model links
-- **AI Assist Batch** (if `DEEPSEEK_API_KEY` is set) — draft title, description, tags, etc.
+- **AI Assist Batch** (when enabled on the deployment) — draft title, description, tags, etc.
 
 **Save** is disabled when there are no changes or required fields are incomplete. Success shows a link to the commit SHA.
 
@@ -206,7 +194,7 @@ If the PR branch is behind its base, **Update** merges upstream into the PR bran
 
 - **Auto-sync:** Saving syncs technical fields and English copy to locale files (`en`, `zh`, `zh-TW`, `ja`, `ko`, `es`, `fr`, `ru`, `tr`, `ar`, `pt-BR`, `fa`).
 - **Outdated markers:** Changing only English title/description does not overwrite other languages but flags entries in `i18n.json` → `outdated_translations`.
-- **Manual / AI translation:** Use **Translations**; optional DeepSeek setup in [AI Translation](#ai-translation-optional).
+- **Manual / AI translation:** Use **Translations** on the home page (AI assist is available when enabled on the deployment).
 
 See [i18n outdated translations](./docs/i18n-outdated-translations.md).
 
@@ -391,10 +379,10 @@ template_cms/
 
 ## Documentation
 
-- **[User Guide](#user-guide)** — setup, templates, reordering, bulk tools, and PR workflow (in this README)
+- **[User Guide](#user-guide)** — templates, reordering, bulk tools, and PR workflow (in this README)
 - [i18n outdated translations](./docs/i18n-outdated-translations.md) — multi-language sync and translation maintenance
 - [Branch comparison](./docs/branch-comparison.md) — branch diff and PR browsing
-- [AI translation security quickstart](./docs/SECURITY-QUICKSTART.md)
+- [AI translation security quickstart](./docs/SECURITY-QUICKSTART.md) — for operators enabling AI translation on a deployment
 
 ## AI Translation (Optional)
 
