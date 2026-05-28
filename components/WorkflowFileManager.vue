@@ -91,7 +91,7 @@
       <!-- Status Message for workflow -->
       <div v-if="workflowStatus"
            class="p-3 rounded-lg text-sm"
-           :class="workflowStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+           :class="workflowStatus.success ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'">
         <div class="flex items-start gap-2">
           <svg v-if="workflowStatus.success" class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -100,7 +100,7 @@
         </div>
 
         <!-- Template Name Editor (Create Mode - Integrated) -->
-        <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus.success" class="mt-4 pt-4 border-t border-green-200">
+        <div v-if="templateName === 'new' && extractedTemplateName && workflowStatus.success" class="mt-4 pt-4 border-t border-green-200 dark:border-green-800">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +119,7 @@
           </div>
 
           <div v-if="!isEditingTemplateName" class="flex items-center gap-2">
-            <code class="px-2 py-1 bg-green-100 rounded font-mono text-sm font-semibold text-green-900">
+            <code class="px-2 py-1 bg-green-100 rounded font-mono text-sm font-semibold text-green-900 dark:bg-green-900/40 dark:text-green-300">
               {{ extractedTemplateName }}
             </code>
           </div>
@@ -129,10 +129,10 @@
               <input
                 v-model="editingTemplateNameValue"
                 type="text"
-                class="w-full px-2 py-1.5 text-sm border rounded font-mono"
+                class="w-full px-2 py-1.5 text-sm border rounded font-mono bg-background text-foreground"
                 :class="{
                   'border-red-500 focus:ring-red-500': templateNameError,
-                  'border-green-300 focus:ring-green-500': !templateNameError
+                  'border-green-300 focus:ring-green-500 dark:border-green-700': !templateNameError
                 }"
                 placeholder="my_template_name"
                 @keydown.enter="saveTemplateName"
@@ -168,7 +168,7 @@
 
       <!-- Duplicate Name Warning (Create Mode) -->
       <div v-if="templateName === 'new' && duplicateNameWarning"
-           class="mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-300 flex items-start gap-2">
+           class="mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-300 flex items-start gap-2 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
@@ -177,7 +177,7 @@
 
       <!-- Naming Rule Warning -->
       <div v-if="namingRuleWarning"
-           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -185,20 +185,20 @@
       </div>
 
       <!-- Naming Rules Notes (Collapsible) -->
-      <div v-if="namingRules" class="mt-4 border rounded-lg overflow-hidden bg-white">
+      <div v-if="namingRules" class="mt-4 border rounded-lg overflow-hidden bg-card">
         <button
           type="button"
           @click="showNamingNotes = !showNamingNotes"
-          class="w-full px-4 py-2.5 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+          class="w-full px-4 py-2.5 flex items-center justify-between bg-muted/50 hover:bg-muted transition-colors text-sm"
         >
           <div class="flex items-center gap-2.5">
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span class="font-medium text-gray-700">Template Naming Guidelines</span>
+            <span class="font-medium text-foreground">Template Naming Guidelines</span>
           </div>
           <svg
-            class="w-4 h-4 text-gray-500 transition-transform"
+            class="w-4 h-4 text-muted-foreground transition-transform"
             :class="{ 'rotate-180': showNamingNotes }"
             fill="none"
             stroke="currentColor"
@@ -207,22 +207,22 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div v-if="showNamingNotes" class="p-4 bg-white border-t text-sm space-y-3">
+        <div v-if="showNamingNotes" class="p-4 bg-card border-t text-sm space-y-3">
           <!-- Category Prefixes -->
           <div v-if="namingRules.namingRules">
-            <div class="font-semibold text-gray-800 mb-2">📂 Category Prefixes</div>
+            <div class="font-semibold text-foreground mb-2">📂 Category Prefixes</div>
             <div class="space-y-1.5 text-xs">
               <div v-for="(rule, category) in namingRules.namingRules" :key="category" class="flex items-start gap-2">
-                <code class="px-1.5 py-0.5 bg-gray-100 rounded font-mono text-xs">{{ rule.prefix }}</code>
-                <span class="text-gray-600">{{ rule.description }}</span>
+                <code class="px-1.5 py-0.5 bg-muted rounded font-mono text-xs text-foreground">{{ rule.prefix }}</code>
+                <span class="text-muted-foreground">{{ rule.description }}</span>
               </div>
             </div>
           </div>
 
           <!-- Best Practices -->
           <div v-if="namingRules.notes?.bestPractices">
-            <div class="font-semibold text-gray-800 mb-2">✨ Best Practices</div>
-            <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+            <div class="font-semibold text-foreground mb-2">✨ Best Practices</div>
+            <ul class="space-y-1 text-xs text-muted-foreground list-disc list-inside">
               <li v-for="(practice, index) in namingRules.notes.bestPractices" :key="index">
                 {{ practice }}
               </li>
@@ -230,7 +230,7 @@
           </div>
 
           <!-- General Notes -->
-          <div v-if="namingRules.notes?.general" class="text-xs text-gray-600 pt-2 border-t">
+          <div v-if="namingRules.notes?.general" class="text-xs text-muted-foreground pt-2 border-t">
             {{ namingRules.notes.general }}
           </div>
 
@@ -238,19 +238,19 @@
           <div v-if="namingRules.notes?.examples" class="pt-2 border-t">
             <div class="grid grid-cols-2 gap-3">
               <div v-if="namingRules.notes.examples.good">
-                <div class="font-semibold text-green-700 mb-1.5 text-xs">✓ Good Examples</div>
+                <div class="font-semibold text-green-600 dark:text-green-400 mb-1.5 text-xs">✓ Good Examples</div>
                 <div class="space-y-1">
                   <code v-for="(example, index) in namingRules.notes.examples.good" :key="'good-' + index"
-                        class="block px-2 py-1 bg-green-50 text-green-800 rounded font-mono text-xs">
+                        class="block px-2 py-1 bg-green-50 text-green-800 rounded font-mono text-xs dark:bg-green-950/40 dark:text-green-300">
                     {{ example }}
                   </code>
                 </div>
               </div>
               <div v-if="namingRules.notes.examples.bad">
-                <div class="font-semibold text-red-700 mb-1.5 text-xs">✗ Bad Examples</div>
+                <div class="font-semibold text-red-600 dark:text-red-400 mb-1.5 text-xs">✗ Bad Examples</div>
                 <div class="space-y-1">
                   <code v-for="(example, index) in namingRules.notes.examples.bad" :key="'bad-' + index"
-                        class="block px-2 py-1 bg-red-50 text-red-800 rounded font-mono text-xs">
+                        class="block px-2 py-1 bg-red-50 text-red-800 rounded font-mono text-xs dark:bg-red-950/40 dark:text-red-300">
                     {{ example }}
                   </code>
                 </div>
@@ -262,32 +262,32 @@
 
       <!-- Create Mode Hint -->
       <div v-else-if="templateName === 'new' && !props.workflowContent"
-           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+           class="p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <div class="flex-1">
           <div class="font-semibold mb-1">Upload Workflow File to Start</div>
-          <div class="text-xs text-blue-600">
-            The filename (without .json) will become the template name. Example: <code class="bg-blue-100 px-1 rounded">my_template.json</code> → <code class="bg-blue-100 px-1 rounded font-semibold">my_template</code>
+          <div class="text-xs text-blue-600 dark:text-blue-400/80">
+            The filename (without .json) will become the template name. Example: <code class="bg-blue-100 px-1 rounded dark:bg-blue-900/50">my_template.json</code> → <code class="bg-blue-100 px-1 rounded font-semibold dark:bg-blue-900/50">my_template</code>
           </div>
         </div>
       </div>
 
       <!-- Format Change Notice -->
       <div v-if="formatChangeNotice"
-           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2">
+           class="mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-start gap-2 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
         <div class="flex-1">
           <div class="font-semibold mb-1">Input File Format Changed</div>
           <div class="text-xs">
-            <code class="bg-blue-100 px-1 rounded">{{ formatChangeNotice.oldFilename }}</code>
+            <code class="bg-blue-100 px-1 rounded dark:bg-blue-900/50">{{ formatChangeNotice.oldFilename }}</code>
             →
-            <code class="bg-blue-100 px-1 rounded font-semibold">{{ formatChangeNotice.newFilename }}</code>
+            <code class="bg-blue-100 px-1 rounded font-semibold dark:bg-blue-900/50">{{ formatChangeNotice.newFilename }}</code>
           </div>
-          <div class="text-xs mt-1.5 text-blue-600">
+          <div class="text-xs mt-1.5 text-blue-600 dark:text-blue-400/80">
             Changes will be applied when you save.
           </div>
         </div>
@@ -304,7 +304,7 @@
     </div>
 
     <!-- Input Files Section -->
-    <div v-if="inputFileRefs.length > 0" class="mt-6 p-4 border-2 rounded-lg" :class="hasWarnings ? 'border-amber-300 bg-amber-50/50' : 'border-border bg-card'">
+    <div v-if="inputFileRefs.length > 0" class="mt-6 p-4 border-2 rounded-lg" :class="hasWarnings ? 'border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20' : 'border-border bg-card'">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <svg v-if="hasWarnings" class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,7 +315,7 @@
           </svg>
           <h3 class="font-semibold">Input Files Required by Workflow</h3>
         </div>
-        <span class="text-xs px-2.5 py-1 rounded font-medium" :class="hasWarnings ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'">
+        <span class="text-xs px-2.5 py-1 rounded font-medium" :class="hasWarnings ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300'">
           {{ inputFileRefs.filter(f => f.exists).length }}/{{ inputFileRefs.length }} uploaded
         </span>
       </div>
@@ -329,16 +329,16 @@
           :class="inputFileWarnings.has(fileRef.filename) ? 'border-amber-300' : (fileRef.exists ? 'border-border' : 'border-amber-200')"
         >
           <div class="flex items-center justify-between p-3"
-               :class="fileRef.exists ? 'bg-background' : 'bg-amber-50'">
+               :class="fileRef.exists ? 'bg-background' : 'bg-amber-50 dark:bg-amber-950/30'">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <!-- Icon -->
               <div class="flex-shrink-0">
                 <div class="w-10 h-10 rounded flex items-center justify-center"
-                     :class="fileRef.exists ? 'bg-green-100' : 'bg-amber-100'">
-                  <svg v-if="fileRef.exists" class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     :class="fileRef.exists ? 'bg-green-100 dark:bg-green-950/50' : 'bg-amber-100 dark:bg-amber-950/50'">
+                  <svg v-if="fileRef.exists" class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <svg v-else class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-else class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
@@ -352,7 +352,7 @@
                     v-if="editingFilename === fileRef.nodeId"
                     v-model="tempFilename"
                     type="text"
-                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                     @keyup.enter="saveFilenameEdit(fileRef.nodeId, fileRef.filename)"
                     @keyup.esc="cancelFilenameEdit"
                     @blur="saveFilenameEdit(fileRef.nodeId, fileRef.filename)"
@@ -377,7 +377,7 @@
                   <span v-if="fileRef.size">•</span>
                   <span v-if="fileRef.size">{{ formatFileSize(fileRef.size) }}</span>
                 </div>
-                <div v-if="!fileRef.exists" class="text-xs text-amber-700 mt-1 font-medium">
+                <div v-if="!fileRef.exists" class="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
                   ⚠️ File not found in repository
                 </div>
               </div>
@@ -436,10 +436,10 @@
                class="px-3 pb-3 pt-0">
             <div class="p-2 rounded text-xs"
                  :class="inputFileWarnings.get(fileRef.filename)?.startsWith('✅')
-                   ? 'bg-green-50 border border-green-300 text-green-800'
+                   ? 'bg-green-50 border border-green-300 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-300'
                    : inputFileWarnings.get(fileRef.filename)?.startsWith('❌')
-                   ? 'bg-red-50 border border-red-300 text-red-800'
-                   : 'bg-amber-100 border border-amber-300 text-amber-800'">
+                   ? 'bg-red-50 border border-red-300 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
+                   : 'bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300'">
               {{ inputFileWarnings.get(fileRef.filename) }}
             </div>
           </div>
@@ -474,7 +474,7 @@
           </svg>
           <h3 class="font-semibold">Output Files (Optional)</h3>
         </div>
-        <span class="text-xs px-2.5 py-1 rounded font-medium bg-blue-100 text-blue-800">
+        <span class="text-xs px-2.5 py-1 rounded font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
           {{ outputFileRefs.filter(f => f.exists).length }}/{{ outputFileRefs.length }} uploaded
         </span>
       </div>
@@ -491,11 +491,11 @@
               <!-- Icon -->
               <div class="flex-shrink-0">
                 <div class="w-10 h-10 rounded flex items-center justify-center"
-                     :class="fileRef.exists ? 'bg-green-100' : 'bg-gray-100'">
-                  <svg v-if="fileRef.exists" class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     :class="fileRef.exists ? 'bg-green-100 dark:bg-green-950/50' : 'bg-muted'">
+                  <svg v-if="fileRef.exists" class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <svg v-else class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-else class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
@@ -509,7 +509,7 @@
                     v-if="editingOutputFilename === fileRef.nodeId"
                     v-model="tempOutputFilename"
                     type="text"
-                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary flex-1"
+                    class="font-mono text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-primary flex-1 bg-background text-foreground"
                     placeholder="output_filename.mp4"
                     @keyup.enter="saveOutputFilenameEdit(fileRef.nodeId)"
                     @keyup.esc="cancelOutputFilenameEdit"
@@ -539,7 +539,7 @@
                   <span v-if="fileRef.size">•</span>
                   <span v-if="fileRef.size">{{ formatFileSize(fileRef.size) }}</span>
                 </div>
-                <div v-if="!fileRef.exists && fileRef.filename" class="text-xs text-amber-700 mt-1 font-medium">
+                <div v-if="!fileRef.exists && fileRef.filename" class="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
                   ⚠️ File not found in repository
                 </div>
               </div>
@@ -598,10 +598,10 @@
                class="px-3 pb-3 pt-0">
             <div class="p-2 rounded text-xs"
                  :class="outputFileWarnings.get(fileRef.nodeId.toString())?.startsWith('✅')
-                   ? 'bg-green-50 border border-green-300 text-green-800'
+                   ? 'bg-green-50 border border-green-300 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-300'
                    : outputFileWarnings.get(fileRef.nodeId.toString())?.startsWith('❌')
-                   ? 'bg-red-50 border border-red-300 text-red-800'
-                   : 'bg-amber-100 border border-amber-300 text-amber-800'">
+                   ? 'bg-red-50 border border-red-300 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
+                   : 'bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300'">
               {{ outputFileWarnings.get(fileRef.nodeId.toString()) }}
             </div>
           </div>

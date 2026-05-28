@@ -264,7 +264,7 @@
                     <!-- Status Message -->
                     <div v-if="thumbnailReuploadStatus"
                          class="p-2 rounded-lg text-sm"
-                         :class="thumbnailReuploadStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+                         :class="thumbnailReuploadStatus.success ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'">
                       {{ thumbnailReuploadStatus.message }}
                     </div>
 
@@ -398,7 +398,7 @@
                         {{ path }}
                       </div>
                     </div>
-                    <div v-else class="px-2 py-1.5 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                    <div v-else class="px-2 py-1.5 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700 dark:bg-orange-950/40 dark:border-orange-800 dark:text-orange-400">
                       Not set — click Edit to configure
                     </div>
                   </div>
@@ -875,7 +875,7 @@
                       <span
                         v-for="node in form.requiresCustomNodes"
                         :key="node"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-md"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-md dark:bg-orange-950/50 dark:text-orange-300"
                       >
                         {{ node }}
                         <button
@@ -1049,13 +1049,13 @@
                               <div class="flex items-center gap-1">
                                 <span
                                   v-if="model.status === 'success'"
-                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded"
+                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded dark:bg-green-950/50 dark:text-green-300"
                                 >
                                   ✓ Auto-fetched
                                 </span>
                                 <span
                                   v-else
-                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded"
+                                  class="inline-flex items-center px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded dark:bg-amber-950/50 dark:text-amber-300"
                                 >
                                   ⚠️ Manual input required
                                 </span>
