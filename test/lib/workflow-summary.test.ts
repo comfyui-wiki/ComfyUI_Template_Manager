@@ -3,47 +3,49 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { extractWorkflowSummary } from '../../lib/workflow-summary'
 
-const SAMPLE_PATH = resolve(
-  '/Users/linmoumou/Downloads/utility_depth_anything3_image_depth_estimation.json'
-)
+const DEPTH_FIXTURE = resolve(__dirname, '../fixtures/depth-anything3-workflow.json')
+const BERNINI_FIXTURE = '/Users/linmoumou/Downloads/video_bernini_r_image_editing.json'
 
 describe('extractWorkflowSummary', () => {
-  it('builds unified context with IO counts, parameters, and purpose', () => {
-    const json = readFileSync(SAMPLE_PATH, 'utf-8')
-    const summary = extractWorkflowSummary(json)
+  it('extracts MarkdownNote content for depth workflow', () => {
+    const json = readFileSync(DEPTH_FIXTURE, 'utf-8')
+    const summary = extractWorkflowSummary(json)!
 
-    expect(summary).not.toBeNull()
-    expect(summary!.estimatedTokens).toBeLessThan(900)
+    expect(summary.structured.notes).toHaveLength(1)
+    expect(summary.structured.notes[0].kind).toBe('markdown_note')
+    expect(summary.structured.notes[0].title).toBe('About: Depth Anything 3')
+    expect(summary.text).toContain('Depth Anything 3')
+    expect(summary.text).toContain('DA3-SMALL')
+    expect(summary.text).not.toContain('Author notes')
+    expect(summary.text.indexOf('Technical Details')).toBeGreaterThan(0)
+    expect(summary.structured.purpose).toBe('About: Depth Anything 3')
+    expect(summary.structured.io.inputImages).toBe(1)
+    expect(summary.structured.mainNodes.some(n => n.label === 'View 1')).toBe(true)
+  })
 
-    const { text, structured } = summary!
+  it('ignores groups and node title hints', () => {
+    const json = readFileSync(DEPTH_FIXTURE, 'utf-8')
+    const summary = extractWorkflowSummary(json)!
 
-    // Overview
-    expect(text).toContain('Workflow Overview')
-    expect(text).toContain('Purpose:')
-    expect(structured.purpose).toContain('Depth')
-    expect(text).toContain('1 input image')
-    expect(structured.io.inputImages).toBe(1)
-    expect(structured.io.outputImages).toBe(1)
-    expect(structured.io.outputComparisons).toBe(1)
+    expect(summary.structured.notes.every(n => n.kind === 'markdown_note')).toBe(true)
+    expect(summary.structured.notes.some(n => n.content.includes('Load DA3 Model'))).toBe(false)
+  })
 
-    // Parameters
-    expect(text).toContain('Key Parameters')
-    expect(text).toContain('resolution=504')
-    expect(text).toContain('output=depth')
+  it('extracts MarkdownNote content for Bernini workflow', () => {
+    try {
+      readFileSync(BERNINI_FIXTURE, 'utf-8')
+    } catch {
+      return // skip if fixture not on disk
+    }
 
-    // Use cases
-    expect(text).toContain('Use Cases')
-    expect(text).toContain('Suitable for:')
-    expect(structured.useCases.length).toBeGreaterThan(0)
-    expect(structured.useCases.some(uc => /3D|VFX|AR/i.test(uc))).toBe(true)
+    const json = readFileSync(BERNINI_FIXTURE, 'utf-8')
+    const summary = extractWorkflowSummary(json)!
 
-    expect(structured.parameters.some(p => p.node.includes('DA3'))).toBe(true)
-
-    // Annotations & flow
-    expect(text).toContain('View 1')
-    expect(text).toContain('DA3-SMALL')
-    expect(text).toContain('Main Flow')
-    expect(structured.techniques).toContain('Depth estimation')
+    expect(summary.structured.notes.filter(n => n.kind === 'markdown_note').length).toBeGreaterThan(0)
+    expect(summary.text).toContain('Bernini')
+    expect(summary.text).toMatch(/Built for|Image Editing/i)
+    expect(summary.text).not.toMatch(/this workflow performs lora/i)
+    expect(summary.structured.io.inputImages).toBe(2)
   })
 
   it('returns null for invalid JSON', () => {

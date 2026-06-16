@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "type": "MarkdownNote",
+      "order": 0,
+      "title": "About: Depth Anything 3",
+      "widgets_values": [
+        "## What is this workflow?\n\nDepth Anything 3 (DA3) estimates depth from images. Use DA3-SMALL or DA3-BASE for multi-view setups.\n\nIdeal for 3D scene reconstruction and VFX depth passes."
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "order": 1,
+      "title": "View 1",
+      "widgets_values": ["sample.png", "image"]
+    },
+    {
+      "id": 6,
+      "type": "PreviewImage",
+      "order": 2,
+      "title": "Depth Preview"
+    },
+    {
+      "id": 14,
+      "type": "605cfcbf-c05b-4cd4-8b8f-9d7d989ab5d3",
+      "order": 3,
+      "title": "Image Depth Estimation (Depth Anything 3)"
+    },
+    {
+      "id": 80,
+      "type": "ImageCompare",
+      "order": 4
+    }
+  ],
+  "definitions": {
+    "subgraphs": [
+      {
+        "name": "Image Depth Estimation (Depth Anything 3)",
+        "nodes": [
+          {
+            "id": 1,
+            "type": "LoadDA3Model",
+            "title": "Load DA3 Model (use DA3-SMALL or DA3-BASE)",
+            "properties": {
+              "models": [{ "name": "DA3-SMALL.safetensors" }]
+            },
+            "widgets_values": ["depth_anything_3_mono_large.safetensors"]
+          },
+          {
+            "id": 5,
+            "type": "DA3Inference",
+            "widgets_values": [504, "upper_bound_resize", "mono"]
+          },
+          {
+            "id": 7,
+            "type": "DA3Render",
+            "widgets_values": ["depth", "v2_style", false]
+          }
+        ]
+      }
+    ]
+  }
+}
