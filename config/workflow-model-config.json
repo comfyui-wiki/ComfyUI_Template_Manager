@@ -33,6 +33,7 @@
     "LoadMoGeModel": "geometry_estimation",
     "LoadMediaPipeFaceLandmarker": "detection",
     "LoadBackgroundRemovalModel": "background_removal",
+    "LoadDA3Model": "geometry_estimation",
     "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
   "noteTemplate": {

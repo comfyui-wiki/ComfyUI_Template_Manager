@@ -11,6 +11,8 @@ interface RequestBody {
     models?: string[]
   }
   userInput?: string
+  /** Compact workflow summary (~500-3000 chars), not full JSON */
+  workflowSummary?: string
   availableTags?: string[]
   customSystemPrompt?: string
   customContextText?: string
@@ -95,12 +97,15 @@ export default defineEventHandler(async (event) => {
       ].join('\n')
     }
 
+    const workflowSummaryText = body.workflowSummary?.trim() || '(not available — no workflow uploaded)'
+
     let userPrompt = promptConfig.userPromptTemplate
       .replace('{title}', body.context.title || '(not provided)')
       .replace('{description}', body.context.description || '(not provided)')
       .replace('{tags}', body.context.tags?.join(', ') || '(none)')
       .replace('{models}', body.context.models?.join(', ') || '(none)')
       .replace('{currentTags}', body.context.tags?.join(', ') || '(none)')
+      .replace('{workflowSummary}', workflowSummaryText)
       .replace('{userInput}', body.userInput || '(none)')
 
     // If using custom context text, replace the template context section

@@ -11,6 +11,8 @@ interface RequestBody {
     category?: string
   }
   userInput?: string
+  /** Compact workflow summary (~500-3000 chars), not full JSON */
+  workflowSummary?: string
   availableTags?: string[]
   availableModels?: string[]
   customSystemPrompt?: string
@@ -80,12 +82,15 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    const workflowSummaryText = body.workflowSummary?.trim() || '(not available — no workflow uploaded)'
+
     let userPrompt = promptConfig.userPromptTemplate
       .replace('{title}', body.context.title || '(not provided)')
       .replace('{description}', body.context.description || '(not provided)')
       .replace('{tags}', body.context.tags?.join(', ') || '(none)')
       .replace('{models}', body.context.models?.join(', ') || '(none)')
       .replace('{category}', body.context.category || '(not provided)')
+      .replace('{workflowSummary}', workflowSummaryText)
       .replace('{userInput}', body.userInput || '(Please analyze the workflow and generate metadata)')
 
     let systemPrompt = body.customSystemPrompt || promptConfig.systemPrompt

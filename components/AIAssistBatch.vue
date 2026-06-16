@@ -46,21 +46,52 @@
         </DialogHeader>
 
         <div class="flex-1 overflow-y-auto space-y-4 py-4 px-1">
+          <!-- Workflow Context (auto-extracted) -->
+          <div
+            v-if="workflowSummaryMeta"
+            class="dm-callout-success border p-3 space-y-2 rounded-md"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <Label class="text-sm font-medium flex items-center gap-2">
+                <input
+                  v-model="includeWorkflowContext"
+                  type="checkbox"
+                  class="rounded"
+                  :disabled="loading"
+                />
+                Include Workflow Context
+              </Label>
+              <span class="text-xs text-muted-foreground whitespace-nowrap">
+                ~{{ workflowSummaryMeta.estimatedTokens }} tokens
+                (from {{ (workflowSummaryMeta.originalSizeBytes / 1024).toFixed(1) }} KB)
+              </span>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              Same context sent to AI — IO counts, parameters, annotations, and flow.
+            </p>
+            <Textarea
+              v-if="includeWorkflowContext"
+              v-model="workflowSummaryText"
+              class="min-h-[8rem] max-h-48 resize-none text-xs font-mono"
+              :disabled="loading"
+            />
+          </div>
+
           <!-- Reference Materials (Primary Input) -->
           <div class="space-y-2 border border-primary/30 rounded-md p-3 bg-primary/5">
             <Label class="text-sm font-medium">
               Reference Materials / Input
-              <span class="text-muted-foreground font-normal">(required)</span>
+              <span class="text-muted-foreground font-normal">(optional when workflow is loaded)</span>
             </Label>
             <Textarea
               v-model="userInput"
-              placeholder="Paste workflow description, node info, model names, or any reference content to help AI understand the template..."
-              rows="6"
-              class="resize-none min-h-[120px]"
+              placeholder="Optional: paste extra notes, marketing copy, or feature details. Workflow context above is usually enough."
+              rows="4"
+              class="resize-none min-h-[80px]"
               :disabled="loading"
             />
             <p class="text-xs text-muted-foreground">
-              e.g. workflow JSON snippet, node types, models used, feature description. More detail yields better results.
+              Optional extra context. When a workflow is uploaded, the summary above is the primary reference.
             </p>
           </div>
 
@@ -174,7 +205,7 @@
               <Button
                 v-if="!result"
                 @click="getSuggestion"
-                :disabled="loading || !userInput?.trim()"
+                :disabled="loading || (!userInput?.trim() && !includeWorkflowContext)"
               >
                 <svg v-if="loading" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -212,6 +243,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { extractWorkflowSummary, formatWorkflowSummaryForUI } from '@/lib/workflow-summary'
 
 interface BatchSuggestion {
   title: string
@@ -222,6 +254,8 @@ interface BatchSuggestion {
 
 interface Props {
   context: Record<string, any>
+  /** Raw workflow JSON — a compact summary is extracted automatically */
+  workflowContent?: string
   disabled?: boolean
   availableTags?: string[]
   availableModels?: string[]
@@ -230,7 +264,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   availableTags: () => [],
-  availableModels: () => []
+  availableModels: () => [],
+  workflowContent: ''
 })
 
 const emit = defineEmits<{
@@ -253,6 +288,13 @@ const editableTitle = ref('')
 const editableDescription = ref('')
 const editableTagsStr = ref('')
 const editableModelsStr = ref('')
+const includeWorkflowContext = ref(true)
+const workflowSummaryText = ref('')
+
+const workflowSummaryMeta = computed(() => {
+  if (!props.workflowContent?.trim()) return null
+  return extractWorkflowSummary(props.workflowContent)
+})
 
 const buttonTitle = computed(() => {
   if (props.disabled) return 'AI Fill All (disabled)'
@@ -276,6 +318,14 @@ const openDialog = async () => {
   error.value = null
   editableContext.value = contextPreview.value
   defaultContext.value = contextPreview.value
+
+  if (workflowSummaryMeta.value) {
+    workflowSummaryText.value = formatWorkflowSummaryForUI(workflowSummaryMeta.value)
+    includeWorkflowContext.value = true
+  } else {
+    workflowSummaryText.value = ''
+    includeWorkflowContext.value = false
+  }
 
   if (!defaultSystemPrompt.value) {
     try {
@@ -328,6 +378,7 @@ const getSuggestion = async () => {
         body: {
           context: parsedContext,
           userInput: userInput.value,
+          workflowSummary: includeWorkflowContext.value ? workflowSummaryText.value : undefined,
           availableTags: props.availableTags,
           availableModels: props.availableModels,
           customSystemPrompt: systemPrompt.value
@@ -385,6 +436,8 @@ watch(dialogOpen, (val) => {
     editableDescription.value = ''
     editableTagsStr.value = ''
     editableModelsStr.value = ''
+    workflowSummaryText.value = ''
+    includeWorkflowContext.value = false
   }
 })
 </script>

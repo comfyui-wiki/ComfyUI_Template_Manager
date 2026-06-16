@@ -240,6 +240,7 @@
                   </div>
                   <AIAssistBatch
                     :context="aiContext"
+                    :workflow-content="aiWorkflowContent"
                     :available-tags="availableTags"
                     :available-models="availableModels"
                     :disabled="!canEditCurrentRepo"
@@ -414,6 +415,7 @@
                         field-type="title"
                         field-label="Title"
                         :context="aiContext"
+                        :workflow-content="aiWorkflowContent"
                         :disabled="!canEditCurrentRepo"
                         @suggestion="handleAITitleSuggestion"
                       />
@@ -441,6 +443,7 @@
                         field-type="description"
                         field-label="Description"
                         :context="aiContext"
+                        :workflow-content="aiWorkflowContent"
                         :disabled="!canEditCurrentRepo"
                         @suggestion="handleAIDescriptionSuggestion"
                       />
@@ -516,6 +519,7 @@
                         field-type="tags"
                         field-label="Tags"
                         :context="aiContext"
+                        :workflow-content="aiWorkflowContent"
                         :available-tags="availableTags"
                         :disabled="!canEditCurrentRepo"
                         @suggestion="handleAITagsSuggestion"
@@ -1575,6 +1579,10 @@ const aiContext = computed(() => ({
   models: form.value.models,
   category: form.value.category
 }))
+
+const aiWorkflowContent = computed(
+  () => updatedWorkflowContent.value || workflowContent.value || ''
+)
 
 // Handler for AI batch fill (all fields at once)
 const handleAIBatchApply = (suggestion: { title: string; description: string; tags: string[]; models: string[] }) => {

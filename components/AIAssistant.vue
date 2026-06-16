@@ -122,6 +122,38 @@
           </div>
 
 
+          <!-- Workflow Context (auto-extracted summary) -->
+          <div
+            v-if="workflowSummaryMeta"
+            class="dm-callout-success border p-3 space-y-2 rounded-md"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <Label class="text-sm font-medium flex items-center gap-2">
+                <input
+                  v-model="includeWorkflowContext"
+                  type="checkbox"
+                  class="rounded"
+                  :disabled="loading"
+                />
+                Include Workflow Context
+              </Label>
+              <span class="text-xs text-muted-foreground whitespace-nowrap">
+                ~{{ workflowSummaryMeta.estimatedTokens }} tokens
+                (from {{ (workflowSummaryMeta.originalSizeBytes / 1024).toFixed(1) }} KB JSON)
+              </span>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              Extracted from the workflow JSON — same context you and AI both use.
+              Includes IO counts, parameters, node titles, and pipeline steps.
+            </p>
+            <Textarea
+              v-if="includeWorkflowContext"
+              v-model="workflowSummaryText"
+              class="min-h-[8rem] max-h-48 resize-none text-xs font-mono"
+              :disabled="loading"
+            />
+          </div>
+
           <!-- User Input -->
           <div class="space-y-2">
             <Label for="userInput" class="text-sm font-medium">
@@ -243,11 +275,14 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { extractWorkflowSummary, formatWorkflowSummaryForUI } from '@/lib/workflow-summary'
 
 interface Props {
   fieldType: 'tags' | 'title' | 'description'
   fieldLabel?: string
   context: Record<string, any>
+  /** Raw workflow JSON — a compact summary is extracted automatically */
+  workflowContent?: string
   disabled?: boolean
   availableTags?: string[]
 }
@@ -255,7 +290,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   fieldLabel: '',
   disabled: false,
-  availableTags: () => []
+  availableTags: () => [],
+  workflowContent: ''
 })
 
 const emit = defineEmits<{
@@ -278,6 +314,13 @@ const defaultSystemPrompt = ref<string>('') // Store default for reset
 const userPrompt = ref<string>('')
 const editableContext = ref<string>('')
 const defaultContext = ref<string>('')
+const includeWorkflowContext = ref(true)
+const workflowSummaryText = ref<string>('')
+
+const workflowSummaryMeta = computed(() => {
+  if (!props.workflowContent?.trim()) return null
+  return extractWorkflowSummary(props.workflowContent)
+})
 
 // Computed
 const buttonTitle = computed(() => {
@@ -327,6 +370,15 @@ const openDialog = async () => {
   error.value = null
   showPrompts.value = false
   userPrompt.value = ''
+
+  // Initialize workflow summary
+  if (workflowSummaryMeta.value) {
+    workflowSummaryText.value = formatWorkflowSummaryForUI(workflowSummaryMeta.value)
+    includeWorkflowContext.value = true
+  } else {
+    workflowSummaryText.value = ''
+    includeWorkflowContext.value = false
+  }
 
   // Initialize editable context from props
   const contextText = contextPreview.value
@@ -399,9 +451,10 @@ const getSuggestion = async () => {
         fieldType: props.fieldType,
         context: parsedContext,
         userInput: userInput.value,
+        workflowSummary: includeWorkflowContext.value ? workflowSummaryText.value : undefined,
         availableTags: props.availableTags,
-        customSystemPrompt: systemPrompt.value, // Send custom prompt
-        customContextText: editableContext.value // Send raw text for user prompt
+        customSystemPrompt: systemPrompt.value,
+        customContextText: editableContext.value
       }
     })
 
@@ -459,6 +512,8 @@ watch(dialogOpen, (newVal) => {
     userPrompt.value = ''
     editableContext.value = ''
     defaultContext.value = ''
+    workflowSummaryText.value = ''
+    includeWorkflowContext.value = false
     // Keep systemPrompt loaded for next time
   }
 })
