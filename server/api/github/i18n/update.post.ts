@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
     const octokit = new Octokit({ auth: session.accessToken })
 
     // Use directly imported config (works in both dev and production/Vercel)
-    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/i18n.json'
+    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json'
 
     console.log('[Update i18n] Starting translation update and sync...')
     console.log('[Update i18n] i18n.json path:', i18nPath)

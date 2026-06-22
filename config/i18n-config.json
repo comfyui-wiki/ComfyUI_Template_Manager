@@ -66,8 +66,8 @@
   ],
   "i18nDataPath": {
     "comment": "Path to i18n.json file relative to repository root",
-    "default": "scripts/i18n.json",
-    "fallback": "config/i18n.json"
+    "default": "scripts/data/i18n.json",
+    "fallback": "scripts/i18n.json"
   },
   "translatableFields": {
     "comment": "Fields that need translation in templates",

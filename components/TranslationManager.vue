@@ -134,7 +134,7 @@ const loadI18nData = async () => {
 
     let errorMessage = 'Failed to load translation data.'
     if (error.statusCode === 404) {
-      errorMessage = 'i18n.json file not found in repository. Please check that scripts/i18n.json exists in your repository.'
+      errorMessage = 'i18n.json file not found in repository. Please check that scripts/data/i18n.json exists in your repository.'
     } else if (error.statusCode === 401) {
       errorMessage = 'Authentication error. Please sign in again.'
     } else if (error.data?.message) {

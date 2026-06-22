@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
 
     const [owner, repoName] = repo.split('/')
     const octokit = new Octokit({ auth: session.accessToken })
-    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/i18n.json'
+    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json'
 
     console.log(`[tags-models update] Deleting tags: [${deleteTags.join(', ')}], models: [${deleteModels.join(', ')}]`)
 

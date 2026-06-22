@@ -166,8 +166,12 @@ export async function readI18nJson(
   branch: string,
   config: I18nConfig
 ): Promise<I18nData> {
-  const i18nPath = config.i18nDataPath.default
-  const data = await readJsonFromGitHub(octokit, repo, branch, i18nPath)
+  let data = await readJsonFromGitHub(octokit, repo, branch, config.i18nDataPath.default)
+
+  if (!data && config.i18nDataPath.fallback) {
+    console.log(`[i18n-sync] Trying fallback i18n.json path: ${config.i18nDataPath.fallback}`)
+    data = await readJsonFromGitHub(octokit, repo, branch, config.i18nDataPath.fallback)
+  }
 
   if (!data) {
     // Return default structure if file doesn't exist

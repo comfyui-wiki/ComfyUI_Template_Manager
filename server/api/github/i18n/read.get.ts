@@ -27,63 +27,71 @@ export default defineEventHandler(async (event) => {
     const octokit = new Octokit({ auth: session.accessToken })
 
     // Use directly imported config (works in both dev and production/Vercel)
-    const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/i18n.json'
+    const i18nPaths = [
+      i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json',
+      i18nConfig.i18nDataPath?.fallback
+    ].filter((path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index)
 
-    console.log(`[i18n read API] Reading i18n.json from: ${i18nPath}`)
+    for (const i18nPath of i18nPaths) {
+      console.log(`[i18n read API] Reading i18n.json from: ${i18nPath}`)
 
-    try {
-      // Step 1: Get file metadata via getContent to retrieve the blob SHA
-      // (getContent fails for files >1MB base64-encoded, so we only use it for the SHA)
-      const { data: fileInfo } = await octokit.repos.getContent({
-        owner,
-        repo: repoName,
-        path: i18nPath,
-        ref: branch as string,
-        headers: {
-          'If-None-Match': '' // Disable GitHub API caching
-        }
-      })
-
-      if (!('sha' in fileInfo) || !fileInfo.sha) {
-        throw new Error('Invalid file structure: missing SHA')
-      }
-
-      // Step 2: If content is present and not truncated, use it directly
-      if ('content' in fileInfo && fileInfo.content && !('truncated' in fileInfo && fileInfo.truncated)) {
-        const content = Buffer.from(fileInfo.content, 'base64').toString('utf-8')
-        const i18nData = JSON.parse(content)
-        console.log(`[i18n read API] Successfully loaded i18n.json via getContent`)
-        return i18nData
-      }
-
-      // Step 3: File is too large for getContent — use Git Blobs API which handles files up to 100MB
-      console.log(`[i18n read API] File too large for getContent, falling back to Git Blobs API`)
-      const { data: blob } = await octokit.git.getBlob({
-        owner,
-        repo: repoName,
-        file_sha: fileInfo.sha
-      })
-
-      let content: string
-      if (blob.encoding === 'base64') {
-        content = Buffer.from(blob.content.replace(/\n/g, ''), 'base64').toString('utf-8')
-      } else {
-        content = blob.content
-      }
-
-      const i18nData = JSON.parse(content)
-      console.log(`[i18n read API] Successfully loaded i18n.json via Git Blobs API`)
-      return i18nData
-    } catch (error: any) {
-      if (error.status === 404) {
-        console.error(`[i18n read API] File not found: ${i18nPath} in ${owner}/${repoName}@${branch}`)
-        throw createError({
-          statusCode: 404,
-          statusMessage: `i18n.json not found at path: ${i18nPath}`
+      try {
+        // Step 1: Get file metadata via getContent to retrieve the blob SHA
+        // (getContent fails for files >1MB base64-encoded, so we only use it for the SHA)
+        const { data: fileInfo } = await octokit.repos.getContent({
+          owner,
+          repo: repoName,
+          path: i18nPath,
+          ref: branch as string,
+          headers: {
+            'If-None-Match': '' // Disable GitHub API caching
+          }
         })
+
+        if (!('sha' in fileInfo) || !fileInfo.sha) {
+          throw new Error('Invalid file structure: missing SHA')
+        }
+
+        // Step 2: If content is present and not truncated, use it directly
+        if ('content' in fileInfo && fileInfo.content && !('truncated' in fileInfo && fileInfo.truncated)) {
+          const content = Buffer.from(fileInfo.content, 'base64').toString('utf-8')
+          const i18nData = JSON.parse(content)
+          console.log(`[i18n read API] Successfully loaded i18n.json via getContent`)
+          return i18nData
+        }
+
+        // Step 3: File is too large for getContent — use Git Blobs API which handles files up to 100MB
+        console.log(`[i18n read API] File too large for getContent, falling back to Git Blobs API`)
+        const { data: blob } = await octokit.git.getBlob({
+          owner,
+          repo: repoName,
+          file_sha: fileInfo.sha
+        })
+
+        let content: string
+        if (blob.encoding === 'base64') {
+          content = Buffer.from(blob.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+        } else {
+          content = blob.content
+        }
+
+        const i18nData = JSON.parse(content)
+        console.log(`[i18n read API] Successfully loaded i18n.json via Git Blobs API`)
+        return i18nData
+      } catch (error: any) {
+        if (error.status === 404) {
+          console.warn(`[i18n read API] File not found: ${i18nPath} in ${owner}/${repoName}@${branch}`)
+          continue
+        }
+        throw error
       }
-      throw error
     }
+
+    console.error(`[i18n read API] i18n.json not found at any configured path in ${owner}/${repoName}@${branch}`)
+    throw createError({
+      statusCode: 404,
+      statusMessage: `i18n.json not found at paths: ${i18nPaths.join(', ')}`
+    })
   } catch (error: any) {
     console.error('[i18n read API] Error reading i18n.json:', error)
 
