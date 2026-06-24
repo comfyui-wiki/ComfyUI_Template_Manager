@@ -246,6 +246,31 @@
             </span>
           </div>
 
+          <!-- Reset branch to upstream -->
+          <div
+            v-if="canResetBranchToUpstream"
+            class="mt-2"
+          >
+            <Button
+              @click="handleShowResetBranch"
+              size="sm"
+              variant="outline"
+              class="w-full h-7 text-xs"
+              :disabled="isResettingBranch"
+              title="Discard local commits and reset this branch to upstream main latest"
+            >
+              <svg v-if="isResettingBranch" class="w-3 h-3 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span v-if="isResettingBranch">Resetting...</span>
+              <span v-else>Reset to Upstream</span>
+            </Button>
+          </div>
+
           <!-- Permission status -->
           <div v-if="canEditCurrentRepo" class="text-green-600 mt-1 flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -448,6 +473,16 @@
     @create-backup="handleCreateBackup"
     @refresh="handleRefreshAfterSync"
   />
+
+  <!-- Reset Current Branch to Upstream -->
+  <ResetBranchDialog
+    ref="resetBranchDialog"
+    :branch="selectedBranch || ''"
+    :ahead-by="currentBranchComparison?.aheadBy || 0"
+    :is-diverged="currentBranchComparison?.isDiverged || false"
+    :suggested-backup-name="suggestedBranchBackupName"
+    @confirm="handleResetBranchToUpstream"
+  />
 </template>
 
 <script setup lang="ts">
@@ -458,6 +493,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import ResetMainDialog from '@/components/ResetMainDialog.vue'
+import ResetBranchDialog from '@/components/ResetBranchDialog.vue'
 
 const {
   hasMainRepoAccess,
@@ -486,7 +522,9 @@ const deletingBranch = ref<string | null>(null)
 const currentBranchComparison = ref<any>(null)
 const showAdvancedSyncOptions = ref(true) // Default to expanded
 const resetMainDialog = ref<InstanceType<typeof ResetMainDialog> | null>(null)
+const resetBranchDialog = ref<InstanceType<typeof ResetBranchDialog> | null>(null)
 const isResetting = ref(false)
+const isResettingBranch = ref(false)
 const resetOperation = ref<'save' | 'force' | null>(null)
 
 const suggestedBranchName = computed(() => {
@@ -502,6 +540,23 @@ const suggestedResetBranchName = computed(() => {
   const date = now.toISOString().slice(0, 10).replace(/-/g, '')
   const time = now.toISOString().slice(11, 19).replace(/:/g, '')
   return `backup-main-${date}-${time}`
+})
+
+const suggestedBranchBackupName = computed(() => {
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const time = now.toISOString().slice(11, 19).replace(/:/g, '')
+  const branchSlug = (selectedBranch.value || 'branch').replace(/[^a-zA-Z0-9-]/g, '-')
+  return `backup-${branchSlug}-${date}-${time}`
+})
+
+const canResetBranchToUpstream = computed(() => {
+  if (!hasRepoWriteAccess.value || !selectedBranch.value || !isCurrentRepoFork.value) {
+    return false
+  }
+  if (!currentBranchComparison.value) return false
+  // Hide when already identical to upstream
+  return currentBranchComparison.value.status !== 'identical'
 })
 
 const forkOwner = computed(() => {
@@ -745,6 +800,51 @@ const handleCreateBackup = async (branchName: string) => {
 const handleRefreshAfterSync = async () => {
   await initialize()
   await loadCurrentBranchComparison()
+}
+
+const handleShowResetBranch = () => {
+  resetBranchDialog.value?.show()
+}
+
+const handleResetBranchToUpstream = async (options: { saveToNewBranch: boolean; newBranchName?: string }) => {
+  if (!selectedRepo.value || !selectedBranch.value) return
+
+  isResettingBranch.value = true
+  const [owner, name] = selectedRepo.value.split('/')
+
+  try {
+    const response = await $fetch('/api/github/branch/reset-to-upstream', {
+      method: 'POST',
+      body: {
+        owner,
+        repo: name,
+        branch: selectedBranch.value,
+        saveToNewBranch: options.saveToNewBranch,
+        newBranchName: options.newBranchName
+      }
+    })
+
+    resetBranchDialog.value?.close()
+
+    if (response.alreadyUpToDate) {
+      alert('Branch is already up to date with upstream.')
+    } else if (response.createdBranch) {
+      alert(`Branch reset to upstream.\n\nYour previous commits were saved to: ${response.createdBranch}`)
+    } else {
+      alert('Branch reset to upstream latest successfully.')
+    }
+
+    await loadBranches(owner, name)
+    await loadCurrentBranchComparison()
+    window.location.reload()
+  } catch (error: any) {
+    console.error('Failed to reset branch:', error)
+    resetBranchDialog.value?.setProcessing(false)
+    const message = error.data?.statusMessage || error.data?.message || error.message || 'Failed to reset branch'
+    alert(`Error: ${message}`)
+  } finally {
+    isResettingBranch.value = false
+  }
 }
 
 // Delete a branch
