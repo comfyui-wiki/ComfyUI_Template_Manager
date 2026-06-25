@@ -1,8 +1,8 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
-import bundleMappingRulesImport from '~/config/bundle-mapping-rules.json'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncTemplateToAllLocales, updateI18nJson, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
+import { assignTemplateToBundle, resolveTargetBundle } from '~/server/utils/bundles'
 
 interface CreateTemplateRequest {
   repo: string
@@ -30,6 +30,7 @@ interface CreateTemplateRequest {
     date?: string
     openSource?: boolean
     includeOnDistributions?: string[]
+    targetBundle?: string
     size?: number
     vram?: number
     usage?: number
@@ -310,37 +311,23 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      // Load bundle mapping rules
-      const bundleMappingRules = bundleMappingRulesImport
+      const targetBundle = resolveTargetBundle(metadata.category, metadata.targetBundle)
 
-      // Determine which bundle to add the template to based on category
-      const targetBundle = bundleMappingRules.categoryMapping[metadata.category] || bundleMappingRules.defaultBundle
+      console.log(`[Create Template] Assigning to bundle "${targetBundle}"${metadata.targetBundle ? ' (manual)' : ` (category: ${metadata.category})`}`)
 
-      console.log(`[Create Template] Category "${metadata.category}" maps to bundle "${targetBundle}"`)
+      const bundlesChanged = assignTemplateToBundle(bundlesData, templateName, targetBundle)
 
-      // Ensure bundle exists
-      if (!bundlesData[targetBundle]) {
-        bundlesData[targetBundle] = []
-        console.log(`[Create Template] Created new bundle "${targetBundle}"`)
-      }
-
-      // Add template to bundle (avoid duplicates)
-      if (!bundlesData[targetBundle].includes(templateName)) {
-        bundlesData[targetBundle].push(templateName)
-        console.log(`[Create Template] Added "${templateName}" to bundle "${targetBundle}"`)
-
-        // Add updated bundles.json to tree
-        // Keep bundles.json in standard format for better readability
+      if (bundlesChanged) {
         tree.push({
           path: 'bundles.json',
           mode: '100644' as const,
           type: 'blob' as const,
           content: JSON.stringify(bundlesData, null, 2)
         })
-
+        console.log(`[Create Template] Added "${templateName}" to bundle "${targetBundle}"`)
         console.log('[Create Template] bundles.json update queued for commit')
       } else {
-        console.log(`[Create Template] Template "${templateName}" already exists in bundle "${targetBundle}"`)
+        console.log(`[Create Template] Template "${templateName}" already in bundle "${targetBundle}"`)
       }
     } catch (error: any) {
       console.error('[Create Template] Failed to update bundles.json:', error)

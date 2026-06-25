@@ -1,8 +1,8 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
-import bundleMappingRulesImport from '~/config/bundle-mapping-rules.json'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
+import { assignTemplateToBundle, findTemplateBundle, resolveTargetBundle } from '~/server/utils/bundles'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -30,6 +30,7 @@ interface UpdateTemplateRequest {
     date?: string
     openSource?: boolean
     includeOnDistributions?: string[]
+    targetBundle?: string
     size?: number
     vram?: number
     usage?: number
@@ -70,6 +71,7 @@ interface UpdateTemplateRequest {
       filename: string
       content: string // base64
     }>
+    deletedOutputFiles?: string[]
   }
 }
 
@@ -403,11 +405,10 @@ export default defineEventHandler(async (event) => {
         content: formatTemplateJson(indexData)
       })
 
-      // Update bundles.json to ensure template is included
+      // Update bundles.json assignment
       try {
         console.log('[Update Template] Checking bundles.json...')
 
-        // Get current bundles.json
         const { data: bundlesFile } = await octokit.repos.getContent({
           owner,
           repo: repoName,
@@ -419,56 +420,31 @@ export default defineEventHandler(async (event) => {
           const bundlesContent = Buffer.from(bundlesFile.content, 'base64').toString('utf-8')
           const bundlesData = JSON.parse(bundlesContent)
 
-          // Check if template exists in any bundle
-          let templateExistsInBundle = false
-          for (const bundleName in bundlesData) {
-            if (Array.isArray(bundlesData[bundleName])) {
-              if (bundlesData[bundleName].includes(templateName)) {
-                templateExistsInBundle = true
-                console.log(`[Update Template] Template "${templateName}" already exists in bundle "${bundleName}"`)
-                break
-              }
-            }
-          }
+          const categoryTitle = categoryChanged ? metadata.category : currentCategoryTitle
+          const currentBundle = findTemplateBundle(bundlesData, templateName)
+          const targetBundle = metadata.targetBundle
+            ? resolveTargetBundle(categoryTitle || currentCategoryTitle, metadata.targetBundle)
+            : currentBundle || resolveTargetBundle(categoryTitle || currentCategoryTitle)
 
-          // If template doesn't exist in any bundle, add it
-          if (!templateExistsInBundle) {
-            console.log(`[Update Template] Template "${templateName}" not found in bundles.json, adding it...`)
+          const bundlesChanged = assignTemplateToBundle(bundlesData, templateName, targetBundle)
 
-            // Load bundle mapping rules
-            const bundleMappingRules = bundleMappingRulesImport
+          if (bundlesChanged) {
+            console.log(`[Update Template] Bundle assignment for "${templateName}": ${currentBundle || 'none'} -> ${targetBundle}`)
 
-            // Determine which bundle to add the template to
-            const categoryTitle = categoryChanged ? metadata.category : currentCategoryTitle
-            const targetBundle = bundleMappingRules.categoryMapping[categoryTitle] || bundleMappingRules.defaultBundle
-
-            console.log(`[Update Template] Category "${categoryTitle}" maps to bundle "${targetBundle}"`)
-
-            // Ensure bundle exists
-            if (!bundlesData[targetBundle]) {
-              bundlesData[targetBundle] = []
-              console.log(`[Update Template] Created new bundle "${targetBundle}"`)
-            }
-
-            // Add template to bundle (avoid duplicates)
-            if (!bundlesData[targetBundle].includes(templateName)) {
-              bundlesData[targetBundle].push(templateName)
-              console.log(`[Update Template] Added "${templateName}" to bundle "${targetBundle}"`)
-
-              // Add updated bundles.json to tree
-              // Keep bundles.json in standard format for better readability
-              tree.push({
-                path: 'bundles.json',
-                mode: '100644' as const,
-                type: 'blob' as const,
-                content: JSON.stringify(bundlesData, null, 2)
-              })
-            }
+            tree.push({
+              path: 'bundles.json',
+              mode: '100644' as const,
+              type: 'blob' as const,
+              content: JSON.stringify(bundlesData, null, 2)
+            })
+          } else {
+            console.log(`[Update Template] Template "${templateName}" already assigned to bundle "${targetBundle}"`)
           }
         }
       } catch (error: any) {
-        console.error('[Update Template] Failed to update bundles.json:', error.message)
-        // Don't fail the entire operation if bundles.json update fails
+        if (error.status !== 404) {
+          console.error('[Update Template] Failed to update bundles.json:', error.message)
+        }
       }
 
       // Sync updated template to all locale files (i18n)
@@ -843,6 +819,33 @@ export default defineEventHandler(async (event) => {
         })
 
         console.log(`[Update Template] Added output file: ${outputFile.filename}`)
+      }
+    }
+
+    // 6b. Delete removed output files
+    if (files?.deletedOutputFiles && files.deletedOutputFiles.length > 0) {
+      console.log(`[Update Template] Deleting ${files.deletedOutputFiles.length} output file(s)`)
+      for (const filename of files.deletedOutputFiles) {
+        const outputPath = `output/${filename}`
+        let fileExists = false
+        try {
+          await octokit.repos.getContent({ owner, repo: repoName, path: outputPath, ref: branch })
+          fileExists = true
+        } catch (e: any) {
+          if (e.status !== 404) throw e
+        }
+
+        if (fileExists) {
+          tree.push({
+            path: outputPath,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            sha: null as any
+          })
+          console.log(`[Update Template] Deleted output file: ${outputPath}`)
+        } else {
+          console.warn(`[Update Template] Output file not found, skipping deletion: ${outputPath}`)
+        }
       }
     }
 

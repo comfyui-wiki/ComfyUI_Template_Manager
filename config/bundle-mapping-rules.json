@@ -9,9 +9,29 @@
     "Getting Started": "media-other"
   },
   "defaultBundle": "media-other",
+  "sizeLimitMB": 100,
+  "bundles": {
+    "media-api": {
+      "label": "Media API",
+      "pypiPackage": "comfyui-workflow-templates-media-api"
+    },
+    "media-image": {
+      "label": "Media Image",
+      "pypiPackage": "comfyui-workflow-templates-media-image"
+    },
+    "media-video": {
+      "label": "Media Video",
+      "pypiPackage": "comfyui-workflow-templates-media-video"
+    },
+    "media-other": {
+      "label": "Media Other",
+      "pypiPackage": "comfyui-workflow-templates-media-other"
+    }
+  },
   "notes": {
     "description": "Maps template categories to bundle names",
     "categoryMapping": "Key is the category title from index.json, value is the bundle name in bundles.json",
-    "defaultBundle": "If category is not found in mapping, template will be added to this default bundle"
+    "defaultBundle": "If category is not found in mapping, template will be added to this default bundle",
+    "sizeLimitMB": "PyPI wheel size soft limit used for bundle capacity indicators"
   }
 }

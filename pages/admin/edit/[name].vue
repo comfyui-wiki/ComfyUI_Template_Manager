@@ -187,9 +187,9 @@
       <div v-else class="flex">
         <!-- Left Sidebar: Template List for Reordering -->
         <!-- In edit mode: always show -->
-        <!-- In create mode: show when category is selected and templateName is set -->
+        <!-- In create mode: show when category is selected (list fills in after workflow upload) -->
         <CategoryOrderSidebar
-          v-if="!isCreateMode || (isCreateMode && form.category && form.templateName)"
+          v-if="!isCreateMode || form.category"
           ref="categoryOrderSidebarRef"
           :templates="categoryTemplates"
           :current-template-name="isCreateMode ? form.templateName : templateName"
@@ -490,6 +490,15 @@
                       Current: {{ form.category }}
                     </p>
                   </div>
+
+                  <!-- Distribution Bundle -->
+                  <BundleSelector
+                    v-model="form.targetBundle"
+                    :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+                    :branch="selectedBranch || 'main'"
+                    :template-name="isCreateMode ? form.templateName : templateName"
+                    :category="form.category"
+                  />
 
                   <!-- Date -->
                   <div class="space-y-2">
@@ -1311,6 +1320,7 @@ import AIAssistBatch from '~/components/AIAssistBatch.vue'
 import LogosEditor from '~/components/LogosEditor.vue'
 import LogoManager from '~/components/LogoManager.vue'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
+import BundleSelector from '~/components/BundleSelector.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
 const route = useRoute()
@@ -1347,6 +1357,8 @@ const loading = ref(true)
 const error = ref('')
 const isSubmitting = ref(false)
 const originalTemplate = ref<any>(null)
+const originalTargetBundle = ref('')
+const bundleSelectionInitialized = ref(false)
 const showThumbnailFieldEditor = ref(false)
 const thumbnailFiles = ref<File[]>([])
 const thumbnailFileInputs = ref<any[]>([])
@@ -1361,6 +1373,7 @@ const updatedWorkflowContent = ref<string>('')
 const hasWorkflowChanged = ref<boolean>(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const reuploadedOutputFiles = ref<Map<string, File>>(new Map()) // New state for output files
+const outputFilesChanged = ref(false)
 
 // Save success state
 const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
@@ -1463,6 +1476,7 @@ const form = ref({
   date: '',
   openSource: null as boolean | null, // Required field, no default selection
   includeOnDistributions: [] as string[], // Platform availability: ['cloud', 'desktop', 'local'] or empty for all
+  targetBundle: '', // PyPI sub-package in bundles.json
   sizeGB: null as number | null, // Size in GB (will be converted to bytes when saving), null means not filled yet
   vramGB: null as number | null, // VRAM in GB (optional, null means not filled)
   usage: null as number | null, // Usage count (optional, null means not filled)
@@ -1744,6 +1758,7 @@ const hasFormChanges = computed(() => {
     JSON.stringify(form.value.models.sort()) !== JSON.stringify((originalTemplate.value.models || []).sort()) ||
     JSON.stringify(form.value.requiresCustomNodes.sort()) !== JSON.stringify((originalTemplate.value.requiresCustomNodes || []).sort()) ||
     JSON.stringify(form.value.includeOnDistributions.sort()) !== JSON.stringify((originalTemplate.value.includeOnDistributions || []).sort()) ||
+    form.value.targetBundle !== originalTargetBundle.value ||
     form.value.username !== (originalTemplate.value.username || '')
   )
 })
@@ -1768,7 +1783,9 @@ const hasAnyChanges = computed(() => {
     reuploadedThumbnails.value.size > 0 ||
     updatedWorkflowContent.value !== '' ||
     hasWorkflowChanged.value ||
-    reuploadedInputFiles.value.size > 0
+    reuploadedInputFiles.value.size > 0 ||
+    reuploadedOutputFiles.value.size > 0 ||
+    outputFilesChanged.value
   )
 })
 
@@ -1909,6 +1926,16 @@ const completionStatus = computed(() => {
   }
 })
 
+watch(
+  () => form.value.targetBundle,
+  (value) => {
+    if (!bundleSelectionInitialized.value && value) {
+      originalTargetBundle.value = value
+      bundleSelectionInitialized.value = true
+    }
+  }
+)
+
 // Watch for any changes to clear success message
 watch(
   () => [
@@ -1922,6 +1949,7 @@ watch(
     form.value.tags.length,
     form.value.models.length,
     form.value.logos.length,
+    form.value.targetBundle,
     reuploadedThumbnails.value.size,
     updatedWorkflowContent.value,
     hasWorkflowChanged.value,
@@ -2253,6 +2281,7 @@ const handleInputFilesUpdated = (files: Map<string, File>) => {
 // Handler for output files updates from WorkflowFileManager
 const handleOutputFilesUpdated = (files: Map<string, File>) => {
   reuploadedOutputFiles.value = files
+  outputFilesChanged.value = true
 }
 
 // Handler for custom nodes detected from workflow
@@ -2790,7 +2819,7 @@ const handleRefreshCategoryOrder = async () => {
 // Watch for category changes to reload templates
 // Update category templates with new template in first position (create mode)
 const updateCategoryTemplatesForCreate = async () => {
-  if (!isCreateMode.value || !form.value.category || !form.value.templateName) return
+  if (!isCreateMode.value || !form.value.category) return
 
   try {
     const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
@@ -2798,7 +2827,7 @@ const updateCategoryTemplatesForCreate = async () => {
     const [owner, repoName] = repo.split('/')
 
     // Reload index.json to get category templates
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json`
+    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -2815,23 +2844,27 @@ const updateCategoryTemplatesForCreate = async () => {
       return
     }
 
-    // Get existing templates
     const existingTemplates = categoryData.templates || []
 
-    // Create a temporary template object for the new template
-    const newTemplate = {
-      name: form.value.templateName,
-      title: form.value.title || form.value.templateName,
-      description: form.value.description || '',
-      mediaType: form.value.mediaType,
-      mediaSubtype: form.value.mediaSubtype
+    if (form.value.templateName) {
+      const newTemplate = {
+        name: form.value.templateName,
+        title: form.value.title || form.value.templateName,
+        description: form.value.description || '',
+        mediaType: form.value.mediaType,
+        mediaSubtype: form.value.mediaSubtype
+      }
+      const withoutDuplicate = existingTemplates.filter(
+        (t: { name: string }) => t.name !== form.value.templateName
+      )
+      categoryTemplates.value = [newTemplate, ...withoutDuplicate]
+      console.log('[Create Mode] Added new template to first position:', form.value.templateName)
+    } else {
+      categoryTemplates.value = [...existingTemplates]
+      console.log('[Create Mode] Loaded category templates:', categoryTemplates.value.length)
     }
 
-    // Add new template at the first position
-    categoryTemplates.value = [newTemplate, ...existingTemplates]
     originalCategoryTemplates.value = [...categoryTemplates.value]
-
-    console.log('[Create Mode] Added new template to first position:', form.value.templateName)
   } catch (error) {
     console.error('[Create Mode] Error updating category templates:', error)
   }
@@ -2854,10 +2887,15 @@ watch([() => form.value.title, () => form.value.description], () => {
   }
 })
 
+watch(() => form.value.templateName, async (newName, oldName) => {
+  if (!isCreateMode.value || !newName || newName === oldName || !form.value.category) return
+  await updateCategoryTemplatesForCreate()
+})
+
 watch(() => form.value.category, async (newCategory, oldCategory) => {
   if (!newCategory || newCategory === oldCategory) return
 
-  // In create mode, add new template to first position
+  // In create mode, load category list (prepend new template when name is known)
   if (isCreateMode.value) {
     await updateCategoryTemplatesForCreate()
     return
@@ -3404,6 +3442,12 @@ const handleSubmit = async () => {
       console.log('[Submit] Output files:', reuploadedOutputFiles.value.size, 'files')
     }
 
+    const deletedOutputFiles = workflowFileManagerRef.value?.removedOutputFiles
+    if (deletedOutputFiles && deletedOutputFiles.size > 0) {
+      filesData.deletedOutputFiles = Array.from(deletedOutputFiles)
+      console.log('[Submit] Output files to delete:', filesData.deletedOutputFiles)
+    }
+
     // Check if thumbnails were reuploaded (or need to be uploaded in create mode)
     if (reuploadedThumbnails.value.size > 0) {
       filesData.thumbnails = []
@@ -3531,6 +3575,7 @@ const handleSubmit = async () => {
           date: form.value.date,
           openSource: form.value.openSource,
           includeOnDistributions: form.value.includeOnDistributions,
+          targetBundle: form.value.targetBundle || undefined,
           // Round to 1 decimal before converting to bytes for storage (data loss minimization)
           size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
           vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
@@ -3589,11 +3634,13 @@ const handleSubmit = async () => {
       hasWorkflowChanged.value = false
       reuploadedInputFiles.value.clear()
       reuploadedOutputFiles.value.clear() // Clear output files
+      outputFilesChanged.value = false
       thumbnailReuploadStatus.value = null
 
       // Clear format changes in WorkflowFileManager
       if (workflowFileManagerRef.value) {
         workflowFileManagerRef.value.resetFormatChanges()
+        workflowFileManagerRef.value.clearRemovedOutputFiles?.()
       }
 
       // Update originalTemplate to reflect saved state (to reset change detection)
@@ -3615,6 +3662,7 @@ const handleSubmit = async () => {
         originalTemplate.value.includeOnDistributions = form.value.includeOnDistributions.length > 0
           ? [...form.value.includeOnDistributions]
           : undefined
+        originalTargetBundle.value = form.value.targetBundle
         // Store rounded values (1 decimal) to match what's saved in index.json
         originalTemplate.value.size = gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null)
         originalTemplate.value.vram = gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null)

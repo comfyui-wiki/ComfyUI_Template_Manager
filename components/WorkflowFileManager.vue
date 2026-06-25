@@ -590,6 +590,19 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
               </Button>
+              <Button
+                v-if="canRemoveOutputFile(fileRef)"
+                type="button"
+                variant="outline"
+                size="sm"
+                class="text-destructive hover:text-destructive"
+                @click="removeOutputFile(fileRef.nodeId)"
+                title="Remove file"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </Button>
             </div>
           </div>
 
@@ -697,6 +710,8 @@ const outputFileRefs = ref<OutputFileRef[]>([]) // New ref for output files
 const workflowParsed = ref(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const reuploadedOutputFiles = ref<Map<string, File>>(new Map()) // New map for output files
+const removedOutputFiles = ref<Set<string>>(new Set()) // Output files to delete from repo on save
+const outputFilesOnServer = ref<Set<string>>(new Set()) // Tracks files confirmed on GitHub
 const inputFileWarnings = ref<Map<string, string>>(new Map())
 const outputFileWarnings = ref<Map<string, string>>(new Map()) // New warnings for outputs
 const pendingConversionFiles = ref<Map<string, File>>(new Map())
@@ -1068,6 +1083,7 @@ const checkOutputFilesExistence = async () => {
   if (outputFileRefs.value.length === 0) return
 
   const [owner, repoName] = props.repo.split('/')
+  outputFilesOnServer.value.clear()
 
   for (const fileRef of outputFileRefs.value) {
     // Skip if no filename or already reuploaded
@@ -1084,6 +1100,7 @@ const checkOutputFilesExistence = async () => {
       fileRef.exists = response.ok
 
       if (response.ok) {
+        outputFilesOnServer.value.add(fileRef.filename)
         // Get file size
         const sizeHeader = response.headers.get('content-length')
         if (sizeHeader) {
@@ -1736,7 +1753,7 @@ const saveOutputFilenameEdit = async (nodeId: number) => {
     }
 
     // Emit updated files
-    emit('outputFilesUpdated', reuploadedOutputFiles.value)
+    emit('outputFilesUpdated', new Map(reuploadedOutputFiles.value))
   } else if (newFilename) {
     // New filename set without uploaded file - check repo existence
     fileRef.exists = false
@@ -1776,6 +1793,55 @@ const saveOutputFilenameEdit = async (nodeId: number) => {
   cancelOutputFilenameEdit()
 }
 
+const canRemoveOutputFile = (fileRef: OutputFileRef) => {
+  return Boolean(fileRef.filename?.trim() || fileRef.exists)
+}
+
+const removeOutputFile = (nodeId: number) => {
+  const fileRef = outputFileRefs.value.find(f => f.nodeId === nodeId)
+  if (!fileRef) return
+
+  const filename = fileRef.filename?.trim()
+  const hasPendingUpload = filename ? reuploadedOutputFiles.value.has(filename) : false
+  const hasServerFile = filename ? outputFilesOnServer.value.has(filename) : false
+
+  if (!filename && !hasPendingUpload && !fileRef.exists) return
+
+  const label = filename || `output slot (Node #${nodeId})`
+  if (!confirm(`Remove ${label}?${hasServerFile ? ' The file will be deleted from the repository when you save.' : ''}`)) {
+    return
+  }
+
+  if (filename && hasServerFile) {
+    removedOutputFiles.value.add(filename)
+    outputFilesOnServer.value.delete(filename)
+  }
+
+  if (filename) {
+    reuploadedOutputFiles.value.delete(filename)
+  }
+
+  if (fileRef.previewUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(fileRef.previewUrl)
+  }
+
+  fileRef.filename = ''
+  fileRef.exists = false
+  fileRef.previewUrl = undefined
+  fileRef.size = undefined
+  outputFileWarnings.value.delete(nodeId.toString())
+
+  if (editingOutputFilename.value === nodeId) {
+    cancelOutputFilenameEdit()
+  }
+
+  emit('outputFilesUpdated', new Map(reuploadedOutputFiles.value))
+}
+
+const clearRemovedOutputFiles = () => {
+  removedOutputFiles.value.clear()
+}
+
 // Expose methods and data for parent to call
 defineExpose({
   handleConvertedFileReceived,
@@ -1784,6 +1850,8 @@ defineExpose({
   inputFileRefs, // Expose input file refs for parent
   outputFileRefs, // Expose output file refs for parent
   reuploadedOutputFiles, // Expose reuploaded output files for parent
+  removedOutputFiles,
+  clearRemovedOutputFiles,
   isAppWorkflow // Expose app workflow flag for parent
 })
 
@@ -1873,7 +1941,7 @@ const handleOutputFileUpload = async (event: Event, nodeId: number) => {
   }
 
   // Emit updated files
-  emit('outputFilesUpdated', reuploadedOutputFiles.value)
+  emit('outputFilesUpdated', new Map(reuploadedOutputFiles.value))
 
   // Reset input
   input.value = ''

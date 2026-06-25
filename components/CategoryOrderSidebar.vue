@@ -41,7 +41,10 @@
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 pb-4">
-      <div class="space-y-2">
+      <p v-if="templates.length === 0" class="text-xs text-muted-foreground py-4 text-center">
+        No templates in this category yet.
+      </p>
+      <div v-else class="space-y-2">
         <div
           v-for="(template, index) in templates"
           :key="template.name"
