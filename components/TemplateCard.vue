@@ -217,18 +217,28 @@
         <span class="text-xs text-muted-foreground truncate">{{ creatorInfo.displayName }}</span>
       </div>
 
-      <!-- Platform availability -->
-      <div class="flex flex-wrap gap-1 mb-3" title="Platform availability">
+      <!-- Cloud / Local availability -->
+      <div class="flex flex-wrap gap-1.5 mb-3">
         <span
           v-for="platform in distributionStatuses"
           :key="platform.id"
-          class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border"
-          :class="platform.available
-            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-            : 'bg-muted/50 text-muted-foreground border-transparent line-through opacity-55'"
+          class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border"
+          :class="platform.id === 'cloud'
+            ? (platform.available
+              ? 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800'
+              : 'bg-muted/40 text-muted-foreground border-transparent opacity-50')
+            : (platform.available
+              ? 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800'
+              : 'bg-muted/40 text-muted-foreground border-transparent opacity-50')"
           :title="platform.available ? `Available on ${platform.label}` : `Not available on ${platform.label}`"
         >
-          {{ platform.label }}
+          <svg v-if="platform.id === 'cloud'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+          </svg>
+          <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          <span :class="{ 'line-through': !platform.available }">{{ platform.label }}</span>
         </span>
       </div>
 
@@ -384,7 +394,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useMouseInElement } from '@vueuse/core'
-import { getDistributionStatuses, isAvailableOnDistribution } from '@/composables/useTemplateDistributions'
+import { getCardDistributionStatuses, isAvailableOnDistribution } from '@/composables/useTemplateDistributions'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TemplateDetailsModal from '@/components/TemplateDetailsModal.vue'
@@ -426,7 +436,7 @@ const isInPR = computed(() => {
 })
 
 const distributionStatuses = computed(() =>
-  getDistributionStatuses(props.template.includeOnDistributions)
+  getCardDistributionStatuses(props.template.includeOnDistributions)
 )
 
 const isCloudAvailable = computed(() =>
