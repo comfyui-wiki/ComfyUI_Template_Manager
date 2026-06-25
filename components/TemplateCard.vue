@@ -217,6 +217,21 @@
         <span class="text-xs text-muted-foreground truncate">{{ creatorInfo.displayName }}</span>
       </div>
 
+      <!-- Platform availability -->
+      <div class="flex flex-wrap gap-1 mb-3" title="Platform availability">
+        <span
+          v-for="platform in distributionStatuses"
+          :key="platform.id"
+          class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border"
+          :class="platform.available
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+            : 'bg-muted/50 text-muted-foreground border-transparent line-through opacity-55'"
+          :title="platform.available ? `Available on ${platform.label}` : `Not available on ${platform.label}`"
+        >
+          {{ platform.label }}
+        </span>
+      </div>
+
       <!-- Models metadata (keeping this but removing tags as they're now on thumbnail) -->
       <div v-if="template.models?.length" class="space-y-1.5 mb-3">
         <!-- Models -->
@@ -248,8 +263,8 @@
           </div>
         </div>
 
-        <!-- Cloud buttons - check platform availability -->
-        <div v-if="!template.includeOnDistributions || template.includeOnDistributions.length === 0 || template.includeOnDistributions.includes('cloud')" class="flex gap-2">
+        <!-- Cloud buttons -->
+        <div v-if="isCloudAvailable" class="flex gap-2">
           <Button
             size="sm"
             class="flex-1 text-xs h-9"
@@ -287,8 +302,8 @@
           Not available on cloud
         </Button>
 
-        <!-- Local buttons - always show -->
-        <div class="flex gap-2">
+        <!-- Local buttons -->
+        <div v-if="isLocalAvailable" class="flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -314,6 +329,18 @@
             </svg>
           </Button>
         </div>
+        <Button
+          v-else
+          size="sm"
+          variant="outline"
+          class="w-full text-xs h-9"
+          disabled
+        >
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+          Not available on local
+        </Button>
 
         <!-- Edit, Download and View buttons (icon only for space) -->
         <div class="flex gap-2">
@@ -357,6 +384,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useMouseInElement } from '@vueuse/core'
+import { getDistributionStatuses, isAvailableOnDistribution } from '@/composables/useTemplateDistributions'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TemplateDetailsModal from '@/components/TemplateDetailsModal.vue'
@@ -396,6 +424,18 @@ const copySuccess = ref(false)
 const isInPR = computed(() => {
   return props.prTemplates?.includes(props.template.name) || false
 })
+
+const distributionStatuses = computed(() =>
+  getDistributionStatuses(props.template.includeOnDistributions)
+)
+
+const isCloudAvailable = computed(() =>
+  isAvailableOnDistribution(props.template.includeOnDistributions, 'cloud')
+)
+
+const isLocalAvailable = computed(() =>
+  isAvailableOnDistribution(props.template.includeOnDistributions, 'local')
+)
 
 // Creator info
 const creatorInfo = computed(() => {
