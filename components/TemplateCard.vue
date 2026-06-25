@@ -149,6 +149,18 @@
         >
           {{ missingOutputFilesCount }}
         </span>
+        <span
+          v-if="template.bundleLabel"
+          class="px-2 py-1 text-[10px] font-medium rounded shadow-lg"
+          :class="template.bundleNeedsPublish
+            ? 'bg-amber-500 text-white'
+            : 'bg-slate-700/80 text-white'"
+          :title="template.bundleNeedsPublish
+            ? `PyPI package for ${template.bundleLabel} needs republish vs main`
+            : `Bundle: ${template.bundleLabel}`"
+        >
+          <template v-if="template.bundleNeedsPublish">📦 </template>{{ template.bundleLabel }}
+        </span>
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
           {{ category || template.categoryTitle || 'Uncategorized' }}
         </span>

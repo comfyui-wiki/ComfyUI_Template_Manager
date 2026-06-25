@@ -419,6 +419,9 @@
       :selected-repo="selectedRepo"
       :selected-branch="selectedBranch"
       :diff-stats="diffStats"
+      :bundle-diff="bundleDiff"
+      :is-main-branch="isOnMainBranch"
+      :has-diff-comparison="hasDiffComparison"
       :can-edit-current-repo="canEditCurrentRepo"
       :is-viewing-p-r="isViewingPR"
       :cache-bust="cacheBustTimestamp"
@@ -517,6 +520,7 @@ import TagModelManager from '~/components/TagModelManager.vue'
 import CreatorManager from '~/components/CreatorManager.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
 import TemplateMainContent from '~/components/TemplateMainContent.vue'
+import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 
@@ -548,6 +552,9 @@ const {
 const {
   categoriesWithDiff,
   diffStats,
+  bundleDiff,
+  templateBundleMap,
+  hasDiffComparison,
   isLoading: diffLoading,
   loadCurrentTemplates,
   isMainBranch,
@@ -641,13 +648,19 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
   console.log(`[LoadTemplates] Loading from ${owner}/${repo}/${branch}`, forceRefresh ? '(force refresh)' : '')
   loading.value = true
   try {
-    // Check branch permission in parallel with loading templates and logo configuration
-    await Promise.all([
-      loadCurrentTemplates(owner, repo, branch, forceRefresh),
+    // Templates first — unblock UI as soon as index.json is available
+    await loadCurrentTemplates(owner, repo, branch, forceRefresh)
+
+    if (status.value === 'authenticated') {
+      await checkBranchPermission(owner, repo, branch)
+    }
+
+    // Logo/creators are optional — never block the template grid
+    void Promise.all([
       loadLogoConfiguration(owner, repo, branch),
-      loadCreatorsData(owner, repo, branch),
-      status.value === 'authenticated' ? checkBranchPermission(owner, repo, branch) : Promise.resolve()
+      loadCreatorsData(owner, repo, branch)
     ])
+
     console.log('[LoadTemplates] Templates loaded successfully')
     console.log('[LoadTemplates] Categories with diff:', categoriesWithDiff.value?.length || 0)
     console.log('[LoadTemplates] Diff stats:', diffStats.value)
@@ -961,13 +974,39 @@ const categoryTitle = computed(() => {
   return cat?.title || ''
 })
 
+const isOnMainBranch = computed(() => {
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  const [owner, name] = repo.split('/')
+  return isMainBranch(owner, name, branch)
+})
+
+const bundleLabelById = (bundleId: string) =>
+  bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.label || bundleId
+
+const isTemplateBundleAffected = (templateName: string) => {
+  if (!bundleDiff.value?.changedBundleCount) return false
+  return bundleDiff.value.bundles.some(bundle => {
+    if (!bundle.hasChanges) return false
+    return (
+      bundle.addedTemplates.includes(templateName)
+      || bundle.removedTemplates.includes(templateName)
+      || bundle.contentChangedTemplates.some(t => t.name === templateName)
+    )
+  })
+}
+
 const allTemplates = computed(() => {
   const templates: any[] = []
   categories.value.forEach((category: any) => {
     category.templates?.forEach((template: any) => {
+      const bundleId = templateBundleMap.value.get(template.name) || null
       const enrichedTemplate = {
         ...template,
-        categoryTitle: category.title
+        categoryTitle: category.title,
+        bundleId,
+        bundleLabel: bundleId ? bundleLabelById(bundleId) : null,
+        bundleNeedsPublish: isTemplateBundleAffected(template.name)
       }
       templates.push(enrichedTemplate)
     })
@@ -1343,6 +1382,28 @@ const handleCreatePR = () => {
     deletedTemplates.forEach(name => {
       body += `- \`${name}\`\n`
     })
+    body += '\n'
+  }
+
+  if (bundleDiff.value?.changedBundleCount) {
+    body += `### 📦 PyPI Bundles to Republish (${bundleDiff.value.changedBundleCount})\n\n`
+    body += `Compared to \`Comfy-Org/workflow_templates@main\`:\n\n`
+    bundleDiff.value.bundles
+      .filter(bundle => bundle.hasChanges)
+      .forEach(bundle => {
+        body += `- **${bundle.label}** (\`${bundle.id}\`)`
+        if (bundle.pypiPackage) body += ` → \`${bundle.pypiPackage}\``
+        body += '\n'
+        if (bundle.addedTemplates.length) {
+          body += `  - Added: ${bundle.addedTemplates.map(n => `\`${n}\``).join(', ')}\n`
+        }
+        if (bundle.removedTemplates.length) {
+          body += `  - Removed: ${bundle.removedTemplates.map(n => `\`${n}\``).join(', ')}\n`
+        }
+        if (bundle.contentChangedTemplates.length) {
+          body += `  - Content changed: ${bundle.contentChangedTemplates.map(t => `\`${t.name}\` (${t.status})`).join(', ')}\n`
+        }
+      })
     body += '\n'
   }
 

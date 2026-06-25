@@ -31,52 +31,67 @@ export default defineEventHandler(async (event) => {
     headers['Authorization'] = `Bearer ${session.accessToken}`
   }
 
-  const shouldUseApi = useApi === 'true'
+  const forceApi = useApi === 'true'
+  const isUpstreamRepo = owner === 'Comfy-Org' && repo === 'workflow_templates'
+  // Fork branches: prefer GitHub API when authenticated (raw CDN often times out)
+  const preferApi = forceApi || (!isUpstreamRepo && Boolean(session?.accessToken))
+
+  const fetchViaApi = async () => {
+    console.log(`[templates API] 🔄 Using GitHub API: ${owner}/${repo}/${branch}`)
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/templates/index.json?ref=${branch}`
+    const response = await fetch(apiUrl, { headers })
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`)
+    }
+
+    const apiData = await response.json()
+    const content = Buffer.from(apiData.content, 'base64').toString('utf-8')
+    const data = JSON.parse(content)
+    console.log(`[templates API] ✅ Data fetched via API (SHA: ${apiData.sha.substring(0, 7)})`)
+    return { data, method: 'api' as const }
+  }
+
+  const fetchViaCdn = async () => {
+    console.log(`[templates API] ⚡ Using raw CDN: ${owner}/${repo}/${branch}`)
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index.json`
+    const response = await fetch(rawUrl, { headers })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch templates: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('[templates API] ✅ Data fetched via CDN')
+    return { data, method: 'cdn' as const }
+  }
 
   try {
-    let data: any
+    let result: { data: any; method: 'api' | 'cdn' }
 
-    if (shouldUseApi) {
-      // Use GitHub API - bypasses CDN, always returns fresh data
-      console.log(`[templates API] 🔄 Using GitHub API (fresh data): ${owner}/${repo}/${branch}`)
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/templates/index.json?ref=${branch}`
-
-      const response = await fetch(apiUrl, { headers })
-
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`)
-      }
-
-      const apiData = await response.json()
-
-      // Decode base64 content
-      const content = Buffer.from(apiData.content, 'base64').toString('utf-8')
-      data = JSON.parse(content)
-
-      console.log(`[templates API] ✅ Fresh data fetched via API (SHA: ${apiData.sha.substring(0, 7)})`)
+    if (preferApi) {
+      result = await fetchViaApi()
     } else {
-      // Use raw.githubusercontent.com - fast but may be CDN cached
-      console.log(`[templates API] ⚡ Using raw CDN (fast): ${owner}/${repo}/${branch}`)
-      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index.json`
-
-      const response = await fetch(rawUrl, { headers })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch templates: ${response.status}`)
+      try {
+        result = await fetchViaCdn()
+      } catch (cdnError) {
+        if (session?.accessToken) {
+          console.warn('[templates API] CDN failed, falling back to GitHub API:', cdnError)
+          result = await fetchViaApi()
+        } else {
+          throw cdnError
+        }
       }
-
-      data = await response.json()
-      console.log(`[templates API] ✅ Data fetched via CDN`)
     }
 
     return {
       success: true,
-      categories: data,
+      categories: result.data,
       source: {
         owner,
         repo,
         branch,
-        method: shouldUseApi ? 'api' : 'cdn'
+        method: result.method
       }
     }
   } catch (error: any) {

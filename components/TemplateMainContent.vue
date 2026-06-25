@@ -203,6 +203,16 @@
           </Button>
         </div>
 
+        <!-- Bundle publish impact (main content — keeps sidebar categories unobstructed) -->
+        <BundleChangeSummary
+          v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch && !isMainBranch && (loading || (bundleDiff?.changedBundleCount ?? 0) > 0)"
+          class="mb-4"
+          :bundle-diff="bundleDiff"
+          :loading="loading"
+          :is-main-branch="isMainBranch"
+          base-label="Comfy-Org/workflow_templates @ main"
+        />
+
         <!-- Stats -->
         <div class="flex items-center gap-4 text-sm text-muted-foreground mb-6">
           <span>{{ filteredTemplates.length }} templates</span>
@@ -223,8 +233,18 @@
             <span v-if="diffStats.deleted > 0" class="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs font-medium" title="Templates deleted compared to main branch">
               -{{ diffStats.deleted }} deleted vs main
             </span>
-            <span v-if="diffStats.new === 0 && diffStats.modified === 0 && diffStats.deleted === 0" class="text-xs text-muted-foreground">
+            <span v-if="hasDiffComparison && diffStats.new === 0 && diffStats.modified === 0 && diffStats.deleted === 0" class="text-xs text-muted-foreground">
               ✓ Identical to main
+            </span>
+            <span v-else-if="!hasDiffComparison" class="text-xs text-amber-700 dark:text-amber-300">
+              Comparison with main unavailable
+            </span>
+            <span
+              v-if="bundleDiff?.changedBundleCount"
+              class="px-2 py-0.5 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 rounded text-xs font-medium"
+              title="PyPI sub-packages that need a new wheel release"
+            >
+              📦 {{ bundleDiff.changedBundleCount }} bundle{{ bundleDiff.changedBundleCount > 1 ? 's' : '' }} to publish
             </span>
             <Button
               variant="ghost"
@@ -291,6 +311,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~
 import RepoAndBranchSwitcher from '~/components/RepoAndBranchSwitcher.vue'
 import TemplateCard from '~/components/TemplateCard.vue'
 import FilterCombobox from '~/components/FilterCombobox.vue'
+import BundleChangeSummary from '~/components/BundleChangeSummary.vue'
+import type { BundleDiffResult } from '~/lib/bundle-diff'
 
 const { status } = useAuth()
 
@@ -315,6 +337,9 @@ const props = defineProps<{
   selectedRepo: string | null
   selectedBranch: string | null
   diffStats: { new: number; modified: number; deleted: number }
+  bundleDiff?: BundleDiffResult | null
+  isMainBranch?: boolean
+  hasDiffComparison?: boolean
   canEditCurrentRepo: boolean
   isViewingPR: boolean
   cacheBust?: number
