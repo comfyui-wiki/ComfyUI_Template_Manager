@@ -198,6 +198,8 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { resolveRepoFileUrl } = useRepoAssets()
+
 const emit = defineEmits<{
   reorder: [templates: Template[]]
   refresh: []
@@ -300,7 +302,7 @@ const getTemplateThumbnailUrl = (template: Template): string => {
 
   const [owner, repoName] = props.repo.split('/')
   const mediaSubtype = template.mediaSubtype || 'webp'
-  return `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/templates/${template.name}-1.${mediaSubtype}`
+  return resolveRepoFileUrl(owner, repoName, props.branch, `templates/${template.name}-1.${mediaSubtype}`)
 }
 
 // Drag and drop handlers

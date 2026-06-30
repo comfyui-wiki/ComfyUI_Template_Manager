@@ -7,9 +7,53 @@
  * - useApi=true: Uses GitHub API (bypasses CDN, always fresh data)
  */
 import { getServerSession } from '#auth'
+import {
+  getCompareRef,
+  getGitStatus,
+  isLocalRepoMode,
+  readJsonAtRef,
+  readRepoJson
+} from '~/server/utils/local-repo'
 
 export default defineEventHandler(async (event) => {
-  const { owner, repo, branch = 'main', useApi = 'false' } = getQuery(event)
+  const { owner, repo, branch = 'main', useApi = 'false', atRef } = getQuery(event)
+
+  if (isLocalRepoMode()) {
+    try {
+      const compareRef = getCompareRef()
+      const data = atRef === 'compare'
+        ? await readJsonAtRef<any[]>(compareRef, 'templates/index.json')
+        : await readRepoJson<any[]>('templates/index.json')
+
+      if (!data) {
+        throw createError({
+          statusCode: 404,
+          message: atRef === 'compare'
+            ? `templates/index.json not found at ${compareRef}`
+            : 'templates/index.json not found in local clone'
+        })
+      }
+
+      const status = await getGitStatus()
+      return {
+        success: true,
+        categories: data,
+        source: {
+          owner: 'local',
+          repo: 'workflow_templates',
+          branch: status.branch,
+          method: 'local' as const,
+          atRef: atRef === 'compare' ? compareRef : 'working-tree'
+        }
+      }
+    } catch (error: any) {
+      console.error('[templates API] ❌ Local read failed:', error)
+      throw createError({
+        statusCode: error.statusCode || 500,
+        message: error.message || 'Failed to read local templates'
+      })
+    }
+  }
 
   if (!owner || !repo) {
     throw createError({

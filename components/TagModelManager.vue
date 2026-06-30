@@ -46,6 +46,7 @@ const pendingSave = ref(false)
 // ─── GitHub repo ──────────────────────────────────────────────────────────────
 
 const { selectedRepo, selectedBranch } = useGitHubRepo()
+const { resolveRepoFileUrl } = useRepoAssets()
 
 // ─── Derived data ─────────────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ const getThumbnailUrl = (tpl: any) => {
   const [owner, repoName] = (selectedRepo.value || 'Comfy-Org/workflow_templates').split('/')
   const branch = selectedBranch.value || 'main'
   const mediaSubtype = tpl.mediaSubtype || 'webp'
-  return `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/${tpl.name}-1.${mediaSubtype}`
+  return resolveRepoFileUrl(owner, repoName, branch, `templates/${tpl.name}-1.${mediaSubtype}`)
 }
 
 // ─── Save logic ───────────────────────────────────────────────────────────────

@@ -12,6 +12,8 @@ const getStoredValue = (key: string, defaultValue: any) => {
 // Global state - shared across all components with persistence
 const hasMainRepoAccess = ref(false)
 const hasFork = ref(false)
+const isLocalMode = ref(false)
+const localRepoInfo = ref<any>(null)
 const selectedRepo = ref(getStoredValue('github_selected_repo', ''))
 const selectedBranch = ref(getStoredValue('github_selected_branch', 'main'))
 const branches = ref<any[]>([])
@@ -191,6 +193,15 @@ export const useGitHubRepo = () => {
   const loadBranches = async (owner: string, repo: string) => {
     isLoading.value = true
     try {
+      if (isLocalMode.value) {
+        const response = await $fetch('/api/local/git/branches')
+        branches.value = response.branches
+        if (response.current) {
+          selectedBranch.value = response.current
+        }
+        return response.branches
+      }
+
       const response = await $fetch('/api/github/branches', {
         query: { owner, repo }
       })
@@ -205,10 +216,43 @@ export const useGitHubRepo = () => {
     }
   }
 
+  const checkoutLocalBranch = async (branch: string) => {
+    if (!isLocalMode.value) {
+      selectedBranch.value = branch
+      return
+    }
+
+    isLoading.value = true
+    try {
+      await $fetch('/api/local/git/checkout', {
+        method: 'POST',
+        body: { branch }
+      })
+      selectedBranch.value = branch
+      await loadBranches('local', 'workflow_templates')
+      const { refreshMode } = useRepoMode()
+      await refreshMode()
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   // Create a new branch
   const createBranch = async (owner: string, repo: string, branchName: string, fromBranch: string = 'main') => {
     isLoading.value = true
     try {
+      if (isLocalMode.value) {
+        await $fetch('/api/local/git/branch', {
+          method: 'POST',
+          body: {
+            name: branchName,
+            from: fromBranch
+          }
+        })
+        await loadBranches(owner, repo)
+        return { success: true }
+      }
+
       const response = await $fetch('/api/github/branch/create', {
         method: 'POST',
         body: {
@@ -233,6 +277,17 @@ export const useGitHubRepo = () => {
 
   // Available repositories for the user
   const availableRepos = computed(() => {
+    if (isLocalMode.value && localRepoInfo.value) {
+      return [{
+        owner: 'local',
+        name: 'workflow_templates',
+        fullName: localRepoInfo.value.displayName || 'local/workflow_templates',
+        type: 'local',
+        label: `Local clone (${localRepoInfo.value.repoPath})`,
+        canEdit: true
+      }]
+    }
+
     const repos: any[] = []
 
     // Always show main repo (read-only if no access)
@@ -311,6 +366,10 @@ export const useGitHubRepo = () => {
 
   // Can edit current repository and branch (push to current branch)
   const canEditCurrentRepo = computed(() => {
+    if (isLocalMode.value) {
+      return true
+    }
+
     // Get fresh auth state inside computed to ensure we have latest session
     const { data: currentSession } = useAuth()
 
@@ -365,6 +424,9 @@ export const useGitHubRepo = () => {
   // Reset to main repo and main branch (called on sign out)
   const resetToMain = () => {
     console.log('[useGitHubRepo] Resetting to main repo and branch')
+    if (isLocalMode.value) {
+      return
+    }
     selectedRepo.value = 'Comfy-Org/workflow_templates'
     selectedBranch.value = 'main'
     hasMainRepoAccess.value = false
@@ -381,8 +443,40 @@ export const useGitHubRepo = () => {
     }
   }
 
+  const initializeLocal = async () => {
+    const { loadMode } = useRepoMode()
+    const mode = await loadMode()
+    if (!mode.localRepoMode) {
+      isLocalMode.value = false
+      localRepoInfo.value = null
+      return false
+    }
+
+    isLocalMode.value = true
+    localRepoInfo.value = mode
+    selectedRepo.value = mode.displayName || 'local/workflow_templates'
+    selectedBranch.value = mode.branch || 'main'
+    hasMainRepoAccess.value = true
+    branchPermission.value = { canPush: true, permission: 'write' }
+    hasFork.value = false
+    forkCompareStatus.value = null
+
+    await loadBranches('local', 'workflow_templates')
+    console.log('[useGitHubRepo] Local mode initialized:', {
+      repo: selectedRepo.value,
+      branch: selectedBranch.value,
+      branches: branches.value.length
+    })
+    return true
+  }
+
   const initialize = async () => {
     console.log('[useGitHubRepo] Initializing...')
+
+    if (await initializeLocal()) {
+      return
+    }
+
     if (status.value !== 'authenticated') {
       console.log('[useGitHubRepo] User not authenticated, resetting to main')
       resetToMain()
@@ -461,6 +555,8 @@ export const useGitHubRepo = () => {
     // State
     hasMainRepoAccess,
     hasFork,
+    isLocalMode,
+    localRepoInfo,
     selectedRepo,
     selectedBranch,
     branches,
@@ -484,6 +580,7 @@ export const useGitHubRepo = () => {
     createFork,
     loadBranches,
     createBranch,
+    checkoutLocalBranch,
     initialize,
     resetToMain
   }

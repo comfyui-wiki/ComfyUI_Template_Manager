@@ -100,6 +100,8 @@
             </div>
           </div>
 
+          <LocalModeBanner class="mt-3" />
+
           <!-- Branch Info and PR Actions -->
           <div v-if="isMounted && selectedRepo && selectedBranch" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
             <!-- Branch Info -->
@@ -523,8 +525,10 @@ import TemplateMainContent from '~/components/TemplateMainContent.vue'
 import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
+import LocalModeBanner from '~/components/LocalModeBanner.vue'
 
 const { status } = useAuth()
+const { resolveRepoFileUrl } = useRepoAssets()
 const route = useRoute()
 
 // Error message from redirects
@@ -545,7 +549,8 @@ const {
   hasMainRepoAccess,
   branchPermission,
   checkBranchPermission,
-  initialize: initializeGitHub
+  initialize: initializeGitHub,
+  isLocalMode
 } = useGitHubRepo()
 
 // Template diff detection
@@ -614,8 +619,7 @@ const viewingPRBranch = ref<string | null>(null)
 // Load logo configuration
 const loadLogoConfiguration = async (owner: string, repo: string, branch: string) => {
   try {
-    // Add timestamp to bypass cache
-    const logoUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index_logo.json?t=${Date.now()}`
+    const logoUrl = resolveRepoFileUrl(owner, repo, branch, 'templates/index_logo.json', { cacheBust: true })
     const logoResponse = await fetch(logoUrl)
     if (logoResponse.ok) {
       const logoData = await logoResponse.json()
@@ -632,7 +636,7 @@ const loadLogoConfiguration = async (owner: string, repo: string, branch: string
 // Load creators data from site/creators.json
 const loadCreatorsData = async (owner: string, repo: string, branch: string) => {
   try {
-    const creatorsUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/site/creators.json?t=${Date.now()}`
+    const creatorsUrl = resolveRepoFileUrl(owner, repo, branch, 'site/creators.json', { cacheBust: true })
     const response = await fetch(creatorsUrl)
     if (response.ok) {
       creatorsData.value = await response.json()
@@ -651,7 +655,7 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
     // Templates first — unblock UI as soon as index.json is available
     await loadCurrentTemplates(owner, repo, branch, forceRefresh)
 
-    if (status.value === 'authenticated') {
+    if (status.value === 'authenticated' && !isLocalMode.value) {
       await checkBranchPermission(owner, repo, branch)
     }
 
@@ -727,10 +731,8 @@ onMounted(async () => {
   // Mark as mounted to enable client-only rendering
   isMounted.value = true
 
-  // Initialize GitHub repo/branch management (checks permissions and fork status)
-  if (status.value === 'authenticated') {
-    await initializeGitHub()
-  }
+  // Initialize repo/branch management (local clone or GitHub)
+  await initializeGitHub()
 
   // Check if we just saved a template (force refresh if so)
   let forceRefresh = false
@@ -963,9 +965,11 @@ const isViewingPR = computed(() => {
 
 // Repo base URL for logos
 const repoBaseUrl = computed(() => {
-  // Use selected repo/branch, or fallback to default (same as loadTemplates)
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
   const branch = selectedBranch.value || 'main'
+  if (isLocalMode.value) {
+    return ''
+  }
   return `https://raw.githubusercontent.com/${repo}/${branch}/templates`
 })
 

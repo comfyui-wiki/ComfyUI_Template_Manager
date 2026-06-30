@@ -54,7 +54,19 @@ const getBundleLabel = (bundleId: string) =>
 const getBundlePypiPackage = (bundleId: string) =>
   bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.pypiPackage || null
 
-const fetchBundlesJson = async (owner: string, repo: string, branch: string): Promise<BundlesData> => {
+const fetchBundlesJson = async (owner: string, repo: string, branch: string, source: 'current' | 'main' = 'current'): Promise<BundlesData> => {
+  const { isLocalMode } = useRepoMode()
+
+  if (isLocalMode.value) {
+    try {
+      const response = await $fetch<{ current: BundlesData; base: BundlesData }>('/api/local/bundles')
+      return source === 'main' ? (response.base || {}) : (response.current || {})
+    } catch (err) {
+      console.warn('[fetchBundlesJson] Local bundles fetch failed:', err)
+      return {}
+    }
+  }
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000)
@@ -72,6 +84,7 @@ const fetchBundlesJson = async (owner: string, repo: string, branch: string): Pr
 }
 
 export const useTemplateDiff = () => {
+  const { isLocalMode } = useRepoMode()
   const currentTemplates = ref<any>(null)
   const mainTemplates = ref<any>(null)
   const currentBundles = ref<BundlesData>({})
@@ -98,8 +111,10 @@ export const useTemplateDiff = () => {
    * Fetch templates from a specific repository and branch
    * @param forceRefresh - If true, bypasses cache and uses GitHub API for fresh data
    */
-  const fetchTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
-    const cacheKey = getCacheKey(owner, repo, branch)
+  const fetchTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false, atRef?: 'compare') => {
+    const cacheKey = atRef === 'compare'
+      ? 'templates_cache_local_compare'
+      : getCacheKey(owner, repo, branch)
 
     // Try to use cache first (unless force refresh)
     if (!forceRefresh) {
@@ -112,14 +127,15 @@ export const useTemplateDiff = () => {
       console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache')
     }
 
-    console.log(`[fetchTemplates] 🌐 Fetching data from: ${owner}/${repo}/${branch}`)
-    const useApi = forceRefresh || isForkBranch(owner, repo, branch)
-    const response = await $fetch('/api/github/templates', {
+    console.log(`[fetchTemplates] 🌐 Fetching data from: ${owner}/${repo}/${branch}`, atRef === 'compare' ? `(compare ref)` : '')
+    const useApi = forceRefresh || isForkBranch(owner, repo, branch) || isLocalMode.value
+    const response = await $fetch<{ categories: any[]; source?: { method?: string } }>('/api/github/templates', {
       query: {
         owner,
         repo,
         branch,
-        useApi: useApi ? 'true' : 'false'
+        useApi: useApi ? 'true' : 'false',
+        ...(atRef === 'compare' ? { atRef: 'compare' } : {})
       }
     })
 
@@ -143,12 +159,16 @@ export const useTemplateDiff = () => {
       tasks.push((async () => {
         try {
           if (mainTemplates.value) return
-          mainTemplates.value = await fetchTemplates(
-            mainRepo.owner,
-            mainRepo.name,
-            mainRepo.branch,
-            false
-          )
+          if (isLocalMode.value) {
+            mainTemplates.value = await fetchTemplates(owner, repo, branch, false, 'compare')
+          } else {
+            mainTemplates.value = await fetchTemplates(
+              mainRepo.owner,
+              mainRepo.name,
+              mainRepo.branch,
+              false
+            )
+          }
         } catch (err) {
           console.warn('[useTemplateDiff] Main branch comparison unavailable:', err)
         }
@@ -158,11 +178,11 @@ export const useTemplateDiff = () => {
     }
 
     tasks.push((async () => {
-      currentBundles.value = await fetchBundlesJson(owner, repo, branch)
+      currentBundles.value = await fetchBundlesJson(owner, repo, branch, 'current')
     })())
 
     tasks.push((async () => {
-      mainBundles.value = await fetchBundlesJson(mainRepo.owner, mainRepo.name, mainRepo.branch)
+      mainBundles.value = await fetchBundlesJson(owner, repo, branch, 'main')
     })())
 
     await Promise.allSettled(tasks)

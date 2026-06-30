@@ -689,6 +689,13 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
+
+const repoAssetUrl = (relativePath: string, cacheBust = false) => {
+  const [owner, repoName] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, repoName, props.branch, relativePath, { cacheBust })
+}
+
 const emit = defineEmits<{
   workflowUpdated: [content: string]
   inputFilesUpdated: [files: Map<string, File>]
@@ -838,7 +845,9 @@ const checkDuplicateTemplateName = async (templateName: string): Promise<{ exist
     const [owner, repoName] = props.repo.split('/')
     // Always check main branch for duplicates, not the current working branch
     const checkBranch = 'main'
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${checkBranch}/templates/index.json`
+    const url = isLocalMode.value
+      ? resolveRepoFileUrl(owner, repoName, checkBranch, 'templates/index.json', { compareRef: true })
+      : `https://raw.githubusercontent.com/${owner}/${repoName}/${checkBranch}/templates/index.json`
 
     console.log('[Duplicate Check] Fetching templates from:', url)
     console.log('[Duplicate Check] Checking template name:', templateName)
@@ -1054,7 +1063,7 @@ const checkInputFilesExistence = async () => {
     }
 
     // Use filename from workflow JSON (backend already handles prefixes)
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${fileRef.filename}`
+    const url = repoAssetUrl(`input/${fileRef.filename}`)
     try {
       const response = await fetch(url, { method: 'HEAD' })
       fileRef.exists = response.ok
@@ -1094,7 +1103,7 @@ const checkOutputFilesExistence = async () => {
     }
 
     // Check in output folder
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${fileRef.filename}`
+    const url = repoAssetUrl(`output/${fileRef.filename}`)
     try {
       const response = await fetch(url, { method: 'HEAD' })
       fileRef.exists = response.ok
@@ -1494,7 +1503,7 @@ const handleConvertFile = async (filename: string) => {
   if (!file) {
     isExisting = true
     const [owner, repoName] = props.repo.split('/')
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${filename}`
+    const url = repoAssetUrl(`input/${filename}`)
 
     try {
       const response = await fetch(url)
@@ -1764,7 +1773,7 @@ const saveOutputFilenameEdit = async (nodeId: number) => {
 
     // Async check against repo
     const [owner, repoName] = props.repo.split('/')
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${newFilename}`
+    const url = repoAssetUrl(`output/${newFilename}`)
     try {
       const response = await fetch(url, { method: 'HEAD' })
       if (response.ok) {
@@ -1966,7 +1975,7 @@ const handleConvertOutputFile = async (nodeId: number) => {
   if (!file) {
     isExisting = true
     const [owner, repoName] = props.repo.split('/')
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${fileRef.filename}`
+    const url = repoAssetUrl(`output/${fileRef.filename}`)
 
     try {
       const response = await fetch(url)
@@ -2001,7 +2010,7 @@ const downloadOutputFile = async (filename: string) => {
 
   // Download from GitHub output folder
   const [owner, repoName] = props.repo.split('/')
-  const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/output/${filename}`
+  const url = repoAssetUrl(`output/${filename}`)
 
   try {
     const response = await fetch(url)
@@ -2035,7 +2044,7 @@ const downloadInputFile = async (filename: string) => {
 
   // Download from GitHub (use filename from workflow JSON)
   const [owner, repoName] = props.repo.split('/')
-  const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${props.branch}/input/${filename}`
+  const url = repoAssetUrl(`input/${filename}`)
 
   try {
     const response = await fetch(url)
