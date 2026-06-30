@@ -276,16 +276,32 @@ interface Props {
   modelValue: LogoInfo[]
   availableProviders: string[]
   logoMapping: Record<string, string>
-  repoBaseUrl: string
+  repoBaseUrl?: string
+  repo?: string
+  branch?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  repoBaseUrl: '',
+  repo: 'Comfy-Org/workflow_templates',
+  branch: 'main'
+})
+
+const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
 
 // Helper function to get logo URL
 const getLogoUrl = (provider: string): string => {
   const logoPath = props.logoMapping[provider]
-  if (!logoPath || !props.repoBaseUrl) return ''
-  return `${props.repoBaseUrl}/${logoPath}`
+  if (!logoPath) return ''
+  if (isLocalMode.value) {
+    const [owner, name] = props.repo.split('/')
+    return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
+  }
+  if (props.repoBaseUrl) {
+    return `${props.repoBaseUrl}/${logoPath}`
+  }
+  const [owner, name] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
 }
 
 // Helper function to get provider array

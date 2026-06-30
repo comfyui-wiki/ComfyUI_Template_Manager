@@ -1,4 +1,4 @@
-import { getGitStatus, getLocalRepoDisplayName, getLocalRepoRoot, gitExec, isLocalRepoMode, getCompareRef } from '~/server/utils/local-repo'
+import { compareWithCompareRef, getGitStatus, getLocalRepoDisplayName, getLocalRepoRoot, gitExec, isLocalRepoMode, getCompareRef } from '~/server/utils/local-repo'
 
 export default defineEventHandler(async () => {
   if (!isLocalRepoMode()) {
@@ -8,9 +8,10 @@ export default defineEventHandler(async () => {
     }
   }
 
-  const [status, commitSha] = await Promise.all([
+  const [status, commitSha, upstreamCompare] = await Promise.all([
     getGitStatus(),
-    gitExec(['rev-parse', 'HEAD']).catch(() => '')
+    gitExec(['rev-parse', 'HEAD']).catch(() => ''),
+    compareWithCompareRef()
   ])
 
   return {
@@ -22,6 +23,7 @@ export default defineEventHandler(async () => {
     branch: status.branch,
     commitSha: commitSha || undefined,
     dirty: status.dirty,
-    changedFiles: status.changedFiles
+    changedFiles: status.changedFiles,
+    upstreamCompare
   }
 })

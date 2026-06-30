@@ -43,10 +43,15 @@ export default defineEventHandler(async (event) => {
   const fullPath = resolveRepoPath(path)
 
   try {
-    await fs.access(fullPath)
+    const stat = await fs.stat(fullPath)
+    setHeader(event, 'Content-Length', String(stat.size))
+
+    if (event.method === 'HEAD') {
+      return null
+    }
+
+    return sendStream(event, createReadStream(fullPath))
   } catch {
     throw createError({ statusCode: 404, statusMessage: `File not found: ${path}` })
   }
-
-  return sendStream(event, createReadStream(fullPath))
 })

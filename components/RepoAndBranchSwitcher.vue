@@ -239,7 +239,7 @@
               {{ currentBranchComparison.aheadBy }} commit{{ currentBranchComparison.aheadBy !== 1 ? 's' : '' }} ahead of upstream
             </span>
             <span v-else-if="currentBranchComparison.behindBy > 0" class="text-orange-600">
-              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind upstream
+              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind {{ isLocalMode ? (localRepoInfo?.compareRef || 'upstream') : 'upstream' }}
             </span>
             <span v-else class="text-green-600">
               Up to date with upstream
@@ -486,7 +486,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -499,6 +499,7 @@ const {
   hasMainRepoAccess,
   hasFork,
   isLocalMode,
+  localRepoInfo,
   selectedRepo,
   selectedBranch,
   branches,
@@ -903,6 +904,29 @@ const loadCurrentBranchComparison = async () => {
     return
   }
 
+  if (isLocalMode.value) {
+    try {
+      const response = await $fetch('/api/local/git/compare')
+      if (response.available) {
+        currentBranchComparison.value = {
+          success: true,
+          status: response.status,
+          aheadBy: response.aheadBy || 0,
+          behindBy: response.behindBy || 0,
+          isBehind: response.isBehind,
+          isAhead: response.isAhead,
+          isDiverged: response.isDiverged
+        }
+      } else {
+        currentBranchComparison.value = null
+      }
+    } catch (error) {
+      console.error('Failed to load local upstream comparison:', error)
+      currentBranchComparison.value = null
+    }
+    return
+  }
+
   // Only show comparison for non-upstream repos (forks)
   const [owner, repo] = selectedRepo.value.split('/')
   const config = useRuntimeConfig()
@@ -944,5 +968,15 @@ onMounted(() => {
   setTimeout(() => {
     loadCurrentBranchComparison()
   }, 1000)
+
+  if (process.client) {
+    window.addEventListener('local-upstream-refreshed', loadCurrentBranchComparison)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (process.client) {
+    window.removeEventListener('local-upstream-refreshed', loadCurrentBranchComparison)
+  }
 })
 </script>

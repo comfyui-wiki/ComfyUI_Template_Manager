@@ -163,3 +163,97 @@ export function getLocalRepoDisplayName(): string {
   const parts = root.split(/[/\\]/)
   return `local/${parts[parts.length - 1] || 'workflow_templates'}`
 }
+
+export interface LocalUpstreamCompare {
+  compareRef: string
+  available: boolean
+  error?: string
+  status?: 'identical' | 'ahead' | 'behind' | 'diverged'
+  aheadBy?: number
+  behindBy?: number
+  isBehind?: boolean
+  isAhead?: boolean
+  isDiverged?: boolean
+}
+
+export function parseCompareRef(ref: string): { remote: string; branch: string } {
+  const idx = ref.indexOf('/')
+  if (idx === -1) {
+    return { remote: '', branch: ref }
+  }
+  return {
+    remote: ref.slice(0, idx),
+    branch: ref.slice(idx + 1)
+  }
+}
+
+/** Compare current HEAD against WORKFLOW_TEMPLATES_COMPARE_REF (e.g. upstream/main) */
+export async function compareWithCompareRef(): Promise<LocalUpstreamCompare> {
+  const compareRef = getCompareRef()
+
+  try {
+    await gitExec(['rev-parse', '--verify', compareRef])
+  } catch {
+    const { remote } = parseCompareRef(compareRef)
+    return {
+      compareRef,
+      available: false,
+      error: remote
+        ? `Ref "${compareRef}" not found locally. Try: git fetch ${remote}`
+        : `Ref "${compareRef}" not found locally`
+    }
+  }
+
+  const output = await gitExec(['rev-list', '--left-right', '--count', `${compareRef}...HEAD`])
+  const [behindByRaw, aheadByRaw] = output.split(/\s+/).filter(Boolean)
+  const behindBy = parseInt(behindByRaw, 10) || 0
+  const aheadBy = parseInt(aheadByRaw, 10) || 0
+
+  let status: LocalUpstreamCompare['status']
+  if (aheadBy === 0 && behindBy === 0) {
+    status = 'identical'
+  } else if (aheadBy > 0 && behindBy > 0) {
+    status = 'diverged'
+  } else if (behindBy > 0) {
+    status = 'behind'
+  } else {
+    status = 'ahead'
+  }
+
+  return {
+    compareRef,
+    available: true,
+    status,
+    aheadBy,
+    behindBy,
+    isBehind: behindBy > 0,
+    isAhead: aheadBy > 0,
+    isDiverged: status === 'diverged'
+  }
+}
+
+/** Fetch the remote named in compare ref (e.g. upstream from upstream/main) */
+export async function fetchCompareRemote(): Promise<{ success: boolean; message: string }> {
+  const compareRef = getCompareRef()
+  const { remote } = parseCompareRef(compareRef)
+
+  if (!remote) {
+    return {
+      success: false,
+      message: `Cannot fetch: compare ref "${compareRef}" has no remote prefix`
+    }
+  }
+
+  try {
+    await gitExec(['fetch', remote])
+    return {
+      success: true,
+      message: `Fetched ${remote} (compare ref: ${compareRef})`
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.message || `Failed to fetch ${remote}`
+    }
+  }
+}

@@ -1,5 +1,17 @@
 import { ref, computed } from 'vue'
 
+export interface UpstreamCompareInfo {
+  compareRef: string
+  available: boolean
+  error?: string
+  status?: 'identical' | 'ahead' | 'behind' | 'diverged'
+  aheadBy?: number
+  behindBy?: number
+  isBehind?: boolean
+  isAhead?: boolean
+  isDiverged?: boolean
+}
+
 export interface RepoModeInfo {
   loaded: boolean
   mode: 'github' | 'local'
@@ -11,6 +23,7 @@ export interface RepoModeInfo {
   commitSha?: string
   dirty?: boolean
   changedFiles?: string[]
+  upstreamCompare?: UpstreamCompareInfo
 }
 
 const modeInfo = ref<RepoModeInfo>({
@@ -58,10 +71,30 @@ export const useRepoMode = () => {
 
   const refreshMode = async () => loadMode(true)
 
+  const fetchUpstream = async (): Promise<UpstreamCompareInfo | null> => {
+    try {
+      const response = await $fetch<{ success: boolean; comparison: UpstreamCompareInfo; message?: string }>(
+        '/api/local/git/fetch',
+        { method: 'POST' }
+      )
+      if (modeInfo.value.localRepoMode && response.comparison) {
+        modeInfo.value = {
+          ...modeInfo.value,
+          upstreamCompare: response.comparison
+        }
+      }
+      return response.comparison ?? null
+    } catch (error) {
+      console.error('[useRepoMode] Failed to fetch upstream:', error)
+      return null
+    }
+  }
+
   return {
     modeInfo,
     isLocalMode,
     loadMode,
-    refreshMode
+    refreshMode,
+    fetchUpstream
   }
 }

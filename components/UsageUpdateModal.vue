@@ -467,8 +467,11 @@ const handleSubmit = async () => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || 'Failed to update usage data')
+      const errorData = await response.json().catch(() => ({}))
+      const message = errorData.message || errorData.statusMessage
+        || (typeof errorData.error === 'string' ? errorData.error : null)
+        || 'Failed to update usage data'
+      throw new Error(message)
     }
 
     const result = await response.json()

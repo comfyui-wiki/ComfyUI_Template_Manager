@@ -705,7 +705,9 @@
                       v-model="form.logos"
                       :available-providers="availableProviders"
                       :logo-mapping="logoMapping"
-                      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+                      :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+                      :branch="selectedBranch || 'main'"
+                      :repo-base-url="onlineTemplatesBaseUrl"
                     />
                   </div>
 
@@ -1203,7 +1205,9 @@
                     :tags="form.tags"
                     :logos="form.logos"
                     :logo-mapping="logoMapping"
-                    :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+                    :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+                    :branch="selectedBranch || 'main'"
+                    :repo-base-url="onlineTemplatesBaseUrl"
                     :tutorial-url="form.tutorialUrl"
                     :filename="templateName"
                     :category="currentCategoryTitle"
@@ -1280,7 +1284,7 @@
     <LogoManager
       v-model:open="isLogoManagerOpen"
       :logo-mapping="logoMapping"
-      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+      :repo-base-url="onlineTemplatesBaseUrl"
       :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
       :branch="selectedBranch || 'main'"
       @refresh="handleLogoManagerRefresh"
@@ -1356,6 +1360,13 @@ const {
 } = useGitHubRepo()
 
 const { resolveRepoFileUrl } = useRepoAssets()
+
+const onlineTemplatesBaseUrl = computed(() => {
+  if (isLocalMode.value) return ''
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  return `https://cdn.jsdelivr.net/gh/${repo}@${branch}/templates`
+})
 
 const repoFileUrl = (relativePath: string, cacheBust = false) => {
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'

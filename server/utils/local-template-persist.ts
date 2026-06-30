@@ -30,9 +30,12 @@ export function createLocalOctokit(): Octokit {
         try {
           const text = await readRepoText(path)
           return {
-            content: Buffer.from(text, 'utf-8').toString('base64'),
-            sha: 'local',
-            type: 'file'
+            data: {
+              content: Buffer.from(text, 'utf-8').toString('base64'),
+              sha: `local:${path}`,
+              type: 'file' as const,
+              encoding: 'base64'
+            }
           }
         } catch {
           const err = new Error('Not Found') as Error & { status: number }
@@ -42,10 +45,30 @@ export function createLocalOctokit(): Octokit {
       }
     },
     git: {
-      getRef: async () => ({ object: { sha: 'local' } }),
-      getCommit: async () => ({ tree: { sha: 'local' } }),
-      getBlob: async () => {
-        throw new Error('Local mode does not use git blobs API')
+      getRef: async () => ({ data: { object: { sha: 'local' } } }),
+      getCommit: async () => ({ data: { tree: { sha: 'local' } } }),
+      getBlob: async ({ file_sha }: { file_sha: string }) => {
+        if (file_sha.startsWith('local-blob-')) {
+          const buf = pendingLocalBlobs.get(file_sha)
+          if (!buf) throw new Error(`Local blob not found: ${file_sha}`)
+          return {
+            data: {
+              content: buf.toString('base64'),
+              encoding: 'base64'
+            }
+          }
+        }
+        if (file_sha.startsWith('local:')) {
+          const relativePath = file_sha.slice('local:'.length)
+          const text = await readRepoText(relativePath)
+          return {
+            data: {
+              content: Buffer.from(text, 'utf-8').toString('base64'),
+              encoding: 'base64'
+            }
+          }
+        }
+        throw new Error(`Local mode: unknown blob sha ${file_sha}`)
       },
       createBlob: async ({ content, encoding }: { content: string; encoding?: string }) => {
         const sha = `local-blob-${pendingLocalBlobs.size + 1}`
@@ -53,11 +76,11 @@ export function createLocalOctokit(): Octokit {
           ? Buffer.from(content, 'base64')
           : Buffer.from(content, 'utf-8')
         pendingLocalBlobs.set(sha, buf)
-        return { sha }
+        return { data: { sha } }
       },
-      createTree: async () => ({ sha: 'local' }),
-      createCommit: async () => ({ sha: 'local' }),
-      updateRef: async () => ({})
+      createTree: async () => ({ data: { sha: 'local' } }),
+      createCommit: async () => ({ data: { sha: 'local' } }),
+      updateRef: async () => ({ data: {} })
     }
   } as unknown as Octokit
 }
