@@ -1,6 +1,11 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 interface ThumbnailFieldRequest {
   repo: string
@@ -14,30 +19,41 @@ interface ThumbnailFieldRequest {
 }
 
 export default defineEventHandler(async (event) => {
+  const localMode = isLocalModeEnabled()
   const session = await getServerSession(event)
-  if (!session?.accessToken) {
+
+  if (!localMode && !session?.accessToken) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
   }
 
   const body = await readBody<ThumbnailFieldRequest>(event)
   const { repo, branch, templateName, thumbnail, newFiles } = body
 
-  if (!repo || !branch || !templateName) {
+  if (!templateName) {
     throw createError({ statusCode: 400, statusMessage: 'Missing required fields' })
   }
 
-  const [owner, repoName] = repo.split('/')
-  const octokit = new Octokit({ auth: session.accessToken })
+  if (!localMode && (!repo || !branch)) {
+    throw createError({ statusCode: 400, statusMessage: 'Missing repo or branch' })
+  }
 
-  // Get current commit SHA and tree
-  const { data: refData } = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` })
-  const currentCommitSha = refData.object.sha
-  const { data: commitData } = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: currentCommitSha })
-  const currentTreeSha = commitData.tree.sha
+  const [owner, repoName] = (repo || 'local/workflow_templates').split('/')
+  const octokit = localMode
+    ? createLocalOctokit()
+    : new Octokit({ auth: session!.accessToken })
+
+  let currentCommitSha = 'local'
+  let currentTreeSha = 'local'
+
+  if (!localMode) {
+    const { data: refData } = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` })
+    currentCommitSha = refData.object.sha
+    const { data: commitData } = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: currentCommitSha })
+    currentTreeSha = commitData.tree.sha
+  }
 
   const tree: any[] = []
 
-  // Load and update index.json
   const { data: indexFile } = await octokit.repos.getContent({
     owner, repo: repoName, path: 'templates/index.json', ref: branch
   })
@@ -72,7 +88,6 @@ export default defineEventHandler(async (event) => {
     content: formatTemplateJson(indexData)
   })
 
-  // Upload new files to thumbnail/ folder
   if (newFiles && newFiles.length > 0) {
     for (const file of newFiles) {
       const { data: blob } = await octokit.git.createBlob({
@@ -87,10 +102,20 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const commitMessage = `Update thumbnail field: ${templateName}\n\nUpdated via ComfyUI Template Manager`
+
+  if (localMode) {
+    const { sha } = await writeLocalTreeAndCommit(tree, commitMessage)
+    return {
+      success: true,
+      commit: { sha, url: `local://${sha.substring(0, 7)}` }
+    }
+  }
+
   const { data: newTree } = await octokit.git.createTree({ owner, repo: repoName, tree, base_tree: currentTreeSha })
   const { data: newCommit } = await octokit.git.createCommit({
     owner, repo: repoName,
-    message: `Update thumbnail field: ${templateName}\n\nUpdated via ComfyUI Template Manager`,
+    message: commitMessage,
     tree: newTree.sha,
     parents: [currentCommitSha]
   })

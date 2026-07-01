@@ -3270,21 +3270,28 @@ onMounted(async () => {
 
 const loadWorkflowContent = async (owner: string, repo: string, branch: string) => {
   try {
-    // Add timestamp to bypass GitHub CDN cache for newly created templates
-    const url = repoFileUrl(`templates/${templateName}.json`, true)
-    console.log('Loading workflow from:', url)
-    const response = await fetch(url)
+    const candidates = [
+      `templates/${templateName}.json`,
+      `templates/${templateName}.app.json`
+    ]
 
-    if (response.ok) {
-      const text = await response.text()
-      // Store as string for WorkflowFileManager component
-      workflowContent.value = text
-    } else if (response.status === 404) {
-      console.warn('Workflow file not found at:', url)
-      workflowContent.value = ''
-    } else {
-      console.error('Failed to load workflow:', response.status, response.statusText)
+    for (const path of candidates) {
+      const url = repoFileUrl(path, true)
+      console.log('Loading workflow from:', url)
+      const response = await fetch(url)
+
+      if (response.ok) {
+        workflowContent.value = await response.text()
+        await nextTick()
+        if (workflowFileManagerRef.value) {
+          workflowFileManagerRef.value.isAppWorkflow = path.endsWith('.app.json')
+        }
+        return
+      }
     }
+
+    console.warn('Workflow file not found:', candidates.join(', '))
+    workflowContent.value = ''
   } catch (err) {
     console.error('Error loading workflow:', err)
     workflowContent.value = ''

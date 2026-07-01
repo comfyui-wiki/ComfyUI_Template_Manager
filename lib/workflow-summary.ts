@@ -10,7 +10,7 @@ const INPUT_VIDEO_TYPES = new Set(['LoadVideo', 'VHS_LoadVideo'])
 const INPUT_AUDIO_TYPES = new Set(['LoadAudio'])
 const INPUT_3D_TYPES = new Set(['Load3D'])
 
-const OUTPUT_IMAGE_TYPES = new Set(['SaveImage', 'PreviewImage', 'SaveSVGNode', 'SaveAnimatedWEBP', 'SaveAnimatedPNG'])
+const OUTPUT_IMAGE_TYPES = new Set(['SaveImage', 'SaveImageAdvanced', 'PreviewImage', 'SaveSVGNode', 'SaveAnimatedWEBP', 'SaveAnimatedPNG'])
 const OUTPUT_VIDEO_TYPES = new Set(['SaveVideo', 'VHS_VideoCombine'])
 const OUTPUT_AUDIO_TYPES = new Set(['SaveAudio', 'SaveAudioMP3', 'PreviewAudio'])
 const OUTPUT_3D_TYPES = new Set(['Save3DModel', 'Preview3D'])

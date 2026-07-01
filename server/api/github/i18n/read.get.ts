@@ -1,12 +1,21 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import i18nConfig from '~/config/i18n-config.json'
+import { isLocalRepoMode, readRepoJson, repoFileExists } from '~/server/utils/local-repo'
+
+function getI18nPaths(): string[] {
+  return [
+    i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json',
+    i18nConfig.i18nDataPath?.fallback
+  ].filter((path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index)
+}
 
 export default defineEventHandler(async (event) => {
   try {
+    const localMode = isLocalRepoMode()
     const session = await getServerSession(event)
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized - Please sign in'
@@ -23,14 +32,27 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const [owner, repoName] = (repo as string).split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const i18nPaths = getI18nPaths()
 
-    // Use directly imported config (works in both dev and production/Vercel)
-    const i18nPaths = [
-      i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json',
-      i18nConfig.i18nDataPath?.fallback
-    ].filter((path, index, paths): path is string => Boolean(path) && paths.indexOf(path) === index)
+    if (localMode) {
+      for (const i18nPath of i18nPaths) {
+        console.log(`[i18n read API] Reading i18n.json locally from: ${i18nPath}`)
+        if (await repoFileExists(i18nPath)) {
+          const i18nData = await readRepoJson(i18nPath)
+          console.log('[i18n read API] Successfully loaded i18n.json from local clone')
+          return i18nData
+        }
+        console.warn(`[i18n read API] File not found locally: ${i18nPath}`)
+      }
+
+      throw createError({
+        statusCode: 404,
+        statusMessage: `i18n.json not found at paths: ${i18nPaths.join(', ')}`
+      })
+    }
+
+    const [owner, repoName] = (repo as string).split('/')
+    const octokit = new Octokit({ auth: session!.accessToken })
 
     for (const i18nPath of i18nPaths) {
       console.log(`[i18n read API] Reading i18n.json from: ${i18nPath}`)

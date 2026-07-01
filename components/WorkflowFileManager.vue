@@ -76,6 +76,18 @@
           </Button>
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            @click="rescanWorkflowFromRepo"
+            :disabled="!props.workflowContent || templateName === 'new' || rescanningWorkflow"
+          >
+            <svg class="w-4 h-4 mr-1" :class="{ 'animate-spin': rescanningWorkflow }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {{ rescanningWorkflow ? 'Scanning...' : 'Rescan IO' }}
+          </Button>
+          <Button
+            type="button"
             variant="default"
             size="sm"
             @click="triggerWorkflowUpload"
@@ -715,6 +727,7 @@ const formatChangeNotice = ref<{ oldFilename: string; newFilename: string } | nu
 const inputFileRefs = ref<InputFileRef[]>([])
 const outputFileRefs = ref<OutputFileRef[]>([]) // New ref for output files
 const workflowParsed = ref(false)
+const rescanningWorkflow = ref(false)
 const reuploadedInputFiles = ref<Map<string, File>>(new Map())
 const reuploadedOutputFiles = ref<Map<string, File>>(new Map()) // New map for output files
 const removedOutputFiles = ref<Set<string>>(new Set()) // Output files to delete from repo on save
@@ -751,7 +764,7 @@ const formatChangedFiles = ref<Map<string, string>>(new Map())
 const INPUT_NODE_TYPES = ['LoadImage', 'LoadAudio', 'LoadVideo', 'VHS_LoadVideo', 'Load3D', 'LoadImageMask']
 
 // Node types that produce output assets (from Python script)
-const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveVideo', 'SaveAudio', 'SaveAudioMP3', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio', 'SaveSVGNode']
+const OUTPUT_NODE_TYPES = ['SaveImage', 'SaveImageAdvanced', 'SaveVideo', 'SaveAudio', 'SaveAudioMP3', 'VHS_VideoCombine', 'Save3DModel', 'Preview3D', 'PreviewAudio', 'SaveSVGNode']
 
 // Computed
 const hasWarnings = computed(() => {
@@ -1018,6 +1031,23 @@ const getMediaTypeFromNodeType = (nodeType: string): string => {
   return 'image' // default fallback
 }
 
+/** Infer output filename from SaveImageAdvanced widgets: [prefix, format, ...] */
+const extractOutputFilenameHint = (node: { type: string; widgets_values?: unknown }): string => {
+  if (node.type !== 'SaveImageAdvanced') return ''
+
+  const widgetsValues = node.widgets_values
+  if (!Array.isArray(widgetsValues) || widgetsValues.length === 0) return ''
+
+  const prefix = typeof widgetsValues[0] === 'string' ? widgetsValues[0].trim() : ''
+  if (!prefix) return ''
+
+  const format = typeof widgetsValues[1] === 'string'
+    ? widgetsValues[1].trim().replace(/^\./, '')
+    : 'png'
+
+  return `${prefix}.${format || 'png'}`
+}
+
 // Parse workflow JSON to extract output file references
 const parseWorkflowForOutputFiles = (workflowJson: string): OutputFileRef[] => {
   try {
@@ -1033,7 +1063,7 @@ const parseWorkflowForOutputFiles = (workflowJson: string): OutputFileRef[] => {
         const mediaType = getMediaTypeFromNodeType(nodeType)
 
         refs.push({
-          filename: '', // Empty initially, user can fill or upload
+          filename: extractOutputFilenameHint(node),
           nodeId: node.id,
           nodeType,
           mediaType,
@@ -1046,6 +1076,117 @@ const parseWorkflowForOutputFiles = (workflowJson: string): OutputFileRef[] => {
   } catch (error) {
     console.error('Failed to parse workflow JSON for outputs:', error)
     return []
+  }
+}
+
+/** Parse workflow JSON and sync input/output refs (source of truth: workflow file). */
+const applyWorkflowIoFromContent = async (
+  content: string,
+  options?: { emitCustomNodes?: boolean; silent?: boolean }
+) => {
+  const refs = parseWorkflowForInputFiles(content)
+  const outputRefs = parseWorkflowForOutputFiles(content)
+
+  for (const ref of refs) {
+    if (reuploadedInputFiles.value.has(ref.filename)) {
+      const file = reuploadedInputFiles.value.get(ref.filename)!
+      ref.exists = true
+      ref.size = file.size
+      if (isImageFile(file.name)) {
+        ref.previewUrl = URL.createObjectURL(file)
+      }
+    }
+  }
+
+  if (props.ioData?.inputs) {
+    for (const existingInput of props.ioData.inputs) {
+      const ref = refs.find(r => r.nodeId === existingInput.nodeId)
+      if (ref && existingInput.file) {
+        ref.filename = existingInput.file
+      }
+    }
+  }
+
+  if (props.ioData?.outputs) {
+    for (const existingOutput of props.ioData.outputs) {
+      const ref = outputRefs.find(r => r.nodeId === existingOutput.nodeId)
+      if (ref && existingOutput.file) {
+        ref.filename = existingOutput.file
+      }
+    }
+  }
+
+  for (const ref of outputRefs) {
+    if (ref.filename && reuploadedOutputFiles.value.has(ref.filename)) {
+      const file = reuploadedOutputFiles.value.get(ref.filename)!
+      ref.exists = true
+      ref.size = file.size
+      if (isImageFile(file.name)) {
+        ref.previewUrl = URL.createObjectURL(file)
+      }
+    }
+  }
+
+  inputFileRefs.value = refs
+  outputFileRefs.value = outputRefs
+  workflowParsed.value = true
+
+  await checkInputFilesExistence()
+  await checkOutputFilesExistence()
+
+  if (options?.emitCustomNodes) {
+    const customNodes = extractCustomNodesFromWorkflow(content)
+    if (customNodes.length > 0) {
+      emit('customNodesDetected', customNodes)
+    }
+  }
+
+  if (!options?.silent) {
+    console.log('[WorkflowFileManager] Parsed IO from workflow:', {
+      inputs: refs.length,
+      outputs: outputRefs.length
+    })
+  }
+}
+
+const rescanWorkflowFromRepo = async () => {
+  if (props.templateName === 'new' || rescanningWorkflow.value) return
+
+  rescanningWorkflow.value = true
+  try {
+    const candidates = [
+      `templates/${props.templateName}.json`,
+      `templates/${props.templateName}.app.json`
+    ]
+
+    let text: string | null = null
+    for (const path of candidates) {
+      const response = await fetch(repoAssetUrl(path, true))
+      if (response.ok) {
+        text = await response.text()
+        isAppWorkflow.value = path.endsWith('.app.json')
+        break
+      }
+    }
+
+    if (!text) {
+      throw new Error('Workflow file not found in repository')
+    }
+
+    JSON.parse(text)
+    emit('workflowUpdated', text)
+    await applyWorkflowIoFromContent(text, { emitCustomNodes: true })
+    workflowStatus.value = {
+      success: true,
+      message: 'Rescanned input/output nodes from repository workflow file.'
+    }
+  } catch (error) {
+    workflowStatus.value = {
+      success: false,
+      message: `Failed to rescan workflow: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }
+  } finally {
+    rescanningWorkflow.value = false
   }
 }
 
@@ -1326,21 +1467,11 @@ const handleWorkflowReupload = async (event: Event) => {
 
     emit('workflowUpdated', text)
 
-    // Extract and emit custom nodes
-    const customNodes = extractCustomNodesFromWorkflow(text)
-    if (customNodes.length > 0) {
-      console.log('[WorkflowFileManager] Detected custom nodes:', customNodes)
-      emit('customNodesDetected', customNodes)
-    }
+    await applyWorkflowIoFromContent(text, { emitCustomNodes: true })
 
-    // Re-parse for input and output files
-    const newRefs = parseWorkflowForInputFiles(text)
-    const newOutputRefs = parseWorkflowForOutputFiles(text)
-    inputFileRefs.value = newRefs
-    outputFileRefs.value = newOutputRefs
-    workflowParsed.value = true
-    await checkInputFilesExistence()
-    await checkOutputFilesExistence()
+    if (props.templateName !== 'new') {
+      isAppWorkflow.value = file.name.endsWith('.app.json')
+    }
   } catch (error) {
     workflowStatus.value = {
       success: false,
@@ -1861,7 +1992,8 @@ defineExpose({
   reuploadedOutputFiles, // Expose reuploaded output files for parent
   removedOutputFiles,
   clearRemovedOutputFiles,
-  isAppWorkflow // Expose app workflow flag for parent
+  isAppWorkflow,
+  rescanWorkflowFromRepo
 })
 
 // Trigger output file upload
@@ -2062,56 +2194,16 @@ const downloadInputFile = async (filename: string) => {
   }
 }
 
-// Initialize on mount and when workflow content changes
+// Initialize when workflow content or saved io metadata changes
 watch(() => props.workflowContent, async (newContent) => {
-  if (!newContent) return
-
-  const refs = parseWorkflowForInputFiles(newContent)
-  const outputRefs = parseWorkflowForOutputFiles(newContent)
-
-  // Preserve state of reuploaded input files after parsing
-  for (const ref of refs) {
-    if (reuploadedInputFiles.value.has(ref.filename)) {
-      const file = reuploadedInputFiles.value.get(ref.filename)!
-      ref.exists = true
-      ref.size = file.size
-      if (isImageFile(file.name)) {
-        ref.previewUrl = URL.createObjectURL(file)
-      }
-    }
-  }
-
-  // Merge existing output files from ioData (if in edit mode)
-  if (props.ioData?.outputs) {
-    for (const existingOutput of props.ioData.outputs) {
-      // Find corresponding ref by nodeId
-      const ref = outputRefs.find(r => r.nodeId === existingOutput.nodeId)
-      if (ref && existingOutput.file) {
-        // Set filename from existing data
-        ref.filename = existingOutput.file
-        // Will check existence later
-      }
-    }
-  }
-
-  // Preserve state of reuploaded output files after parsing
-  for (const ref of outputRefs) {
-    if (ref.filename && reuploadedOutputFiles.value.has(ref.filename)) {
-      const file = reuploadedOutputFiles.value.get(ref.filename)!
-      ref.exists = true
-      ref.size = file.size
-      if (isImageFile(file.name)) {
-        ref.previewUrl = URL.createObjectURL(file)
-      }
-    }
-  }
-
-  inputFileRefs.value = refs
-  outputFileRefs.value = outputRefs
-  workflowParsed.value = true
-  await checkInputFilesExistence()
-  await checkOutputFilesExistence()
+  if (!newContent?.trim()) return
+  await applyWorkflowIoFromContent(newContent, { emitCustomNodes: true, silent: true })
 }, { immediate: true })
+
+watch(() => props.ioData, async () => {
+  if (!props.workflowContent?.trim()) return
+  await applyWorkflowIoFromContent(props.workflowContent, { silent: true })
+}, { deep: true })
 
 // Watch for category changes to re-validate template name
 watch(() => props.category, () => {
