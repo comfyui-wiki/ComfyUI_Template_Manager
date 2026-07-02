@@ -189,7 +189,9 @@ interface Props {
   tags: string[]
   logos: LogoInfo[]
   logoMapping: Record<string, string>
-  repoBaseUrl: string
+  repoBaseUrl?: string
+  repo?: string
+  branch?: string
   tutorialUrl: string
   filename: string
   category: string
@@ -209,6 +211,8 @@ const props = withDefaults(defineProps<Props>(), {
   logos: () => [],
   logoMapping: () => ({}),
   repoBaseUrl: '',
+  repo: 'Comfy-Org/workflow_templates',
+  branch: 'main',
   tutorialUrl: '',
   filename: '',
   category: '',
@@ -221,6 +225,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const isHovered = ref(false)
 
+const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
+
 // Helper functions for logos
 const getProviderArray = (logo: LogoInfo): string[] => {
   if (Array.isArray(logo.provider)) {
@@ -231,8 +237,16 @@ const getProviderArray = (logo: LogoInfo): string[] => {
 
 const getLogoPath = (provider: string): string => {
   const logoPath = props.logoMapping[provider]
-  if (!logoPath || !props.repoBaseUrl) return ''
-  return `${props.repoBaseUrl}/${logoPath}`
+  if (!logoPath) return ''
+  if (isLocalMode.value) {
+    const [owner, name] = props.repo.split('/')
+    return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
+  }
+  if (props.repoBaseUrl) {
+    return `${props.repoBaseUrl}/${logoPath}`
+  }
+  const [owner, name] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
 }
 
 // Calculate completion progress

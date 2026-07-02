@@ -303,6 +303,13 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
+const { resolveRepoFileUrl } = useRepoAssets()
+
+const repoAssetUrl = (relativePath: string, cacheBust = false) => {
+  const [owner, repoName] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, repoName, props.branch, relativePath, { cacheBust })
+}
+
 const isOpen = ref(props.open || false)
 const loading = ref(false)
 const thumbnails = ref<any[]>([])
@@ -346,7 +353,7 @@ const loadThumbnails = () => {
     const type = isVideo
       ? `${ext.toUpperCase()} Video`
       : ext ? `${ext.toUpperCase()} Image` : 'Image'
-    const url = `https://raw.githubusercontent.com/${props.repo}/${props.branch}/${path}?t=${cacheBust}`
+    const url = repoAssetUrl(path, true)
 
     thumbnails.value.push({ filename, url, type, path })
   }
@@ -356,7 +363,7 @@ const downloadWorkflow = async () => {
   if (!props.template?.name) return
 
   try {
-    const url = `https://raw.githubusercontent.com/${props.repo}/${props.branch}/templates/${props.template.name}.json?t=${Date.now()}`
+    const url = repoAssetUrl(`templates/${props.template.name}.json`, true)
     const response = await fetch(url)
 
     if (!response.ok) {
@@ -381,7 +388,7 @@ const downloadWorkflow = async () => {
 const downloadThumbnail = async (thumb: any) => {
   try {
     // Use a clean URL without cache-bust param for download
-    const cleanUrl = `https://raw.githubusercontent.com/${props.repo}/${props.branch}/${thumb.path}`
+    const cleanUrl = repoAssetUrl(thumb.path)
     const response = await fetch(cleanUrl)
 
     if (!response.ok) {
@@ -423,7 +430,7 @@ const loadInputFiles = async () => {
 
   try {
     // Load workflow JSON
-    const workflowUrl = `https://raw.githubusercontent.com/${props.repo}/${props.branch}/templates/${props.template.name}.json?t=${Date.now()}`
+    const workflowUrl = repoAssetUrl(`templates/${props.template.name}.json`, true)
     const workflowResponse = await fetch(workflowUrl)
 
     if (!workflowResponse.ok) {
@@ -479,7 +486,7 @@ const loadInputFiles = async () => {
 
     // Check if files exist in input/ folder
     for (const fileRef of inputFileRefs) {
-      const fileUrl = `https://raw.githubusercontent.com/${props.repo}/${props.branch}/input/${fileRef.filename}?t=${Date.now()}`
+      const fileUrl = repoAssetUrl(`input/${fileRef.filename}`, true)
 
       try {
         const response = await fetch(fileUrl, { method: 'HEAD' })

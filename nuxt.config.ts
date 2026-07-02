@@ -52,11 +52,16 @@ export default defineNuxtConfig({
     deepseekApiKey: process.env.DEEPSEEK_API_KEY,
     deepseekApiEndpoint: process.env.DEEPSEEK_API_ENDPOINT || 'https://api.deepseek.com/v1/chat/completions',
     deepseekModel: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    // Local workflow_templates clone (server-side)
+    workflowTemplatesMode: process.env.WORKFLOW_TEMPLATES_MODE || 'github',
+    workflowTemplatesPath: process.env.WORKFLOW_TEMPLATES_PATH || '',
+    workflowTemplatesCompareRef: process.env.WORKFLOW_TEMPLATES_COMPARE_REF || 'upstream/main',
     // Public (client-side)
     public: {
       repoOwner: 'Comfy-Org',
       repoName: 'workflow_templates',
-      aiTranslationEnabled: !!process.env.DEEPSEEK_API_KEY
+      aiTranslationEnabled: !!process.env.DEEPSEEK_API_KEY,
+      workflowTemplatesMode: process.env.WORKFLOW_TEMPLATES_MODE || 'github'
     }
   },
 

@@ -36,7 +36,7 @@
           <div v-if="slot.value" class="space-y-2">
             <video
               v-if="/\.(mp4|webm)$/i.test(slot.value)"
-              :src="slot.previewUrl || `https://raw.githubusercontent.com/${repo}/${branch}/${slot.value}`"
+              :src="slot.previewUrl || assetPreviewUrl(slot.value)"
               class="w-full max-h-48 rounded border bg-muted"
               controls
               muted
@@ -44,7 +44,7 @@
             />
             <img
               v-else
-              :src="slot.previewUrl || `https://raw.githubusercontent.com/${repo}/${branch}/${slot.value}`"
+              :src="slot.previewUrl || assetPreviewUrl(slot.value)"
               class="w-full max-h-48 object-contain rounded border bg-muted"
               :alt="slot.value"
             />
@@ -207,6 +207,13 @@ const props = defineProps<{
   branch: string
 }>()
 
+const { resolveRepoFileUrl } = useRepoAssets()
+
+const assetPreviewUrl = (relativePath: string) => {
+  const [owner, name] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, name, props.branch, relativePath)
+}
+
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'saved': [template: any]
@@ -350,8 +357,13 @@ async function save() {
       })
     })
 
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.statusMessage || data.message || 'Save failed')
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const message = data.statusMessage || data.message
+        || (typeof data.error === 'string' ? data.error : null)
+        || 'Save failed'
+      throw new Error(message)
+    }
 
     feedback.value = { ok: true, message: `Saved! Commit: ${data.commit.sha.substring(0, 7)}` }
     emit('saved', { ...props.template, thumbnail: thumbnailValue.value })

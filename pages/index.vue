@@ -100,6 +100,8 @@
             </div>
           </div>
 
+          <LocalModeBanner class="mt-3" />
+
           <!-- Branch Info and PR Actions -->
           <div v-if="isMounted && selectedRepo && selectedBranch" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
             <!-- Branch Info -->
@@ -419,6 +421,9 @@
       :selected-repo="selectedRepo"
       :selected-branch="selectedBranch"
       :diff-stats="diffStats"
+      :bundle-diff="bundleDiff"
+      :is-main-branch="isOnMainBranch"
+      :has-diff-comparison="hasDiffComparison"
       :can-edit-current-repo="canEditCurrentRepo"
       :is-viewing-p-r="isViewingPR"
       :cache-bust="cacheBustTimestamp"
@@ -517,10 +522,13 @@ import TagModelManager from '~/components/TagModelManager.vue'
 import CreatorManager from '~/components/CreatorManager.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
 import TemplateMainContent from '~/components/TemplateMainContent.vue'
+import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
+import LocalModeBanner from '~/components/LocalModeBanner.vue'
 
 const { status } = useAuth()
+const { resolveRepoFileUrl } = useRepoAssets()
 const route = useRoute()
 
 // Error message from redirects
@@ -541,13 +549,17 @@ const {
   hasMainRepoAccess,
   branchPermission,
   checkBranchPermission,
-  initialize: initializeGitHub
+  initialize: initializeGitHub,
+  isLocalMode
 } = useGitHubRepo()
 
 // Template diff detection
 const {
   categoriesWithDiff,
   diffStats,
+  bundleDiff,
+  templateBundleMap,
+  hasDiffComparison,
   isLoading: diffLoading,
   loadCurrentTemplates,
   isMainBranch,
@@ -607,8 +619,7 @@ const viewingPRBranch = ref<string | null>(null)
 // Load logo configuration
 const loadLogoConfiguration = async (owner: string, repo: string, branch: string) => {
   try {
-    // Add timestamp to bypass cache
-    const logoUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/index_logo.json?t=${Date.now()}`
+    const logoUrl = resolveRepoFileUrl(owner, repo, branch, 'templates/index_logo.json', { cacheBust: true })
     const logoResponse = await fetch(logoUrl)
     if (logoResponse.ok) {
       const logoData = await logoResponse.json()
@@ -625,7 +636,7 @@ const loadLogoConfiguration = async (owner: string, repo: string, branch: string
 // Load creators data from site/creators.json
 const loadCreatorsData = async (owner: string, repo: string, branch: string) => {
   try {
-    const creatorsUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/site/creators.json?t=${Date.now()}`
+    const creatorsUrl = resolveRepoFileUrl(owner, repo, branch, 'site/creators.json', { cacheBust: true })
     const response = await fetch(creatorsUrl)
     if (response.ok) {
       creatorsData.value = await response.json()
@@ -641,13 +652,19 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
   console.log(`[LoadTemplates] Loading from ${owner}/${repo}/${branch}`, forceRefresh ? '(force refresh)' : '')
   loading.value = true
   try {
-    // Check branch permission in parallel with loading templates and logo configuration
-    await Promise.all([
-      loadCurrentTemplates(owner, repo, branch, forceRefresh),
+    // Templates first — unblock UI as soon as index.json is available
+    await loadCurrentTemplates(owner, repo, branch, forceRefresh)
+
+    if (status.value === 'authenticated' && !isLocalMode.value) {
+      await checkBranchPermission(owner, repo, branch)
+    }
+
+    // Logo/creators are optional — never block the template grid
+    void Promise.all([
       loadLogoConfiguration(owner, repo, branch),
-      loadCreatorsData(owner, repo, branch),
-      status.value === 'authenticated' ? checkBranchPermission(owner, repo, branch) : Promise.resolve()
+      loadCreatorsData(owner, repo, branch)
     ])
+
     console.log('[LoadTemplates] Templates loaded successfully')
     console.log('[LoadTemplates] Categories with diff:', categoriesWithDiff.value?.length || 0)
     console.log('[LoadTemplates] Diff stats:', diffStats.value)
@@ -714,10 +731,8 @@ onMounted(async () => {
   // Mark as mounted to enable client-only rendering
   isMounted.value = true
 
-  // Initialize GitHub repo/branch management (checks permissions and fork status)
-  if (status.value === 'authenticated') {
-    await initializeGitHub()
-  }
+  // Initialize repo/branch management (local clone or GitHub)
+  await initializeGitHub()
 
   // Check if we just saved a template (force refresh if so)
   let forceRefresh = false
@@ -950,9 +965,11 @@ const isViewingPR = computed(() => {
 
 // Repo base URL for logos
 const repoBaseUrl = computed(() => {
-  // Use selected repo/branch, or fallback to default (same as loadTemplates)
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
   const branch = selectedBranch.value || 'main'
+  if (isLocalMode.value) {
+    return ''
+  }
   return `https://raw.githubusercontent.com/${repo}/${branch}/templates`
 })
 
@@ -961,13 +978,39 @@ const categoryTitle = computed(() => {
   return cat?.title || ''
 })
 
+const isOnMainBranch = computed(() => {
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  const [owner, name] = repo.split('/')
+  return isMainBranch(owner, name, branch)
+})
+
+const bundleLabelById = (bundleId: string) =>
+  bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.label || bundleId
+
+const isTemplateBundleAffected = (templateName: string) => {
+  if (!bundleDiff.value?.changedBundleCount) return false
+  return bundleDiff.value.bundles.some(bundle => {
+    if (!bundle.hasChanges) return false
+    return (
+      bundle.addedTemplates.includes(templateName)
+      || bundle.removedTemplates.includes(templateName)
+      || bundle.contentChangedTemplates.some(t => t.name === templateName)
+    )
+  })
+}
+
 const allTemplates = computed(() => {
   const templates: any[] = []
   categories.value.forEach((category: any) => {
     category.templates?.forEach((template: any) => {
+      const bundleId = templateBundleMap.value.get(template.name) || null
       const enrichedTemplate = {
         ...template,
-        categoryTitle: category.title
+        categoryTitle: category.title,
+        bundleId,
+        bundleLabel: bundleId ? bundleLabelById(bundleId) : null,
+        bundleNeedsPublish: isTemplateBundleAffected(template.name)
       }
       templates.push(enrichedTemplate)
     })
@@ -1343,6 +1386,28 @@ const handleCreatePR = () => {
     deletedTemplates.forEach(name => {
       body += `- \`${name}\`\n`
     })
+    body += '\n'
+  }
+
+  if (bundleDiff.value?.changedBundleCount) {
+    body += `### 📦 PyPI Bundles to Republish (${bundleDiff.value.changedBundleCount})\n\n`
+    body += `Compared to \`Comfy-Org/workflow_templates@main\`:\n\n`
+    bundleDiff.value.bundles
+      .filter(bundle => bundle.hasChanges)
+      .forEach(bundle => {
+        body += `- **${bundle.label}** (\`${bundle.id}\`)`
+        if (bundle.pypiPackage) body += ` → \`${bundle.pypiPackage}\``
+        body += '\n'
+        if (bundle.addedTemplates.length) {
+          body += `  - Added: ${bundle.addedTemplates.map(n => `\`${n}\``).join(', ')}\n`
+        }
+        if (bundle.removedTemplates.length) {
+          body += `  - Removed: ${bundle.removedTemplates.map(n => `\`${n}\``).join(', ')}\n`
+        }
+        if (bundle.contentChangedTemplates.length) {
+          body += `  - Content changed: ${bundle.contentChangedTemplates.map(t => `\`${t.name}\` (${t.status})`).join(', ')}\n`
+        }
+      })
     body += '\n'
   }
 

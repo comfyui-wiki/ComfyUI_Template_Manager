@@ -705,7 +705,9 @@
                       v-model="form.logos"
                       :available-providers="availableProviders"
                       :logo-mapping="logoMapping"
-                      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+                      :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+                      :branch="selectedBranch || 'main'"
+                      :repo-base-url="onlineTemplatesBaseUrl"
                     />
                   </div>
 
@@ -1203,7 +1205,9 @@
                     :tags="form.tags"
                     :logos="form.logos"
                     :logo-mapping="logoMapping"
-                    :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+                    :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
+                    :branch="selectedBranch || 'main'"
+                    :repo-base-url="onlineTemplatesBaseUrl"
                     :tutorial-url="form.tutorialUrl"
                     :filename="templateName"
                     :category="currentCategoryTitle"
@@ -1280,7 +1284,7 @@
     <LogoManager
       v-model:open="isLogoManagerOpen"
       :logo-mapping="logoMapping"
-      :repo-base-url="`https://cdn.jsdelivr.net/gh/${selectedRepo || 'Comfy-Org/workflow_templates'}@${selectedBranch || 'main'}/templates`"
+      :repo-base-url="onlineTemplatesBaseUrl"
       :repo="selectedRepo || 'Comfy-Org/workflow_templates'"
       :branch="selectedBranch || 'main'"
       @refresh="handleLogoManagerRefresh"
@@ -1350,8 +1354,26 @@ const displayTemplateName = computed(() => {
 const {
   selectedRepo,
   selectedBranch,
-  canEditCurrentRepo
+  canEditCurrentRepo,
+  initialize: initializeGitHub,
+  isLocalMode
 } = useGitHubRepo()
+
+const { resolveRepoFileUrl } = useRepoAssets()
+
+const onlineTemplatesBaseUrl = computed(() => {
+  if (isLocalMode.value) return ''
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  return `https://cdn.jsdelivr.net/gh/${repo}@${branch}/templates`
+})
+
+const repoFileUrl = (relativePath: string, cacheBust = false) => {
+  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
+  const branch = selectedBranch.value || 'main'
+  const [owner, repoName] = repo.split('/')
+  return resolveRepoFileUrl(owner, repoName, branch, relativePath, { cacheBust })
+}
 
 const loading = ref(true)
 const error = ref('')
@@ -1988,7 +2010,7 @@ watch(() => form.value.thumbnailVariant, async (newVariant, oldVariant) => {
           continue
         }
 
-        const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/${templateName}-${i}.${mediaSubtype}`
+        const url = repoFileUrl(`templates/${templateName}-${i}.${mediaSubtype}`)
         try {
           const response = await fetch(url)
           if (response.ok) {
@@ -2482,7 +2504,7 @@ const downloadThumbnail = async (index: number) => {
     const [owner, repoName] = repo.split('/')
     const mediaSubtype = originalTemplate.value?.mediaSubtype || 'webp'
 
-    const url = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/${templateName}-${index}.${mediaSubtype}`
+    const url = repoFileUrl(`templates/${templateName}-${index}.${mediaSubtype}`)
     const response = await fetch(url)
 
     if (!response.ok) {
@@ -2827,7 +2849,7 @@ const updateCategoryTemplatesForCreate = async () => {
     const [owner, repoName] = repo.split('/')
 
     // Reload index.json to get category templates
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
+    const indexUrl = repoFileUrl('templates/index.json', true)
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -2909,7 +2931,7 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
 
     // Reload index.json to get new category templates
     // Add timestamp to bypass GitHub CDN cache
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
+    const indexUrl = repoFileUrl('templates/index.json', true)
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -2975,7 +2997,7 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
 const loadLogoConfiguration = async (owner: string, repoName: string, branch: string) => {
   try {
     // Add timestamp to bypass cache
-    const logoUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index_logo.json?t=${Date.now()}`
+    const logoUrl = repoFileUrl('templates/index_logo.json', true)
     const logoResponse = await fetch(logoUrl)
     if (logoResponse.ok) {
       const logoData = await logoResponse.json()
@@ -2991,7 +3013,7 @@ const loadLogoConfiguration = async (owner: string, repoName: string, branch: st
 // Load creators data from site/creators.json
 const loadCreatorsData = async (owner: string, repoName: string, branch: string) => {
   try {
-    const creatorsUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/site/creators.json?t=${Date.now()}`
+    const creatorsUrl = repoFileUrl('site/creators.json', true)
     const response = await fetch(creatorsUrl)
     if (response.ok) {
       creatorsData.value = await response.json()
@@ -3006,7 +3028,7 @@ const loadCreatorsData = async (owner: string, repoName: string, branch: string)
 const getCreatorAvatarUrl = (creator: { avatarUrl: string }, owner: string, repoName: string, branch: string) => {
   // avatarUrl is like "/workflows/avatars/comfyui.png", extract filename
   const filename = creator.avatarUrl.split('/').pop()
-  return `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/site/avatars/${filename}`
+  return repoFileUrl(`site/avatars/${filename}`)
 }
 
 // Refresh logo data (called after Logo Manager saves)
@@ -3028,6 +3050,8 @@ watch(canEditCurrentRepo, async (hasPermission) => {
 })
 
 onMounted(async () => {
+  await initializeGitHub()
+
   // Check permissions for both create and edit modes
   if (!canEditCurrentRepo.value) {
     const errorType = isCreateMode.value ? 'no_permission_create' : 'no_permission_edit'
@@ -3043,7 +3067,7 @@ onMounted(async () => {
 
     // Load template metadata from index.json
     // Add timestamp to bypass GitHub CDN cache for newly created templates
-    const indexUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?t=${Date.now()}`
+    const indexUrl = repoFileUrl('templates/index.json', true)
     const response = await fetch(indexUrl)
 
     if (!response.ok) {
@@ -3136,7 +3160,7 @@ onMounted(async () => {
       // Retry loading with force refresh (stronger cache-busting)
       try {
         console.log('[Edit Page] Retrying template load...')
-        const retryUrl = `https://raw.githubusercontent.com/${owner}/${repoName}/${branch}/templates/index.json?nocache=${Date.now()}&r=${Math.random()}`
+        const retryUrl = repoFileUrl('templates/index.json', true)
         const retryResponse = await fetch(retryUrl, {
           cache: 'no-store',
           headers: {
@@ -3246,21 +3270,28 @@ onMounted(async () => {
 
 const loadWorkflowContent = async (owner: string, repo: string, branch: string) => {
   try {
-    // Add timestamp to bypass GitHub CDN cache for newly created templates
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}.json?t=${Date.now()}`
-    console.log('Loading workflow from:', url)
-    const response = await fetch(url)
+    const candidates = [
+      `templates/${templateName}.json`,
+      `templates/${templateName}.app.json`
+    ]
 
-    if (response.ok) {
-      const text = await response.text()
-      // Store as string for WorkflowFileManager component
-      workflowContent.value = text
-    } else if (response.status === 404) {
-      console.warn('Workflow file not found at:', url)
-      workflowContent.value = ''
-    } else {
-      console.error('Failed to load workflow:', response.status, response.statusText)
+    for (const path of candidates) {
+      const url = repoFileUrl(path, true)
+      console.log('Loading workflow from:', url)
+      const response = await fetch(url)
+
+      if (response.ok) {
+        workflowContent.value = await response.text()
+        await nextTick()
+        if (workflowFileManagerRef.value) {
+          workflowFileManagerRef.value.isAppWorkflow = path.endsWith('.app.json')
+        }
+        return
+      }
     }
+
+    console.warn('Workflow file not found:', candidates.join(', '))
+    workflowContent.value = ''
   } catch (err) {
     console.error('Error loading workflow:', err)
     workflowContent.value = ''
@@ -3289,7 +3320,7 @@ const loadThumbnails = async (owner: string, repo: string, branch: string) => {
     // Add timestamp to bypass GitHub CDN cache for newly uploaded thumbnails
     const cacheBust = Date.now()
     for (let i = 1; i <= count; i++) {
-      const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/templates/${templateName}-${i}.${mediaSubtype}?t=${cacheBust}`
+      const url = repoFileUrl(`templates/${templateName}-${i}.${mediaSubtype}`, true)
       try {
         const response = await fetch(url)
         if (response.ok) {

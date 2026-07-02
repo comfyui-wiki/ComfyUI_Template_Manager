@@ -3,6 +3,11 @@ import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 import { assignTemplateToBundle, findTemplateBundle, resolveTargetBundle } from '~/server/utils/bundles'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 interface UpdateTemplateRequest {
   repo: string
@@ -78,8 +83,9 @@ interface UpdateTemplateRequest {
 export default defineEventHandler(async (event) => {
   try {
     const session = await getServerSession(event)
+    const localMode = isLocalModeEnabled()
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized - Please sign in'
@@ -121,23 +127,28 @@ export default defineEventHandler(async (event) => {
     }
 
     const [owner, repoName] = repo.split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const octokit = localMode
+      ? createLocalOctokit()
+      : new Octokit({ auth: session!.accessToken })
 
-    // Get current commit SHA
-    const { data: refData } = await octokit.git.getRef({
-      owner,
-      repo: repoName,
-      ref: `heads/${branch}`
-    })
-    const currentCommitSha = refData.object.sha
+    let currentCommitSha = 'local'
+    let currentTreeSha = 'local'
 
-    // Get current tree
-    const { data: commitData } = await octokit.git.getCommit({
-      owner,
-      repo: repoName,
-      commit_sha: currentCommitSha
-    })
-    const currentTreeSha = commitData.tree.sha
+    if (!localMode) {
+      const { data: refData } = await octokit.git.getRef({
+        owner,
+        repo: repoName,
+        ref: `heads/${branch}`
+      })
+      currentCommitSha = refData.object.sha
+
+      const { data: commitData } = await octokit.git.getCommit({
+        owner,
+        repo: repoName,
+        commit_sha: currentCommitSha
+      })
+      currentTreeSha = commitData.tree.sha
+    }
 
     // Prepare tree items (files to update)
     const tree: any[] = []
@@ -855,6 +866,24 @@ export default defineEventHandler(async (event) => {
       console.log(`  ${index + 1}. ${item.path} (${item.sha ? 'blob sha' : item.content ? 'content' : 'delete'})`)
     })
 
+    const commitSubject = orderUpdated
+      ? `Update template: ${templateName} (reorder)`
+      : `Update template: ${templateName}`
+    const commitMessage = `${commitSubject}\n\nUpdated via ComfyUI Template Manager`
+
+    if (localMode) {
+      const { sha } = await writeLocalTreeAndCommit(tree, commitMessage)
+      return {
+        success: true,
+        message: 'Template updated locally',
+        commit: {
+          sha,
+          url: `local://${sha.substring(0, 7)}`
+        },
+        warnings: i18nSyncWarnings.length > 0 ? i18nSyncWarnings : undefined
+      }
+    }
+
     const { data: newTree } = await octokit.git.createTree({
       owner,
       repo: repoName,
@@ -864,13 +893,10 @@ export default defineEventHandler(async (event) => {
     console.log('[Update Template] ✓ Tree created successfully:', newTree.sha)
 
     // Create commit (mention reorder in message when only/mostly order changed)
-    const commitSubject = orderUpdated
-      ? `Update template: ${templateName} (reorder)`
-      : `Update template: ${templateName}`
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
       repo: repoName,
-      message: `${commitSubject}\n\nUpdated via ComfyUI Template Manager`,
+      message: commitMessage,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })

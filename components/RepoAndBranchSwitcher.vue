@@ -7,7 +7,7 @@
       <!-- Repository Selector -->
       <div>
         <label class="text-sm font-medium mb-2 block">Repository</label>
-        <Select v-model="selectedRepo" @update:modelValue="onRepoChange">
+        <Select v-model="selectedRepo" @update:modelValue="onRepoChange" :disabled="isLocalMode || availableRepos.length === 0">
           <SelectTrigger :disabled="availableRepos.length === 0">
             <SelectValue placeholder="Select repository" />
           </SelectTrigger>
@@ -31,7 +31,7 @@
         </Select>
 
         <!-- Fork prompt if no fork exists -->
-        <div v-if="!hasFork" class="mt-2 p-3 dm-callout-info rounded text-sm">
+        <div v-if="!isLocalMode && !hasFork" class="mt-2 p-3 dm-callout-info rounded text-sm">
           <p class="mb-2 opacity-95">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -57,7 +57,7 @@
         </div>
 
         <!-- Fork outdated warning - Only show when current repo IS the fork -->
-        <div v-if="isCurrentRepoFork && forkCompareStatus?.isBehind" class="mt-2 p-3 dm-callout-warn text-sm">
+        <div v-if="!isLocalMode && isCurrentRepoFork && forkCompareStatus?.isBehind" class="mt-2 p-3 dm-callout-warn text-sm">
           <p class="mb-2 font-medium flex items-center gap-1 opacity-95">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -171,7 +171,7 @@
         </div>
 
         <!-- Fork up to date notice - Only show when current repo IS the fork -->
-        <div v-if="isCurrentRepoFork && forkCompareStatus && !forkCompareStatus.isBehind && !forkCompareStatus.isAhead" class="mt-2 p-2 dm-callout-success text-xs">
+        <div v-if="!isLocalMode && isCurrentRepoFork && forkCompareStatus && !forkCompareStatus.isBehind && !forkCompareStatus.isAhead" class="mt-2 p-2 dm-callout-success text-xs">
           <p class="flex items-center gap-1 opacity-95">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -199,7 +199,7 @@
           </Button>
         </div>
 
-        <Select v-model="selectedBranch" @update:modelValue="onBranchChange" :disabled="branches.length === 0 || isLoading">
+        <Select :model-value="selectedBranch" @update:modelValue="handleBranchSelect" :disabled="branches.length === 0 || isLoading">
           <SelectTrigger>
             <SelectValue placeholder="Select branch" />
           </SelectTrigger>
@@ -239,7 +239,7 @@
               {{ currentBranchComparison.aheadBy }} commit{{ currentBranchComparison.aheadBy !== 1 ? 's' : '' }} ahead of upstream
             </span>
             <span v-else-if="currentBranchComparison.behindBy > 0" class="text-orange-600">
-              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind upstream
+              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind {{ isLocalMode ? (localRepoInfo?.compareRef || 'upstream') : 'upstream' }}
             </span>
             <span v-else class="text-green-600">
               Up to date with upstream
@@ -486,7 +486,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -498,6 +498,8 @@ import ResetBranchDialog from '@/components/ResetBranchDialog.vue'
 const {
   hasMainRepoAccess,
   hasFork,
+  isLocalMode,
+  localRepoInfo,
   selectedRepo,
   selectedBranch,
   branches,
@@ -511,6 +513,7 @@ const {
   syncFork,
   loadBranches,
   createBranch,
+  checkoutLocalBranch,
   initialize
 } = useGitHubRepo()
 
@@ -660,6 +663,16 @@ const onBranchChange = (newBranch: string) => {
   console.log('[RepoAndBranchSwitcher] Current repo:', selectedRepo.value)
 }
 
+const handleBranchSelect = async (newBranch: string) => {
+  if (!newBranch || newBranch === selectedBranch.value) return
+  if (isLocalMode.value) {
+    await checkoutLocalBranch(newBranch)
+    return
+  }
+  selectedBranch.value = newBranch
+  onBranchChange(newBranch)
+}
+
 // Debug watcher for selectedBranch
 watch(selectedBranch, (newVal, oldVal) => {
   console.log('[RepoAndBranchSwitcher] selectedBranch watch:', { old: oldVal, new: newVal })
@@ -712,7 +725,11 @@ const handleCreateBranch = async () => {
 
   try {
     await createBranch(owner, name, branchName, selectedBranch.value)
-    selectedBranch.value = branchName
+    if (isLocalMode.value) {
+      await checkoutLocalBranch(branchName)
+    } else {
+      selectedBranch.value = branchName
+    }
     showCreateBranch.value = false
     newBranchName.value = ''
     // Load comparison for the new branch
@@ -887,6 +904,29 @@ const loadCurrentBranchComparison = async () => {
     return
   }
 
+  if (isLocalMode.value) {
+    try {
+      const response = await $fetch('/api/local/git/compare')
+      if (response.available) {
+        currentBranchComparison.value = {
+          success: true,
+          status: response.status,
+          aheadBy: response.aheadBy || 0,
+          behindBy: response.behindBy || 0,
+          isBehind: response.isBehind,
+          isAhead: response.isAhead,
+          isDiverged: response.isDiverged
+        }
+      } else {
+        currentBranchComparison.value = null
+      }
+    } catch (error) {
+      console.error('Failed to load local upstream comparison:', error)
+      currentBranchComparison.value = null
+    }
+    return
+  }
+
   // Only show comparison for non-upstream repos (forks)
   const [owner, repo] = selectedRepo.value.split('/')
   const config = useRuntimeConfig()
@@ -928,5 +968,15 @@ onMounted(() => {
   setTimeout(() => {
     loadCurrentBranchComparison()
   }, 1000)
+
+  if (process.client) {
+    window.addEventListener('local-upstream-refreshed', loadCurrentBranchComparison)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (process.client) {
+    window.removeEventListener('local-upstream-refreshed', loadCurrentBranchComparison)
+  }
 })
 </script>

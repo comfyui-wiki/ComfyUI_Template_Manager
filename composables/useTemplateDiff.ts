@@ -1,5 +1,12 @@
 import { ref, computed, watch } from 'vue'
 import { hash } from 'ohash'
+import bundleMappingRules from '~/config/bundle-mapping-rules.json'
+import {
+  buildTemplateToBundleMap,
+  compareBundleChanges,
+  type BundleDiffResult,
+  type BundlesData
+} from '~/lib/bundle-diff'
 
 // Cache helper functions
 const getCacheKey = (owner: string, repo: string, branch: string) => {
@@ -13,7 +20,7 @@ const getCachedData = (key: string) => {
       if (cached) {
         const data = JSON.parse(cached)
         // Check if cache is less than 5 minutes old
-        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+        if (Date.now() - data.timestamp < 5 * 60 * 1000 && Array.isArray(data.categories)) {
           console.log('[Cache] Using cached data for', key)
           return data.categories
         } else {
@@ -41,9 +48,47 @@ const setCachedData = (key: string, categories: any) => {
   }
 }
 
+const getBundleLabel = (bundleId: string) =>
+  bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.label || bundleId
+
+const getBundlePypiPackage = (bundleId: string) =>
+  bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.pypiPackage || null
+
+const fetchBundlesJson = async (owner: string, repo: string, branch: string, source: 'current' | 'main' = 'current'): Promise<BundlesData> => {
+  const { isLocalMode } = useRepoMode()
+
+  if (isLocalMode.value) {
+    try {
+      const response = await $fetch<{ current: BundlesData; base: BundlesData }>('/api/local/bundles')
+      return source === 'main' ? (response.base || {}) : (response.current || {})
+    } catch (err) {
+      console.warn('[fetchBundlesJson] Local bundles fetch failed:', err)
+      return {}
+    }
+  }
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+    const response = await fetch(
+      `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/bundles.json?t=${Date.now()}`,
+      { signal: controller.signal }
+    )
+    clearTimeout(timeoutId)
+    if (!response.ok) return {}
+    return await response.json()
+  } catch (err) {
+    console.warn('[fetchBundlesJson] Failed (non-blocking):', err)
+    return {}
+  }
+}
+
 export const useTemplateDiff = () => {
+  const { isLocalMode } = useRepoMode()
   const currentTemplates = ref<any>(null)
   const mainTemplates = ref<any>(null)
+  const currentBundles = ref<BundlesData>({})
+  const mainBundles = ref<BundlesData>({})
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -54,12 +99,22 @@ export const useTemplateDiff = () => {
     branch: 'main'
   }
 
+  const isForkBranch = (owner: string, repo: string, branch: string) => {
+    return !(
+      owner === mainRepo.owner &&
+      repo === mainRepo.name &&
+      branch === mainRepo.branch
+    )
+  }
+
   /**
    * Fetch templates from a specific repository and branch
    * @param forceRefresh - If true, bypasses cache and uses GitHub API for fresh data
    */
-  const fetchTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
-    const cacheKey = getCacheKey(owner, repo, branch)
+  const fetchTemplates = async (owner: string, repo: string, branch: string, forceRefresh = false, atRef?: 'compare') => {
+    const cacheKey = atRef === 'compare'
+      ? 'templates_cache_local_compare'
+      : getCacheKey(owner, repo, branch)
 
     // Try to use cache first (unless force refresh)
     if (!forceRefresh) {
@@ -69,29 +124,69 @@ export const useTemplateDiff = () => {
         return cached
       }
     } else {
-      console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache AND CDN, using GitHub API for fresh data')
+      console.log('[fetchTemplates] 🔄 Force refresh - bypassing cache')
     }
 
-    try {
-      console.log(`[fetchTemplates] 🌐 Fetching data from: ${owner}/${repo}/${branch}`)
-      const response = await $fetch('/api/github/templates', {
-        query: {
-          owner,
-          repo,
-          branch,
-          useApi: forceRefresh ? 'true' : 'false' // Use API when force refreshing to bypass CDN
+    console.log(`[fetchTemplates] 🌐 Fetching data from: ${owner}/${repo}/${branch}`, atRef === 'compare' ? `(compare ref)` : '')
+    const useApi = forceRefresh || isForkBranch(owner, repo, branch) || isLocalMode.value
+    const response = await $fetch<{ categories: any[]; source?: { method?: string } }>('/api/github/templates', {
+      query: {
+        owner,
+        repo,
+        branch,
+        useApi: useApi ? 'true' : 'false',
+        ...(atRef === 'compare' ? { atRef: 'compare' } : {})
+      }
+    })
+
+    setCachedData(cacheKey, response.categories)
+    console.log(`[fetchTemplates] ✅ Data fetched via ${response.source?.method || 'unknown'} and cached`)
+    return response.categories
+  }
+
+  /** Load main/bundle comparison data in background — never blocks the template list */
+  const loadComparisonInBackground = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
+    const skipMain = owner === mainRepo.owner && repo === mainRepo.name && branch === mainRepo.branch
+
+    if (forceRefresh) {
+      clearCache(mainRepo.owner, mainRepo.name, mainRepo.branch)
+      mainTemplates.value = null
+    }
+
+    const tasks: Promise<void>[] = []
+
+    if (!skipMain) {
+      tasks.push((async () => {
+        try {
+          if (mainTemplates.value) return
+          if (isLocalMode.value) {
+            mainTemplates.value = await fetchTemplates(owner, repo, branch, false, 'compare')
+          } else {
+            mainTemplates.value = await fetchTemplates(
+              mainRepo.owner,
+              mainRepo.name,
+              mainRepo.branch,
+              false
+            )
+          }
+        } catch (err) {
+          console.warn('[useTemplateDiff] Main branch comparison unavailable:', err)
         }
-      })
-
-      // Cache the fresh data
-      setCachedData(cacheKey, response.categories)
-      console.log(`[fetchTemplates] ✅ Data fetched via ${response.source?.method || 'unknown'} and cached`)
-
-      return response.categories
-    } catch (err: any) {
-      console.error('Failed to fetch templates:', err)
-      throw err
+      })())
+    } else {
+      mainTemplates.value = currentTemplates.value
     }
+
+    tasks.push((async () => {
+      currentBundles.value = await fetchBundlesJson(owner, repo, branch, 'current')
+    })())
+
+    tasks.push((async () => {
+      mainBundles.value = await fetchBundlesJson(owner, repo, branch, 'main')
+    })())
+
+    await Promise.allSettled(tasks)
+    console.log('[useTemplateDiff] Background comparison finished')
   }
 
   /**
@@ -120,22 +215,17 @@ export const useTemplateDiff = () => {
     error.value = null
 
     try {
-      // Load both current and main templates in parallel
-      const [current, main] = await Promise.all([
-        fetchTemplates(owner, repo, branch, forceRefresh),
-        // Always fetch from main if not already loaded or force refresh
-        (mainTemplates.value && !forceRefresh) ? Promise.resolve(mainTemplates.value) : fetchTemplates(mainRepo.owner, mainRepo.name, mainRepo.branch, forceRefresh)
-      ])
-
+      const current = await fetchTemplates(owner, repo, branch, forceRefresh)
       currentTemplates.value = current
-      mainTemplates.value = main
 
       console.log('[useTemplateDiff] Current templates categories:', current?.length || 0)
-      console.log('[useTemplateDiff] Main templates categories:', main?.length || 0)
-      console.log('[useTemplateDiff] Is same branch as main?', owner === mainRepo.owner && repo === mainRepo.name && branch === mainRepo.branch)
+
+      // Comparison + bundles run in background so categories render immediately
+      void loadComparisonInBackground(owner, repo, branch, forceRefresh)
     } catch (err: any) {
       console.error('[useTemplateDiff] Failed to load templates:', err)
       error.value = err.message || 'Failed to load templates'
+      currentTemplates.value = null
     } finally {
       isLoading.value = false
     }
@@ -261,8 +351,13 @@ export const useTemplateDiff = () => {
    * Includes templates from current branch AND deleted templates from main branch
    */
   const categoriesWithDiff = computed(() => {
-    if (!currentTemplates.value || !compareTemplates.value) {
+    if (!currentTemplates.value) {
       return []
+    }
+
+    // Show templates even when main-branch comparison is unavailable
+    if (!mainTemplates.value || !compareTemplates.value) {
+      return currentTemplates.value
     }
 
     console.log('[categoriesWithDiff] Processing templates, preserving order from index.json')
@@ -347,6 +442,30 @@ export const useTemplateDiff = () => {
   })
 
   /**
+   * Compare bundles.json + template diffs to find PyPI sub-packages that need republishing
+   */
+  const bundleDiff = computed<BundleDiffResult | null>(() => {
+    if (!compareTemplates.value) return null
+
+    return compareBundleChanges(
+      currentBundles.value,
+      mainBundles.value,
+      compareTemplates.value,
+      getBundleLabel,
+      getBundlePypiPackage
+    )
+  })
+
+  /**
+   * Map template name → bundle id on the current branch
+   */
+  const templateBundleMap = computed(() => buildTemplateToBundleMap(currentBundles.value))
+
+  const hasDiffComparison = computed(() => {
+    return Boolean(currentTemplates.value && mainTemplates.value && compareTemplates.value)
+  })
+
+  /**
    * Check if current branch is the main branch
    */
   const isMainBranch = (owner: string, repo: string, branch: string) => {
@@ -368,6 +487,10 @@ export const useTemplateDiff = () => {
     compareTemplates,
     categoriesWithDiff,
     diffStats,
+    bundleDiff,
+    templateBundleMap,
+    currentBundles,
+    hasDiffComparison,
 
     // Methods
     loadMainTemplates,

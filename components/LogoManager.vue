@@ -71,7 +71,7 @@
               <div class="aspect-square rounded bg-muted flex items-center justify-center overflow-hidden" style="height: 80px;">
                 <img
                   :key="pendingFilePreviews[providerName] || logoPath"
-                  :src="pendingFilePreviews[providerName] || `${repoBaseUrl}/${logoPath}`"
+                  :src="pendingFilePreviews[providerName] || getLogoImageUrl(logoPath)"
                   :alt="providerName"
                   class="w-full h-full object-contain p-1.5"
                   @error="handleImageError"
@@ -199,12 +199,29 @@ import { Input } from '@/components/ui/input'
 interface Props {
   open: boolean
   logoMapping: Record<string, string>
-  repoBaseUrl: string
+  repoBaseUrl?: string
   repo: string
   branch: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  repoBaseUrl: ''
+})
+
+const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
+
+const getLogoImageUrl = (logoPath: string): string => {
+  if (!logoPath) return ''
+  if (isLocalMode.value) {
+    const [owner, name] = props.repo.split('/')
+    return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
+  }
+  if (props.repoBaseUrl) {
+    return `${props.repoBaseUrl}/${logoPath}`
+  }
+  const [owner, name] = props.repo.split('/')
+  return resolveRepoFileUrl(owner, name, props.branch, `templates/${logoPath}`)
+}
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'refresh': []

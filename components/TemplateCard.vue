@@ -149,6 +149,18 @@
         >
           {{ missingOutputFilesCount }}
         </span>
+        <span
+          v-if="template.bundleLabel"
+          class="px-2 py-1 text-[10px] font-medium rounded shadow-lg"
+          :class="template.bundleNeedsPublish
+            ? 'bg-amber-500 text-white'
+            : 'bg-slate-700/80 text-white'"
+          :title="template.bundleNeedsPublish
+            ? `PyPI package for ${template.bundleLabel} needs republish vs main`
+            : `Bundle: ${template.bundleLabel}`"
+        >
+          <template v-if="template.bundleNeedsPublish">📦 </template>{{ template.bundleLabel }}
+        </span>
         <span class="px-2 py-1 text-xs font-medium bg-black/60 text-white rounded capitalize">
           {{ category || template.categoryTitle || 'Uncategorized' }}
         </span>
@@ -430,6 +442,25 @@ const compareContainer = ref<HTMLElement | null>(null)
 const showDetailsModal = ref(false)
 const copySuccess = ref(false)
 
+const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
+
+const parseRepo = (fullName: string) => {
+  const [owner, name] = fullName.split('/')
+  return { owner, repo: name }
+}
+
+const templateAssetUrl = (fileName: string) => {
+  const deleted = props.template.diffStatus === 'deleted'
+  const fullRepo = deleted ? 'Comfy-Org/workflow_templates' : (props.repo || 'Comfy-Org/workflow_templates')
+  const branch = deleted ? 'main' : (props.branch || 'main')
+  const { owner, repo } = parseRepo(fullRepo)
+  return resolveRepoFileUrl(owner, repo, branch, `templates/${fileName}`, {
+    compareRef: deleted && isLocalMode.value,
+    commitSha: props.commitSha,
+    cacheBust: Boolean(props.cacheBust)
+  })
+}
+
 // Check if this template is in the PR
 const isInPR = computed(() => {
   return props.prTemplates?.includes(props.template.name) || false
@@ -456,9 +487,10 @@ const creatorInfo = computed(() => {
 const creatorAvatarUrl = computed(() => {
   if (!creatorInfo.value) return null
   const filename = creatorInfo.value.avatarUrl.split('/').pop()
-  const repo = props.repo || 'Comfy-Org/workflow_templates'
+  const fullRepo = props.repo || 'Comfy-Org/workflow_templates'
   const branch = props.branch || 'main'
-  return `https://raw.githubusercontent.com/${repo}/${branch}/site/avatars/${filename}`
+  const { owner, repo } = parseRepo(fullRepo)
+  return resolveRepoFileUrl(owner, repo, branch, `site/avatars/${filename}`)
 })
 
 // Calculate missing output files count
@@ -474,58 +506,13 @@ const missingOutputFilesCount = computed(() => {
 // Use VueUse to track mouse position
 const { elementX, elementWidth, isOutside } = useMouseInElement(compareContainer)
 
-const thumbnailUrl = computed(() => {
-  // For deleted templates, load from main branch where they still exist
-  const repo = props.template.diffStatus === 'deleted'
-    ? 'Comfy-Org/workflow_templates'
-    : (props.repo || 'Comfy-Org/workflow_templates')
-  const branch = props.template.diffStatus === 'deleted'
-    ? 'main'
-    : (props.branch || 'main')
-  const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
-  const cacheBust = props.commitSha
-    ? `?sha=${props.commitSha.substring(0, 8)}`
-    : props.cacheBust
-      ? `?cb=${props.cacheBust}`
-      : ''
-  return `${baseUrl}/${props.template.name}-1.webp${cacheBust}`
-})
+const thumbnailUrl = computed(() => templateAssetUrl(`${props.template.name}-1.webp`))
 
-const thumbnailUrl2 = computed(() => {
-  // For deleted templates, load from main branch where they still exist
-  const repo = props.template.diffStatus === 'deleted'
-    ? 'Comfy-Org/workflow_templates'
-    : (props.repo || 'Comfy-Org/workflow_templates')
-  const branch = props.template.diffStatus === 'deleted'
-    ? 'main'
-    : (props.branch || 'main')
-  const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
-  const cacheBust = props.commitSha
-    ? `?sha=${props.commitSha.substring(0, 8)}`
-    : props.cacheBust
-      ? `?cb=${props.cacheBust}`
-      : ''
-  return `${baseUrl}/${props.template.name}-2.webp${cacheBust}`
-})
+const thumbnailUrl2 = computed(() => templateAssetUrl(`${props.template.name}-2.webp`))
 
 const audioUrl = computed(() => {
-  // For deleted templates, load from main branch where they still exist
-  const repo = props.template.diffStatus === 'deleted'
-    ? 'Comfy-Org/workflow_templates'
-    : (props.repo || 'Comfy-Org/workflow_templates')
-  const branch = props.template.diffStatus === 'deleted'
-    ? 'main'
-    : (props.branch || 'main')
-  const baseUrl = `https://raw.githubusercontent.com/${repo}/${branch}/templates`
-  // Use commit SHA for stronger CDN cache busting, fallback to timestamp
-  const cacheBust = props.commitSha
-    ? `?sha=${props.commitSha.substring(0, 8)}`
-    : props.cacheBust
-      ? `?cb=${props.cacheBust}`
-      : ''
-  return `${baseUrl}/${props.template.name}-1.mp3${cacheBust}`
+  if (!props.template.audio) return ''
+  return templateAssetUrl(`${props.template.name}-1.mp3`)
 })
 
 const onImageError = () => {
@@ -587,10 +574,16 @@ const getProviderArray = (logo: LogoInfo): string[] => {
 }
 
 const getLogoPath = (provider: string): string => {
-  if (!props.logoMapping || !props.repoBaseUrl) return ''
+  if (!props.logoMapping) return ''
   const logoPath = props.logoMapping[provider]
   if (!logoPath) return ''
-  return `${props.repoBaseUrl}/${logoPath}`
+  if (props.repoBaseUrl) {
+    return `${props.repoBaseUrl}/${logoPath}`
+  }
+  const fullRepo = props.repo || 'Comfy-Org/workflow_templates'
+  const branch = props.branch || 'main'
+  const { owner, repo } = parseRepo(fullRepo)
+  return resolveRepoFileUrl(owner, repo, branch, `templates/${logoPath}`)
 }
 
 // Update slider position based on mouse position (hover-based)

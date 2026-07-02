@@ -175,6 +175,7 @@ const emit = defineEmits<{
 }>()
 
 const { selectedRepo, selectedBranch } = useGitHubRepo()
+const { resolveRepoFileUrl } = useRepoAssets()
 
 // State
 const searchQuery = ref('')
@@ -234,7 +235,8 @@ const toggleDropdown = (templateName: string) => {
 const getThumbnailUrl = (template: any) => {
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
   const branch = selectedBranch.value || 'main'
-  return `https://raw.githubusercontent.com/${repo}/${branch}/templates/${template.name}-1.webp`
+  const [owner, name] = repo.split('/')
+  return resolveRepoFileUrl(owner, name, branch, `templates/${template.name}-1.webp`)
 }
 
 const getAvatarUrl = (handle: string) => {
@@ -243,7 +245,8 @@ const getAvatarUrl = (handle: string) => {
   const filename = creator.avatarUrl.split('/').pop()
   const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
   const branch = selectedBranch.value || 'main'
-  return `https://raw.githubusercontent.com/${repo}/${branch}/site/avatars/${filename}`
+  const [owner, name] = repo.split('/')
+  return resolveRepoFileUrl(owner, name, branch, `site/avatars/${filename}`)
 }
 
 // Close dropdown when clicking outside

@@ -2,6 +2,11 @@ import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import i18nConfig from '~/config/i18n-config.json'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 interface I18nData {
   _status: any
@@ -15,9 +20,10 @@ interface I18nData {
 
 export default defineEventHandler(async (event) => {
   try {
+    const localMode = isLocalModeEnabled()
     const session = await getServerSession(event)
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized - Please sign in'
@@ -40,7 +46,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const [owner, repoName] = repo.split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const octokit = localMode
+      ? createLocalOctokit()
+      : new Octokit({ auth: session!.accessToken })
 
     // Use directly imported config (works in both dev and production/Vercel)
     const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json'
@@ -48,21 +56,26 @@ export default defineEventHandler(async (event) => {
     console.log('[Update i18n] Starting translation update and sync...')
     console.log('[Update i18n] i18n.json path:', i18nPath)
 
-    // Get current commit SHA
-    const { data: refData } = await octokit.git.getRef({
-      owner,
-      repo: repoName,
-      ref: `heads/${branch}`
-    })
-    const currentCommitSha = refData.object.sha
+    let currentCommitSha = 'local'
+    let currentTreeSha = 'local'
 
-    // Get current tree
-    const { data: commitData } = await octokit.git.getCommit({
-      owner,
-      repo: repoName,
-      commit_sha: currentCommitSha
-    })
-    const currentTreeSha = commitData.tree.sha
+    if (!localMode) {
+      // Get current commit SHA
+      const { data: refData } = await octokit.git.getRef({
+        owner,
+        repo: repoName,
+        ref: `heads/${branch}`
+      })
+      currentCommitSha = refData.object.sha
+
+      // Get current tree
+      const { data: commitData } = await octokit.git.getCommit({
+        owner,
+        repo: repoName,
+        commit_sha: currentCommitSha
+      })
+      currentTreeSha = commitData.tree.sha
+    }
 
     // Prepare tree items
     const tree: any[] = []
@@ -182,6 +195,22 @@ export default defineEventHandler(async (event) => {
     }
 
     // Create new tree
+    const commitMessage = 'Update translations\n\nUpdated via Translation Manager'
+
+    if (localMode) {
+      const { sha } = await writeLocalTreeAndCommit(tree, commitMessage)
+      console.log('[Update i18n] Successfully updated and synced all translations locally')
+
+      return {
+        success: true,
+        message: 'Translations updated and synced successfully',
+        commit: {
+          sha,
+          url: `local://${sha.substring(0, 7)}`
+        }
+      }
+    }
+
     const { data: newTree } = await octokit.git.createTree({
       owner,
       repo: repoName,
@@ -193,7 +222,7 @@ export default defineEventHandler(async (event) => {
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
       repo: repoName,
-      message: `Update translations\n\nUpdated via Translation Manager`,
+      message: commitMessage,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })
