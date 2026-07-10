@@ -5,21 +5,68 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import bundleMappingRules from '~/config/bundle-mapping-rules.json'
+import { isLocalRepoMode, readRepoJson } from '~/server/utils/local-repo'
 import {
   findTemplateBundle,
   formatBytes,
   getBundleLabel,
   getBundlePypiPackage,
   getBundleSizeLimitBytes,
+  getFrozenBundleReason,
   getKnownBundleIds,
+  getRecommendedAssetBundle,
   fetchPyPIWheelSizeBytes,
+  isFrozenBundle,
   resolveTargetBundle
 } from '~/server/utils/bundles'
 
-export default defineEventHandler(async (event) => {
+async function readBundlesData(event: any, repo: string, branch: string): Promise<Record<string, string[]>> {
+  if (isLocalRepoMode()) {
+    try {
+      return await readRepoJson<Record<string, string[]>>('bundles.json')
+    } catch {
+      return {}
+    }
+  }
+
   const session = await getServerSession(event)
   if (!session?.accessToken) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized - Please sign in' })
+  }
+
+  const [owner, repoName] = repo.split('/')
+  const octokit = new Octokit({ auth: session.accessToken })
+
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo: repoName,
+      path: 'bundles.json',
+      ref: branch
+    })
+    if ('content' in data && data.content) {
+      return JSON.parse(Buffer.from(data.content, 'base64').toString('utf-8'))
+    }
+  } catch (error: any) {
+    if (error.status !== 404) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: error.message || 'Failed to read bundles.json'
+      })
+    }
+  }
+
+  return {}
+}
+
+export default defineEventHandler(async (event) => {
+  const localMode = isLocalRepoMode()
+
+  if (!localMode) {
+    const session = await getServerSession(event)
+    if (!session?.accessToken) {
+      throw createError({ statusCode: 401, statusMessage: 'Unauthorized - Please sign in' })
+    }
   }
 
   const query = getQuery(event)
@@ -35,42 +82,25 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const [owner, repoName] = repo.split('/')
-  const octokit = new Octokit({ auth: session.accessToken })
   const sizeLimitBytes = getBundleSizeLimitBytes()
-
-  let bundlesData: Record<string, string[]> = {}
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo: repoName,
-      path: 'bundles.json',
-      ref: branch
-    })
-    if ('content' in data && data.content) {
-      bundlesData = JSON.parse(Buffer.from(data.content, 'base64').toString('utf-8'))
-    }
-  } catch (error: any) {
-    if (error.status !== 404) {
-      throw createError({
-        statusCode: 500,
-        statusMessage: error.message || 'Failed to read bundles.json'
-      })
-    }
-  }
+  const bundlesData = await readBundlesData(event, repo, branch)
+  const currentBundle = templateName ? findTemplateBundle(bundlesData, templateName) : null
+  const suggestedBundle = category
+    ? resolveTargetBundle(category, null, { currentBundle })
+    : getRecommendedAssetBundle()
 
   const bundleIds = getKnownBundleIds()
-  const currentBundle = templateName ? findTemplateBundle(bundlesData, templateName) : null
-  const suggestedBundle = category ? resolveTargetBundle(category) : bundleMappingRules.defaultBundle
-
   const bundles = await Promise.all(
     bundleIds.map(async (bundleId) => {
       const templates = Array.isArray(bundlesData[bundleId]) ? bundlesData[bundleId] : []
+      const frozen = isFrozenBundle(bundleId)
       const pypiPackage = getBundlePypiPackage(bundleId)
       const publishedSizeBytes = pypiPackage ? await fetchPyPIWheelSizeBytes(pypiPackage) : null
       const usagePercent = publishedSizeBytes != null
         ? Math.round((publishedSizeBytes / sizeLimitBytes) * 100)
         : null
+      const containsCurrentTemplate = templateName ? templates.includes(templateName) : false
+      const selectable = !frozen || containsCurrentTemplate
 
       return {
         id: bundleId,
@@ -84,10 +114,15 @@ export default defineEventHandler(async (event) => {
         usagePercent,
         isNearLimit: usagePercent != null && usagePercent >= 90,
         isOverLimit: usagePercent != null && usagePercent >= 100,
-        containsCurrentTemplate: templateName ? templates.includes(templateName) : false
+        containsCurrentTemplate,
+        frozen,
+        frozenReason: frozen ? getFrozenBundleReason(bundleId) : null,
+        selectable
       }
     })
   )
+
+  const visibleBundles = bundles.filter(bundle => bundle.selectable)
 
   return {
     success: true,
@@ -95,6 +130,10 @@ export default defineEventHandler(async (event) => {
     sizeLimitLabel: formatBytes(sizeLimitBytes),
     currentBundle,
     suggestedBundle,
-    bundles
+    recommendedAssetBundle: getRecommendedAssetBundle(),
+    bundles: visibleBundles,
+    legacyCurrentBundle: currentBundle && isFrozenBundle(currentBundle)
+      ? bundles.find(b => b.id === currentBundle) || null
+      : null
   }
 })

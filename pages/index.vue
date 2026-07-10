@@ -991,7 +991,7 @@ const bundleLabelById = (bundleId: string) =>
 const isTemplateBundleAffected = (templateName: string) => {
   if (!bundleDiff.value?.changedBundleCount) return false
   return bundleDiff.value.bundles.some(bundle => {
-    if (!bundle.hasChanges) return false
+    if (!bundle.hasChanges || bundle.frozen) return false
     return (
       bundle.addedTemplates.includes(templateName)
       || bundle.removedTemplates.includes(templateName)

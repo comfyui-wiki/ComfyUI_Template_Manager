@@ -1,37 +1,58 @@
 {
   "categoryMapping": {
-    "Use cases": "media-api",
-    "Image": "media-image",
-    "Video": "media-video",
-    "Audio": "media-other",
-    "3D": "media-other",
-    "Utility": "media-other",
-    "Getting Started": "media-other"
+    "Use cases": "media-assets-01",
+    "Image": "media-assets-01",
+    "Video": "media-assets-01",
+    "Audio": "media-assets-01",
+    "3D": "media-assets-01",
+    "Utility": "media-assets-01",
+    "Getting Started": "media-assets-01"
   },
-  "defaultBundle": "media-other",
+  "defaultBundle": "media-assets-01",
+  "recommendedAssetBundle": "media-assets-01",
+  "frozenBundles": [
+    "media-api",
+    "media-image",
+    "media-video",
+    "media-other"
+  ],
   "sizeLimitMB": 100,
   "bundles": {
     "media-api": {
       "label": "Media API",
-      "pypiPackage": "comfyui-workflow-templates-media-api"
+      "pypiPackage": "comfyui-workflow-templates-media-api",
+      "frozen": true,
+      "frozenReason": "Legacy wheel near PyPI 100 MB limit — do not add new templates"
     },
     "media-image": {
       "label": "Media Image",
-      "pypiPackage": "comfyui-workflow-templates-media-image"
+      "pypiPackage": "comfyui-workflow-templates-media-image",
+      "frozen": true,
+      "frozenReason": "Legacy wheel near PyPI 100 MB limit — do not add new templates"
     },
     "media-video": {
       "label": "Media Video",
-      "pypiPackage": "comfyui-workflow-templates-media-video"
+      "pypiPackage": "comfyui-workflow-templates-media-video",
+      "frozen": true,
+      "frozenReason": "Legacy wheel near PyPI 100 MB limit — do not add new templates"
     },
     "media-other": {
       "label": "Media Other",
-      "pypiPackage": "comfyui-workflow-templates-media-other"
+      "pypiPackage": "comfyui-workflow-templates-media-other",
+      "frozen": true,
+      "frozenReason": "Legacy wheel near PyPI 100 MB limit — do not add new templates"
+    },
+    "media-assets-01": {
+      "label": "Media Assets 01",
+      "pypiPackage": "comfyui-workflow-templates-media-assets-01",
+      "frozen": false
     }
   },
   "notes": {
     "description": "Maps template categories to bundle names",
-    "categoryMapping": "Key is the category title from index.json, value is the bundle name in bundles.json",
-    "defaultBundle": "If category is not found in mapping, template will be added to this default bundle",
+    "categoryMapping": "New templates should use recommendedAssetBundle (media-assets-01). Legacy media-* bundles are frozen.",
+    "defaultBundle": "Default bundle when category is unknown",
+    "frozenBundles": "Legacy PyPI wheels — shown read-only if template is already assigned; not selectable for new assignments",
     "sizeLimitMB": "PyPI wheel size soft limit used for bundle capacity indicators"
   }
 }

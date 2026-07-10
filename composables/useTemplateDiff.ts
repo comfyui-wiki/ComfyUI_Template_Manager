@@ -54,6 +54,9 @@ const getBundleLabel = (bundleId: string) =>
 const getBundlePypiPackage = (bundleId: string) =>
   bundleMappingRules.bundles?.[bundleId as keyof typeof bundleMappingRules.bundles]?.pypiPackage || null
 
+const isFrozenBundleId = (bundleId: string) =>
+  (bundleMappingRules.frozenBundles as string[] | undefined)?.includes(bundleId) ?? false
+
 const fetchBundlesJson = async (owner: string, repo: string, branch: string, source: 'current' | 'main' = 'current'): Promise<BundlesData> => {
   const { isLocalMode } = useRepoMode()
 
@@ -452,7 +455,8 @@ export const useTemplateDiff = () => {
       mainBundles.value,
       compareTemplates.value,
       getBundleLabel,
-      getBundlePypiPackage
+      getBundlePypiPackage,
+      isFrozenBundleId
     )
   })
 

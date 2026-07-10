@@ -11,7 +11,7 @@
         </span>
       </div>
       <p class="text-[11px] text-muted-foreground leading-snug">
-        Compared to <span class="font-mono">{{ baseLabel }}</span>. Bundles with changes need a new PyPI wheel release.
+        Compared to <span class="font-mono">{{ baseLabel }}</span>. Only active bundles need PyPI republish; legacy frozen bundles are excluded.
       </p>
     </CardHeader>
 
@@ -103,6 +103,17 @@
           </div>
         </div>
       </div>
+
+      <div
+        v-if="frozenChangedBundles.length"
+        class="px-4 py-3 border-t text-[11px] text-muted-foreground"
+      >
+        <p class="font-medium text-foreground mb-1">Frozen legacy bundles (no publish required)</p>
+        <p>
+          {{ frozenChangedBundles.map(b => b.label).join(', ') }} —
+          changes here do not trigger PyPI republish under the frozen bundle policy.
+        </p>
+      </div>
     </CardContent>
   </Card>
 </template>
@@ -126,7 +137,11 @@ const expanded = ref<Set<string>>(new Set())
 const showPanel = computed(() => !props.isMainBranch)
 
 const changedBundles = computed(() =>
-  props.bundleDiff?.bundles.filter(b => b.hasChanges) || []
+  props.bundleDiff?.bundles.filter(b => b.hasChanges && !b.frozen) || []
+)
+
+const frozenChangedBundles = computed(() =>
+  props.bundleDiff?.bundles.filter(b => b.hasChanges && b.frozen) || []
 )
 
 const toggleExpanded = (bundleId: string) => {

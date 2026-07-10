@@ -81,6 +81,14 @@ export default defineNuxtConfig({
   vite: {
     optimizeDeps: {
       exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+    },
+    server: {
+      watch: {
+        // Local mode reads workflow_templates via API; don't watch the whole clone (EMFILE risk).
+        ignored: process.env.WORKFLOW_TEMPLATES_PATH
+          ? [process.env.WORKFLOW_TEMPLATES_PATH]
+          : []
+      }
     }
   },
 

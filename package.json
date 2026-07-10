@@ -6,8 +6,8 @@
   "scripts": {
     "build": "nuxt build",
     "predev": "node scripts/copy-supported-models.js",
-    "dev": "nuxt dev",
-    "dev:local": "WORKFLOW_TEMPLATES_MODE=local WORKFLOW_TEMPLATES_PATH=/Users/linmoumou/Documents/comfy/workflow_templates WORKFLOW_TEMPLATES_COMPARE_REF=upstream/main nuxt dev",
+    "dev": "mkdir -p .tmp && TMPDIR=\"$PWD/.tmp\" nuxt dev",
+    "dev:local": "mkdir -p .tmp && TMPDIR=\"$PWD/.tmp\" WORKFLOW_TEMPLATES_MODE=local WORKFLOW_TEMPLATES_PATH=/Users/linmoumou/Documents/comfy/workflow_templates WORKFLOW_TEMPLATES_COMPARE_REF=upstream/main nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",

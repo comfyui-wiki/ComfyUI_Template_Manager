@@ -434,8 +434,8 @@ export default defineEventHandler(async (event) => {
           const categoryTitle = categoryChanged ? metadata.category : currentCategoryTitle
           const currentBundle = findTemplateBundle(bundlesData, templateName)
           const targetBundle = metadata.targetBundle
-            ? resolveTargetBundle(categoryTitle || currentCategoryTitle, metadata.targetBundle)
-            : currentBundle || resolveTargetBundle(categoryTitle || currentCategoryTitle)
+            ? resolveTargetBundle(categoryTitle || currentCategoryTitle, metadata.targetBundle, { currentBundle })
+            : currentBundle || resolveTargetBundle(categoryTitle || currentCategoryTitle, null, { currentBundle })
 
           const bundlesChanged = assignTemplateToBundle(bundlesData, templateName, targetBundle)
 

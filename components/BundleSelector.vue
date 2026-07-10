@@ -15,8 +15,27 @@
     </div>
 
     <p class="text-xs text-muted-foreground">
-      Choose which PyPI sub-package this template belongs to. Sizes are fetched live from PyPI ({{ sizeLimitLabel }} limit).
+      Choose which PyPI sub-package this template belongs to. New templates should use
+      <code class="font-mono">{{ recommendedAssetBundle }}</code>.
+      Legacy <code class="font-mono">media-*</code> bundles are frozen and not selectable.
     </p>
+
+    <div
+      v-if="legacyCurrentBundle"
+      class="p-3 rounded-lg border border-dashed border-muted-foreground/40 bg-muted/30 space-y-1"
+    >
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-medium">{{ legacyCurrentBundle.label }}</span>
+        <code class="text-[10px] px-1.5 py-0.5 rounded bg-muted font-mono">{{ legacyCurrentBundle.id }}</code>
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          frozen · current assignment
+        </span>
+      </div>
+      <p class="text-[11px] text-muted-foreground">
+        {{ legacyCurrentBundle.frozenReason || 'This legacy bundle is frozen — no new templates should be added.' }}
+        Save keeps this assignment; choose an active bundle below only when migrating.
+      </p>
+    </div>
 
     <div v-if="loading" class="text-xs text-muted-foreground py-2">
       Loading bundle status...
@@ -30,23 +49,33 @@
       <label
         v-for="bundle in bundles"
         :key="bundle.id"
-        class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
-        :class="modelValue === bundle.id
-          ? 'border-primary bg-primary/5'
-          : 'border-border hover:bg-muted/40'"
+        class="flex items-start gap-3 p-3 rounded-lg border transition-colors"
+        :class="[
+          bundle.selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
+          modelValue === bundle.id
+            ? 'border-primary bg-primary/5'
+            : 'border-border hover:bg-muted/40'
+        ]"
       >
         <input
           type="radio"
           class="mt-1"
           :value="bundle.id"
           :checked="modelValue === bundle.id"
-          @change="$emit('update:modelValue', bundle.id)"
+          :disabled="!bundle.selectable"
+          @change="bundle.selectable && $emit('update:modelValue', bundle.id)"
         />
 
         <div class="flex-1 min-w-0 space-y-1.5">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-sm font-medium">{{ bundle.label }}</span>
             <code class="text-[10px] px-1.5 py-0.5 rounded bg-muted font-mono">{{ bundle.id }}</code>
+            <span
+              v-if="bundle.id === recommendedAssetBundle"
+              class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+            >
+              recommended
+            </span>
             <span
               v-if="bundle.containsCurrentTemplate"
               class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
@@ -114,6 +143,9 @@ interface BundleStatusItem {
   isNearLimit: boolean
   isOverLimit: boolean
   containsCurrentTemplate: boolean
+  frozen?: boolean
+  frozenReason?: string | null
+  selectable?: boolean
 }
 
 const props = defineProps<{
@@ -131,7 +163,9 @@ const emit = defineEmits<{
 const loading = ref(false)
 const error = ref('')
 const bundles = ref<BundleStatusItem[]>([])
+const legacyCurrentBundle = ref<BundleStatusItem | null>(null)
 const suggestedBundle = ref('')
+const recommendedAssetBundle = ref('media-assets-01')
 const sizeLimitLabel = ref('100.0 MB')
 
 const loadBundleStatus = async () => {
@@ -155,13 +189,23 @@ const loadBundleStatus = async () => {
     }
 
     bundles.value = response.bundles
+    legacyCurrentBundle.value = response.legacyCurrentBundle || null
     suggestedBundle.value = response.suggestedBundle
+    recommendedAssetBundle.value = response.recommendedAssetBundle || 'media-assets-01'
     sizeLimitLabel.value = response.sizeLimitLabel
 
     if (!props.modelValue && response.currentBundle) {
       emit('update:modelValue', response.currentBundle)
     } else if (!props.modelValue && response.suggestedBundle) {
       emit('update:modelValue', response.suggestedBundle)
+    } else if (
+      props.modelValue
+      && legacyCurrentBundle.value
+      && props.modelValue === legacyCurrentBundle.value.id
+      && !bundles.value.some(b => b.id === props.modelValue)
+    ) {
+      // Keep frozen current assignment in form state even though it's not in selectable list
+      emit('update:modelValue', legacyCurrentBundle.value.id)
     }
   } catch (err: any) {
     console.error('[BundleSelector] Failed to load bundle status:', err)

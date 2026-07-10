@@ -7,6 +7,8 @@ export interface BundleChangeDetail {
   label: string
   pypiPackage: string | null
   hasChanges: boolean
+  /** Legacy frozen bundle — changes do not require PyPI republish in normal workflow */
+  frozen?: boolean
   /** Templates newly listed in this bundle vs base branch */
   addedTemplates: string[]
   /** Templates removed from this bundle vs base branch */
@@ -42,7 +44,8 @@ export function compareBundleChanges(
   baseBundles: BundlesData,
   templateDiffs: TemplateDiffEntry[],
   getLabel: (bundleId: string) => string,
-  getPypiPackage: (bundleId: string) => string | null
+  getPypiPackage: (bundleId: string) => string | null,
+  isFrozenBundle?: (bundleId: string) => boolean
 ): BundleDiffResult {
   const currentMap = buildTemplateToBundleMap(currentBundles)
   const baseMap = buildTemplateToBundleMap(baseBundles)
@@ -91,12 +94,14 @@ export function compareBundleChanges(
     ])
 
     const hasChanges = affectedNames.size > 0
+    const frozen = isFrozenBundle?.(bundleId) ?? false
 
     bundles.push({
       id: bundleId,
       label: getLabel(bundleId),
       pypiPackage: getPypiPackage(bundleId),
       hasChanges,
+      frozen,
       addedTemplates,
       removedTemplates,
       contentChangedTemplates,
@@ -111,7 +116,7 @@ export function compareBundleChanges(
 
   return {
     bundles,
-    changedBundleCount: bundles.filter(b => b.hasChanges).length
+    changedBundleCount: bundles.filter(b => b.hasChanges && !b.frozen).length
   }
 }
 
@@ -121,7 +126,7 @@ export function isTemplateInChangedBundle(
 ): boolean {
   if (!bundleDiff) return false
   return bundleDiff.bundles.some(bundle => {
-    if (!bundle.hasChanges) return false
+    if (!bundle.hasChanges || bundle.frozen) return false
     return (
       bundle.addedTemplates.includes(templateName)
       || bundle.removedTemplates.includes(templateName)
