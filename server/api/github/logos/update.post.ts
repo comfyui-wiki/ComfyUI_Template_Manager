@@ -1,5 +1,10 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 interface LogoUpdateRequest {
   repo: string
@@ -10,9 +15,10 @@ interface LogoUpdateRequest {
 }
 
 export default defineEventHandler(async (event) => {
+  const localMode = isLocalModeEnabled()
   const session = await getServerSession(event)
 
-  if (!session?.accessToken) {
+  if (!localMode && !session?.accessToken) {
     throw createError({
       statusCode: 401,
       message: 'Unauthorized: No access token'
@@ -38,33 +44,35 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const octokit = new Octokit({
-      auth: session.accessToken
-    })
+    const octokit = localMode
+      ? createLocalOctokit()
+      : new Octokit({ auth: session!.accessToken })
 
-    console.log(`[Logo Update] Starting update for repo: ${owner}/${repoName}, branch: ${branch}`)
+    console.log(`[Logo Update] Starting update for repo: ${owner}/${repoName}, branch: ${branch}${localMode ? ' (local)' : ''}`)
     console.log(`[Logo Update] Logo mapping entries: ${Object.keys(logoMapping).length}`)
-    console.log(`[Logo Update] Files to upload: ${Object.keys(files).length}`)
+    console.log(`[Logo Update] Files to upload: ${Object.keys(files || {}).length}`)
     console.log(`[Logo Update] Files to delete: ${deletedFiles.length}`)
 
-    // Get current commit SHA
-    const { data: refData } = await octokit.git.getRef({
-      owner,
-      repo: repoName,
-      ref: `heads/${branch}`
-    })
-    const currentCommitSha = refData.object.sha
-    console.log(`[Logo Update] Current commit SHA: ${currentCommitSha}`)
+    let currentCommitSha = 'local'
+    let baseTreeSha = 'local'
 
-    // Get current commit tree
-    const { data: currentCommit } = await octokit.git.getCommit({
-      owner,
-      repo: repoName,
-      commit_sha: currentCommitSha
-    })
-    const baseTreeSha = currentCommit.tree.sha
+    if (!localMode) {
+      const { data: refData } = await octokit.git.getRef({
+        owner,
+        repo: repoName,
+        ref: `heads/${branch}`
+      })
+      currentCommitSha = refData.object.sha
+      console.log(`[Logo Update] Current commit SHA: ${currentCommitSha}`)
 
-    // Prepare tree changes
+      const { data: currentCommit } = await octokit.git.getCommit({
+        owner,
+        repo: repoName,
+        commit_sha: currentCommitSha
+      })
+      baseTreeSha = currentCommit.tree.sha
+    }
+
     const treeChanges: Array<{
       path: string
       mode: '100644' | '100755' | '040000' | '160000' | '120000'
@@ -74,28 +82,23 @@ export default defineEventHandler(async (event) => {
     }> = []
 
     // 1. Update index_logo.json
-    const indexLogoContent = JSON.stringify(logoMapping, null, 2)
     treeChanges.push({
       path: 'templates/index_logo.json',
       mode: '100644',
       type: 'blob',
-      content: indexLogoContent
+      content: JSON.stringify(logoMapping, null, 2)
     })
-    console.log(`[Logo Update] Added index_logo.json to tree`)
+    console.log('[Logo Update] Added index_logo.json to tree')
 
-    // 2. Add/Update logo files - Create blobs first
-    for (const [logoPath, base64Content] of Object.entries(files)) {
+    // 2. Add/Update logo files
+    for (const [logoPath, base64Content] of Object.entries(files || {})) {
       console.log(`[Logo Update] Processing file: ${logoPath}`)
-      console.log(`[Logo Update] Base64 content length: ${base64Content.length}`)
-      console.log(`[Logo Update] Base64 content start: ${base64Content.substring(0, 100)}`)
 
-      // Validate base64 content
       if (!base64Content || base64Content.length === 0) {
         console.error(`[Logo Update] Empty base64 content for ${logoPath}`)
         continue
       }
 
-      // Create blob with proper encoding
       const { data: blob } = await octokit.git.createBlob({
         owner,
         repo: repoName,
@@ -112,7 +115,7 @@ export default defineEventHandler(async (event) => {
       console.log(`[Logo Update] Added logo file: ${logoPath} (blob: ${blob.sha})`)
     }
 
-    // 3. Delete logo files - Add tree entry with null sha
+    // 3. Delete logo files
     for (const logoPath of deletedFiles) {
       console.log(`[Logo Update] Deleting file: ${logoPath}`)
       treeChanges.push({
@@ -121,10 +124,33 @@ export default defineEventHandler(async (event) => {
         type: 'blob',
         sha: null
       })
-      console.log(`[Logo Update] Marked logo file for deletion: ${logoPath}`)
     }
 
-    // Create new tree
+    const commitMessage = [
+      'Update provider logos',
+      '',
+      `- Updated index_logo.json with ${Object.keys(logoMapping).length} providers`,
+      ...(Object.keys(files || {}).length > 0
+        ? [`- Modified ${Object.keys(files).length} logo file(s)`]
+        : []),
+      ...(deletedFiles.length > 0
+        ? [`- Deleted ${deletedFiles.length} logo file(s)`]
+        : [])
+    ].join('\n')
+
+    if (localMode) {
+      const { sha } = await writeLocalTreeAndCommit(treeChanges, commitMessage)
+      console.log(`[Logo Update] Local commit: ${sha}`)
+      return {
+        success: true,
+        message: 'Logos updated successfully',
+        commit: {
+          sha,
+          url: `local://${sha.substring(0, 7)}`
+        }
+      }
+    }
+
     const { data: newTree } = await octokit.git.createTree({
       owner,
       repo: repoName,
@@ -133,33 +159,22 @@ export default defineEventHandler(async (event) => {
     })
     console.log(`[Logo Update] Created new tree: ${newTree.sha}`)
 
-    // Create commit
-    const commitMessage = [`Update provider logos`, '']
-    commitMessage.push(`- Updated index_logo.json with ${Object.keys(logoMapping).length} providers`)
-    if (Object.keys(files).length > 0) {
-      commitMessage.push(`- Modified ${Object.keys(files).length} logo file(s)`)
-    }
-    if (deletedFiles.length > 0) {
-      commitMessage.push(`- Deleted ${deletedFiles.length} logo file(s)`)
-    }
-
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
       repo: repoName,
-      message: commitMessage.join('\n'),
+      message: commitMessage,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })
     console.log(`[Logo Update] Created new commit: ${newCommit.sha}`)
 
-    // Update branch reference
     await octokit.git.updateRef({
       owner,
       repo: repoName,
       ref: `heads/${branch}`,
       sha: newCommit.sha
     })
-    console.log(`[Logo Update] Updated branch reference`)
+    console.log('[Logo Update] Updated branch reference')
 
     return {
       success: true,
@@ -172,7 +187,7 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     console.error('[Logo Update] Error:', error)
     throw createError({
-      statusCode: error.status || 500,
+      statusCode: error.statusCode || error.status || 500,
       message: error.message || 'Failed to update logos'
     })
   }

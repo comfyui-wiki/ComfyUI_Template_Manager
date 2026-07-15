@@ -3,6 +3,10 @@
  */
 
 import i18nConfigImport from '~/config/i18n-config.json'
+import {
+  glossaryBlockFor,
+  multiLangGlossaryBlockFor
+} from '~/server/utils/glossary'
 
 interface TranslationRequest {
   sourceText: string
@@ -10,6 +14,15 @@ interface TranslationRequest {
   targetLang: string
   systemPrompt?: string
   userPromptTemplate?: string
+  /**
+   * Text used to select glossary terms. Defaults to sourceText.
+   * Prefer the original English content for batch/multi-lang prompts.
+   */
+  glossarySourceText?: string
+  /** When translating into many languages in one call */
+  glossaryTargetLangs?: string[]
+  /** Skip glossary injection (e.g. tests) */
+  skipGlossary?: boolean
   /**
    * Max completion tokens from the model. Batch / multi-lang JSON responses need thousands;
    * the old fixed 1000 caused truncated JSON → parse failures.
@@ -91,6 +104,31 @@ export async function translateText(request: TranslationRequest): Promise<Transl
     .replace('{sourceLang}', getLanguageName(request.sourceLang))
     .replace('{targetLang}', getLanguageName(request.targetLang))
     .replace('{sourceText}', request.sourceText)
+
+  // Inject preferred terminology when English keywords match the glossary
+  if (!request.skipGlossary) {
+    const scanText = request.glossarySourceText || request.sourceText
+    let glossaryBlock = ''
+
+    if (request.glossaryTargetLangs?.length) {
+      glossaryBlock = multiLangGlossaryBlockFor(
+        scanText,
+        request.glossaryTargetLangs,
+        getLanguageName
+      )
+    } else if (request.targetLang && request.targetLang !== 'en') {
+      glossaryBlock = glossaryBlockFor(
+        scanText,
+        request.targetLang,
+        getLanguageName(request.targetLang)
+      )
+    }
+
+    if (glossaryBlock) {
+      userPrompt = `${userPrompt}\n\n${glossaryBlock}`
+      console.log('[AI Translator] Glossary terms injected for', request.glossaryTargetLangs?.join(',') || request.targetLang)
+    }
+  }
 
   const estimatedNeed = Math.ceil(request.sourceText.length / 3)
   const defaultMax =

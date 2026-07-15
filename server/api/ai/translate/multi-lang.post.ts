@@ -156,6 +156,8 @@ Return only the JSON object with translations.`
       targetLang: body.targetLangs[0], // Use first target lang as hint
       systemPrompt: body.systemPrompt || i18nCfg.aiTranslation.systemPrompt,
       userPromptTemplate: '{sourceText}', // Use the prompt as-is
+      glossarySourceText: body.sourceText,
+      glossaryTargetLangs: body.targetLangs,
       maxCompletionTokens: 8192
     })
 

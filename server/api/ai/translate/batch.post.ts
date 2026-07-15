@@ -211,6 +211,7 @@ export default defineEventHandler(async (event) => {
       targetLang: body.targetLang,
       systemPrompt: body.systemPrompt,
       userPromptTemplate: '{sourceText}', // Use the prompt as-is
+      glossarySourceText: body.items.map(i => i.text).join('\n'),
       maxCompletionTokens: 8192
     })
 

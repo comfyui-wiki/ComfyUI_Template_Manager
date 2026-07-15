@@ -16,7 +16,9 @@
     "setup:github": "node scripts/setup-github.js",
     "deploy:vercel": "vercel --prod",
     "lint": "eslint . --ext .vue,.js,.ts",
-    "lint:fix": "eslint . --ext .vue,.js,.ts --fix"
+    "lint:fix": "eslint . --ext .vue,.js,.ts --fix",
+    "glossary:sync": "node scripts/sync-glossary.mjs",
+    "glossary:sync:dry-run": "node scripts/sync-glossary.mjs --dry-run"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.6",

@@ -10,6 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 import i18nConfig from '~/config/i18n-config.json'
+import {
+  findGlossaryMismatches,
+  formatGlossaryMismatchTitle,
+  type GlossaryMismatch
+} from '~/lib/glossary-check'
 
 /** Map API/bundled i18n config to the shape used across this component */
 function mapSupportedLocales(cfg: typeof i18nConfig) {
@@ -52,6 +57,27 @@ async function hydrateFromI18nConfigApi() {
   }
 }
 
+async function loadGlossaryMaps() {
+  glossaryLoading.value = true
+  try {
+    const response = await $fetch<{
+      success: boolean
+      glossaries: Record<string, Record<string, string>>
+    }>('/api/glossary/maps', {
+      query: { layer: 'overrides' }
+    })
+    glossaryMaps.value = response.glossaries || {}
+    console.log('[TranslationManager] Loaded glossary overrides:',
+      Object.fromEntries(Object.entries(glossaryMaps.value).map(([k, v]) => [k, Object.keys(v).length]))
+    )
+  } catch (error) {
+    console.error('[TranslationManager] Failed to load glossary maps:', error)
+    glossaryMaps.value = {}
+  } finally {
+    glossaryLoading.value = false
+  }
+}
+
 const props = defineProps<{
   open: boolean
 }>()
@@ -71,12 +97,16 @@ const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
 const saveError = ref<string | null>(null)
 const i18nData = ref<any>(null)
 const activeLanguage = ref('all') // Default to "all" to show all languages
-const filterMode = ref<'all' | 'outdated' | 'untranslated' | 'modified' | 'new'>('all')
+const filterMode = ref<'all' | 'outdated' | 'untranslated' | 'modified' | 'new' | 'glossary'>('all')
 const searchQuery = ref('')
 const editingCell = ref<{ key: string; lang: string } | null>(null)
 const editValue = ref('')
 const translatingCell = ref<string | null>(null) // "key:lang" format
 const modifiedCells = ref<Set<string>>(new Set()) // Track modified cells "key:lang"
+
+/** Curated override glossaries for mismatch detection (lang → en→preferred) */
+const glossaryMaps = ref<Record<string, Record<string, string>>>({})
+const glossaryLoading = ref(false)
 
 // Check if AI translation is enabled
 const config = useRuntimeConfig()
@@ -85,6 +115,8 @@ const aiEnabled = computed(() => config.public.aiTranslationEnabled)
 // Batch translation state
 const selectedItems = ref<Set<string>>(new Set()) // Set of item keys
 const batchTargetLang = ref<string>('all') // Default to "All Languages"
+/** full = every selected target lang; glossary = only langs with a glossary mismatch */
+const batchScope = ref<'full' | 'glossary'>('full')
 const batchTranslating = ref(false)
 const batchProgress = ref({ current: 0, total: 0, status: '' })
 const showBatchDialog = ref(false)
@@ -165,12 +197,54 @@ watch(() => props.open, (isOpen) => {
     }
 
     void hydrateFromI18nConfigApi()
+    void loadGlossaryMaps()
 
     if (!i18nData.value) {
       loadI18nData()
     }
   }
 })
+
+function computeGlossaryMismatches(
+  englishValue: string,
+  translations: Record<string, string>
+): { glossaryMismatchLangs: string[]; glossaryMismatchesByLang: Record<string, GlossaryMismatch[]> } {
+  const glossaryMismatchLangs: string[] = []
+  const glossaryMismatchesByLang: Record<string, GlossaryMismatch[]> = {}
+
+  for (const lang of languages.value) {
+    if (lang.code === 'en') continue
+    const glossary = glossaryMaps.value[lang.code]
+    if (!glossary || !Object.keys(glossary).length) continue
+
+    const mismatches = findGlossaryMismatches(
+      englishValue,
+      translations[lang.code],
+      glossary
+    )
+    if (mismatches.length) {
+      glossaryMismatchLangs.push(lang.code)
+      glossaryMismatchesByLang[lang.code] = mismatches
+    }
+  }
+
+  return { glossaryMismatchLangs, glossaryMismatchesByLang }
+}
+
+function cellGlossaryTitle(item: {
+  englishValue: string
+  translations: Record<string, string>
+  glossaryMismatchesByLang: Record<string, GlossaryMismatch[]>
+}, langCode: string): string {
+  if (langCode === 'en' && (activeSection.value === 'tags' || activeSection.value === 'categories')) {
+    return 'English value is the key itself (cannot be edited)'
+  }
+  const mismatches = item.glossaryMismatchesByLang[langCode]
+  if (mismatches?.length) {
+    return `Glossary mismatch:\n${formatGlossaryMismatchTitle(mismatches)}\n\nClick to edit, or use AI Translate to re-translate.`
+  }
+  return item.translations[langCode] || '(empty - click to edit)'
+}
 
 // Get translation items for current section
 const translationItems = computed(() => {
@@ -184,6 +258,8 @@ const translationItems = computed(() => {
     translations: Record<string, string>
     isOutdated: boolean
     untranslatedLangs: string[]
+    glossaryMismatchLangs: string[]
+    glossaryMismatchesByLang: Record<string, GlossaryMismatch[]>
   }> = []
 
   for (const [key, value] of Object.entries(section)) {
@@ -202,6 +278,7 @@ const translationItems = computed(() => {
         const untranslatedLangs = languages.value
           .filter(l => l.code !== 'en' && translations[l.code] === translations['en'])
           .map(l => l.code)
+        const glossaryInfo = computeGlossaryMismatches(translations.en || '', translations)
 
         items.push({
           key: `${key}.title`,
@@ -209,7 +286,8 @@ const translationItems = computed(() => {
           englishValue: translations.en || '',
           translations,
           isOutdated,
-          untranslatedLangs
+          untranslatedLangs,
+          ...glossaryInfo
         })
       }
 
@@ -224,6 +302,7 @@ const translationItems = computed(() => {
         const untranslatedLangs = languages.value
           .filter(l => l.code !== 'en' && translations[l.code] === translations['en'])
           .map(l => l.code)
+        const glossaryInfo = computeGlossaryMismatches(translations.en || '', translations)
 
         items.push({
           key: `${key}.description`,
@@ -231,7 +310,8 @@ const translationItems = computed(() => {
           englishValue: translations.en || '',
           translations,
           isOutdated,
-          untranslatedLangs
+          untranslatedLangs,
+          ...glossaryInfo
         })
       }
     } else {
@@ -250,6 +330,7 @@ const translationItems = computed(() => {
       const untranslatedLangs = languages.value
         .filter(l => l.code !== 'en' && translations[l.code] === key)
         .map(l => l.code)
+      const glossaryInfo = computeGlossaryMismatches(key, translations)
 
       items.push({
         key,
@@ -257,7 +338,8 @@ const translationItems = computed(() => {
         englishValue: key, // English value is the key itself
         translations,
         isOutdated: false,
-        untranslatedLangs
+        untranslatedLangs,
+        ...glossaryInfo
       })
     }
   }
@@ -294,6 +376,14 @@ const filteredItems = computed(() => {
       const nonEnglishLangs = languages.value.filter(l => l.code !== 'en').length
       return item.untranslatedLangs.length === nonEnglishLangs
     })
+  } else if (filterMode.value === 'glossary') {
+    if (activeLanguage.value === 'all') {
+      items = items.filter(item => item.glossaryMismatchLangs.length > 0)
+    } else {
+      items = items.filter(item =>
+        item.glossaryMismatchLangs.includes(activeLanguage.value)
+      )
+    }
   }
 
   // Apply search query
@@ -341,7 +431,13 @@ const stats = computed(() => {
     item.untranslatedLangs.length === nonEnglishLangs
   ).length
 
-  return { total, outdated, untranslated, modified, new: newItems }
+  const glossary = activeLanguage.value === 'all'
+    ? translationItems.value.filter(item => item.glossaryMismatchLangs.length > 0).length
+    : translationItems.value.filter(item =>
+      item.glossaryMismatchLangs.includes(activeLanguage.value)
+    ).length
+
+  return { total, outdated, untranslated, modified, new: newItems, glossary }
 })
 
 // Start editing a cell
@@ -571,6 +667,37 @@ const executeCustomBatchTranslate = () => {
   batchTranslate(customSystemPrompt.value)
 }
 
+watch(() => filterMode.value, (mode) => {
+  // When inspecting mismatches, default batch work to mismatch langs only
+  if (mode === 'glossary') {
+    batchScope.value = 'glossary'
+  }
+})
+
+/** Target langs to translate for one row, respecting language dropdown + glossary-only scope */
+function getBatchTargetLangsForItem(item: {
+  glossaryMismatchLangs: string[]
+}): string[] {
+  if (batchTargetLang.value && batchTargetLang.value !== 'all' && batchTargetLang.value !== 'en') {
+    if (batchScope.value === 'glossary') {
+      return item.glossaryMismatchLangs.includes(batchTargetLang.value)
+        ? [batchTargetLang.value]
+        : []
+    }
+    return [batchTargetLang.value]
+  }
+
+  if (batchScope.value === 'glossary') {
+    return [...item.glossaryMismatchLangs]
+  }
+
+  return languages.value.filter(l => l.code !== 'en').map(l => l.code)
+}
+
+const batchScopeLabel = computed(() =>
+  batchScope.value === 'glossary' ? 'Glossary mismatches only' : 'Full translation'
+)
+
 // Batch translate selected items
 const batchTranslate = async (customPrompt?: string) => {
   if (selectedItems.value.size === 0) {
@@ -578,32 +705,37 @@ const batchTranslate = async (customPrompt?: string) => {
     return
   }
 
+  const selectedRows = getSelectedTranslationItems()
+  if (selectedRows.length === 0) {
+    alert(
+      'Could not find the selected rows in the current section. This can happen if the list changed; try re-selecting the checkboxes.'
+    )
+    return
+  }
+
   // User picked one target language: use batch API for 1 or many rows (respects the dropdown)
   if (batchTargetLang.value && batchTargetLang.value !== 'all' && batchTargetLang.value !== 'en') {
-    const selectedRows = getSelectedTranslationItems()
-    if (selectedRows.length === 0) {
-      alert(
-        'Could not find the selected rows in the current section. This can happen if the list changed; try re-selecting the checkboxes.'
-      )
-      return
-    }
-
     const itemsToTranslate: Array<{ key: string; text: string }> = []
     for (const item of selectedRows) {
-      if (item.englishValue?.trim()) {
-        itemsToTranslate.push({ key: item.key, text: item.englishValue })
-      }
+      if (!item.englishValue?.trim()) continue
+      if (getBatchTargetLangsForItem(item).length === 0) continue
+      itemsToTranslate.push({ key: item.key, text: item.englishValue })
     }
 
     if (itemsToTranslate.length === 0) {
-      alert('Selected items have no English text to translate from. English is required as the source language.')
+      alert(
+        batchScope.value === 'glossary'
+          ? 'None of the selected rows have a glossary mismatch for the chosen language. Switch scope to Full translation, or pick another language.'
+          : 'Selected items have no English text to translate from. English is required as the source language.'
+      )
       return
     }
 
     if (itemsToTranslate.length < selectedRows.length) {
       console.warn(
-        '[TranslationManager] Some selected rows skipped (empty English):',
-        selectedRows.length - itemsToTranslate.length
+        '[TranslationManager] Some selected rows skipped:',
+        selectedRows.length - itemsToTranslate.length,
+        batchScope.value === 'glossary' ? '(no glossary mismatch for target lang)' : '(empty English)'
       )
     }
 
@@ -618,10 +750,11 @@ const batchTranslate = async (customPrompt?: string) => {
         count: itemsToTranslate.length,
         batchSize: aiBatchSize.value,
         chunks: chunks.length,
-        targetLang: batchTargetLang.value
+        targetLang: batchTargetLang.value,
+        scope: batchScope.value
       })
 
-      batchProgress.value.status = `Translating ${itemsToTranslate.length} items in ${chunks.length} batch(es), up to ${aiBatchSize.value} per API call…`
+      batchProgress.value.status = `Translating ${itemsToTranslate.length} items (${batchScopeLabel.value}) in ${chunks.length} batch(es), up to ${aiBatchSize.value} per API call…`
 
       let successCount = 0
       let missingInResponse = 0
@@ -720,18 +853,23 @@ const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
     return
   }
 
+  const targetLangs = getBatchTargetLangsForItem(item)
+  if (targetLangs.length === 0) {
+    alert(
+      batchScope.value === 'glossary'
+        ? 'This row has no glossary mismatches to update. Switch scope to Full translation, or pick another filter.'
+        : 'No target languages available.'
+    )
+    return
+  }
+
   batchTranslating.value = true
   showBatchDialog.value = true
-
-  // Get all non-English language codes
-  const targetLangs = languages.value
-    .filter(l => l.code !== 'en')
-    .map(l => l.code)
 
   batchProgress.value = {
     current: 0,
     total: targetLangs.length,
-    status: `Translating "${item.englishValue.substring(0, 50)}..." to ${targetLangs.length} languages...`
+    status: `Translating "${item.englishValue.substring(0, 50)}..." to ${targetLangs.length} language(s) (${batchScopeLabel.value})...`
   }
 
   try {
@@ -739,6 +877,8 @@ const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
       key: itemKey,
       text: item.englishValue,
       targetLangs: targetLangs.length,
+      langs: targetLangs,
+      scope: batchScope.value,
       customPrompt: !!customPrompt
     })
 
@@ -766,15 +906,17 @@ const translateSingleItemToAllLanguages = async (customPrompt?: string) => {
         usage: response.usage
       })
 
-      // Apply all translations
+      // Apply only requested languages (safety if API returns extras)
+      const allowed = new Set(targetLangs)
       let successCount = 0
       for (const [lang, translation] of Object.entries(response.translations)) {
+        if (!allowed.has(lang)) continue
         saveTranslation(itemKey, lang, translation as string)
         successCount++
         batchProgress.value.current = successCount
       }
 
-      batchProgress.value.status = `Successfully translated to ${successCount} languages!`
+      batchProgress.value.status = `Successfully translated to ${successCount} language(s)!`
 
       // Show failed languages if any
       if (response.failed && response.failed.length > 0) {
@@ -831,36 +973,47 @@ const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
     return
   }
 
+  const work = itemsToTranslate
+    .map(item => ({ item, targetLangs: getBatchTargetLangsForItem(item) }))
+    .filter(w => w.targetLangs.length > 0)
+
+  if (work.length === 0) {
+    alert(
+      batchScope.value === 'glossary'
+        ? 'None of the selected rows have glossary mismatches to update. Switch scope to Full translation.'
+        : 'No target languages available for the selected rows.'
+    )
+    return
+  }
+
   batchTranslating.value = true
   showBatchDialog.value = true
 
-  // Get all non-English language codes
-  const targetLangs = languages.value
-    .filter(l => l.code !== 'en')
-    .map(l => l.code)
-
-  const totalOperations = itemsToTranslate.length
+  const totalOperations = work.length
   batchProgress.value = {
     current: 0,
     total: totalOperations,
-    status: `Translating ${totalOperations} items to all ${targetLangs.length} languages...`
+    status: `Translating ${totalOperations} items (${batchScopeLabel.value})...`
   }
 
   try {
     let successCount = 0
     let failedCount = 0
+    let skippedCount = itemsToTranslate.length - work.length
 
     // Process each item
-    for (const item of itemsToTranslate) {
+    for (const { item, targetLangs } of work) {
       try {
         console.log('[TranslationManager] Multi-language translation for item:', {
           key: item.key,
           text: item.englishValue,
           targetLangs: targetLangs.length,
+          langs: targetLangs,
+          scope: batchScope.value,
           customPrompt: !!customPrompt
         })
 
-        batchProgress.value.status = `Translating "${item.key}" (${successCount + 1}/${totalOperations})...`
+        batchProgress.value.status = `Translating "${item.key}" → ${targetLangs.join(', ')} (${successCount + 1}/${totalOperations})...`
 
         const requestBody: any = {
           sourceText: item.englishValue,
@@ -879,8 +1032,9 @@ const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
         })
 
         if (response.success) {
-          // Apply all translations for this item
+          const allowed = new Set(targetLangs)
           for (const [lang, translation] of Object.entries(response.translations)) {
+            if (!allowed.has(lang)) continue
             saveTranslation(item.key, lang, translation as string)
           }
           successCount++
@@ -895,16 +1049,18 @@ const translateMultipleItemsToAllLanguages = async (customPrompt?: string) => {
       }
     }
 
-    const summary = `Completed! Translated ${successCount} items to all languages.`
+    let summary = `Completed! Updated ${successCount} items (${batchScopeLabel.value}).`
+    if (skippedCount > 0) summary += ` Skipped ${skippedCount} with no mismatch.`
     batchProgress.value.status = failedCount > 0
       ? `${summary} (${failedCount} failed)`
       : summary
 
-    console.log('[TranslationManager] Multiple items to all languages completed:', {
+    console.log('[TranslationManager] Multiple items multi-language completed:', {
       succeeded: successCount,
       failed: failedCount,
+      skipped: skippedCount,
       totalItems: totalOperations,
-      totalLanguages: targetLangs.length
+      scope: batchScope.value
     })
 
     // Clear selection
@@ -1086,7 +1242,7 @@ const saveAllChanges = async () => {
             </Select>
 
             <Select v-model="filterMode">
-              <SelectTrigger class="w-[200px]">
+              <SelectTrigger class="w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1097,12 +1253,25 @@ const saveAllChanges = async () => {
                 <SelectItem value="untranslated">
                   🌐 Untranslated ({{ stats.untranslated }})
                 </SelectItem>
+                <SelectItem value="glossary">
+                  📖 Glossary mismatch ({{ stats.glossary }})
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
+          <div
+            v-if="filterMode === 'glossary'"
+            class="text-xs text-muted-foreground rounded-md border border-orange-200/80 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/30 px-3 py-2"
+          >
+            Showing rows where a curated glossary term appears in English but the preferred translation is missing.
+            Hover a highlighted cell for <code class="text-[10px]">en → preferred</code>.
+            Batch scope defaults to <strong>Glossary mismatches only</strong>: only those languages are re-translated.
+            <span v-if="glossaryLoading"> Loading glossary…</span>
+          </div>
+
           <!-- Batch translation bar -->
-          <div v-if="aiEnabled && selectedCount > 0" class="flex items-center gap-3 p-3 bg-accent/50 rounded-md border border-border">
+          <div v-if="aiEnabled && selectedCount > 0" class="flex items-center gap-3 p-3 bg-accent/50 rounded-md border border-border flex-wrap">
             <span class="text-sm font-medium">
               {{ selectedCount }} item{{ selectedCount > 1 ? 's' : '' }} selected
             </span>
@@ -1121,6 +1290,20 @@ const saveAllChanges = async () => {
                   :value="lang.code"
                 >
                   {{ languageOptionLabel(lang) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select v-model="batchScope" class="flex-shrink-0">
+              <SelectTrigger class="min-w-[200px] w-[240px]">
+                <SelectValue placeholder="Batch scope" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">
+                  Full translation
+                </SelectItem>
+                <SelectItem value="glossary">
+                  Glossary mismatches only
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1144,7 +1327,7 @@ const saveAllChanges = async () => {
               <svg v-else class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              {{ batchTranslating ? 'Translating...' : 'Batch Translate' }}
+              {{ batchTranslating ? 'Translating...' : (batchScope === 'glossary' ? 'Update Mismatches' : 'Batch Translate') }}
             </Button>
 
             <Button
@@ -1204,7 +1387,8 @@ const saveAllChanges = async () => {
                 :key="item.key"
                 :class="{
                   'bg-red-50 dark:bg-red-950/40': item.isOutdated,
-                  'bg-amber-100/30 dark:bg-amber-950/[0.12]': !item.isOutdated && item.untranslatedLangs.length > 0
+                  'bg-amber-100/30 dark:bg-amber-950/[0.12]': !item.isOutdated && item.untranslatedLangs.length > 0 && !item.glossaryMismatchLangs.length,
+                  'bg-orange-50/50 dark:bg-orange-950/20': !item.isOutdated && item.glossaryMismatchLangs.length > 0
                 }"
               >
                 <!-- Checkbox column -->
@@ -1289,14 +1473,15 @@ const saveAllChanges = async () => {
                     class="text-sm p-1.5 rounded min-h-[32px] border"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
-                      'bg-amber-100/40 border-amber-300/70 dark:bg-amber-950/[0.14] dark:border-amber-800/60': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code),
+                      'bg-amber-100/40 border-amber-300/70 dark:bg-amber-950/[0.14] dark:border-amber-800/60': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code) && !item.glossaryMismatchesByLang[lang.code]?.length,
+                      'bg-orange-100/70 border-orange-400 border-2 dark:bg-orange-950/35 dark:border-orange-700': lang.code !== 'en' && !!item.glossaryMismatchesByLang[lang.code]?.length && !isCellModified(item.key, lang.code),
                       'bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800': lang.code === 'en',
                       'bg-green-50 border-green-400 border-2 dark:bg-green-950/40 dark:border-green-600': isCellModified(item.key, lang.code),
-                      'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code),
+                      'border-transparent': !isCellModified(item.key, lang.code) && lang.code !== 'en' && !item.untranslatedLangs.includes(lang.code) && !item.glossaryMismatchesByLang[lang.code]?.length,
                       'cursor-pointer hover:bg-accent transition-colors': !(lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')),
                       'cursor-not-allowed opacity-60': lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')
                     }"
-                    :title="lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories') ? 'English value is the key itself (cannot be edited)' : (item.translations[lang.code] || '(empty - click to edit)')"
+                    :title="cellGlossaryTitle(item, lang.code)"
                     @click="!(lang.code === 'en' && (activeSection === 'tags' || activeSection === 'categories')) && startEditCell(item.key, lang.code, item.translations[lang.code])"
                   >
                     {{ item.translations[lang.code] || '(click to edit)' }}
@@ -1311,6 +1496,17 @@ const saveAllChanges = async () => {
                     </Badge>
                     <Badge v-if="item.untranslatedLangs.length > 0" variant="secondary" class="text-[10px] px-1.5 py-0">
                       {{ item.untranslatedLangs.length }} untranslated
+                    </Badge>
+                    <Badge
+                      v-if="item.glossaryMismatchLangs.length > 0"
+                      variant="outline"
+                      class="text-[10px] px-1.5 py-0 border-orange-400 text-orange-800 dark:text-orange-300"
+                      :title="item.glossaryMismatchLangs.map(code => {
+                        const ms = item.glossaryMismatchesByLang[code] || []
+                        return `${code}: ${formatGlossaryMismatchTitle(ms)}`
+                      }).join('\n')"
+                    >
+                      {{ item.glossaryMismatchLangs.length }} glossary
                     </Badge>
                   </div>
                 </TableCell>
@@ -1375,7 +1571,8 @@ const saveAllChanges = async () => {
       <DialogHeader>
         <DialogTitle>Batch Translation Progress</DialogTitle>
         <DialogDescription>
-          Translating multiple items to {{ languages.find(l => l.code === batchTargetLang)?.name }}
+          {{ batchTargetLang === 'all' ? 'All Languages' : (languages.find(l => l.code === batchTargetLang)?.name || batchTargetLang) }}
+          · {{ batchScopeLabel }}
         </DialogDescription>
       </DialogHeader>
 
@@ -1473,6 +1670,7 @@ const saveAllChanges = async () => {
             <span>
               This will translate {{ selectedCount }} item{{ selectedCount > 1 ? 's' : '' }} to
               <strong>{{ batchTargetLang === 'all' ? 'All Languages' : languages.find(l => l.code === batchTargetLang)?.name }}</strong>
+              (<strong>{{ batchScopeLabel }}</strong>)
             </span>
           </div>
         </div>

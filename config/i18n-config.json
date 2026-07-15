@@ -97,8 +97,8 @@
     ]
   },
   "aiTranslation": {
-    "comment": "AI translation prompts and configuration for DeepSeek API",
-    "systemPrompt": "You are a professional translator specializing in UI/UX content and technical documentation.\n\nCRITICAL RULES:\n1. Return ONLY the translation, no explanations or extra content\n2. Maintain the same tone and style as the source\n3. Keep technical terms, product names, and brand names unchanged\n4. Preserve formatting, punctuation, and special characters\n5. Be concise and natural in the target language",
+    "comment": "AI translation prompts and configuration for DeepSeek API. Glossary terms from config/glossary/overrides/{lang}.json are injected when English keywords match.",
+    "systemPrompt": "You are a professional translator specializing in UI/UX content and technical documentation.\n\nCRITICAL RULES:\n1. Return ONLY the translation, no explanations or extra content\n2. Maintain the same tone and style as the source\n3. Keep technical terms, product names, and brand names unchanged unless a Preferred terminology block below gives a specific form\n4. When a Preferred terminology block is provided, use those translations for matching keywords to stay consistent across templates\n5. Preserve formatting, punctuation, and special characters\n6. Be concise and natural in the target language",
     "singleTranslationTemplate": "Translate this text from {sourceLang} to {targetLang}:\n\n\"{sourceText}\"\n\nReturn only the translated text, nothing else.",
     "batchTranslationTemplate": "Translate the following items from {sourceLang} to {targetLang}.\nReturn a valid JSON array with translations in the EXACT same order.\n\nCRITICAL: Return ONLY the JSON array, no markdown code blocks, no explanations.\n\nFormat:\n[\n  {\"key\": \"item_key\", \"translation\": \"translated_text\"},\n  ...\n]\n\nItems to translate:\n{jsonArray}",
     "batchSize": 30,
