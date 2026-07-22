@@ -447,8 +447,8 @@ const getDirectory = (nodeType: string, modelIndex: number = 0): string => {
   return rule || ''
 }
 
-// Supported models lookup: model_name → { url, directory }
-const supportedModelsMap = ref<Map<string, { url: string; directory: string }>>(new Map())
+// Supported models lookup: model_name → download URL (directory always comes from node type rules)
+const supportedModelsMap = ref<Map<string, string>>(new Map())
 
 watch(() => props.open, (value) => {
   isOpen.value = value || false
@@ -509,10 +509,10 @@ onMounted(async () => {
     config.value = await configRes.json()
 
     const modelsData = await modelsRes.json()
-    const map = new Map<string, { url: string; directory: string }>()
+    const map = new Map<string, string>()
     for (const entry of modelsData.models ?? []) {
-      if (entry.model_name) {
-        map.set(entry.model_name, { url: entry.url ?? '', directory: entry.directory ?? '' })
+      if (entry.model_name && entry.url) {
+        map.set(entry.model_name, entry.url)
       }
     }
     supportedModelsMap.value = map
@@ -632,50 +632,47 @@ const parseWorkflow = () => {
     // Check if this is a custom node
     const isCustomNode = customNodeRules.value.includes(node.type)
 
-    const existingModels = node.properties?.models || []
+    const savedModelsByName = new Map<string, { name?: string; url?: string; directory?: string }>()
+    for (const model of node.properties?.models || []) {
+      if (model?.name) savedModelsByName.set(model.name, model)
+    }
+
     const models = []
 
-    // Process existing models
-    for (const model of existingModels) {
+    // Build from widget file order so directoryRules array indices stay aligned
+    for (let fileIdx = 0; fileIdx < modelFiles.length; fileIdx++) {
+      const file = modelFiles[fileIdx]
+      const fileName = file.split(/[\\\/]/).pop()
+      if (!fileName) continue
+
+      const saved = savedModelsByName.get(fileName)
+      const supportedUrl = supportedModelsMap.value.get(fileName)
+      const url = saved?.url || supportedUrl || ''
+
       models.push({
-        name: model.name || '',
-        url: model.url || '',
-        directory: model.directory || getDirectory(node.type),
+        name: fileName,
+        url,
+        directory: getDirectory(node.type, fileIdx),
+        autoFilled: !saved?.url && !!supportedUrl,
         valid: false,
         nameValid: null,
         urlValid: null
       })
     }
 
-    // Add missing models (auto-fill URL/directory from supported models list if available)
-    const existingNames = models.map(m => m.name)
-    for (let fileIdx = 0; fileIdx < modelFiles.length; fileIdx++) {
-      const file = modelFiles[fileIdx]
-      const fileName = file.split(/[\\\/]/).pop()
-      if (!existingNames.includes(fileName)) {
-        const supported = fileName ? supportedModelsMap.value.get(fileName) : undefined
-        models.push({
-          name: fileName,
-          url: supported?.url ?? '',
-          directory: supported?.directory || getDirectory(node.type, fileIdx),
-          autoFilled: !!supported,
-          valid: false,
-          nameValid: null,
-          urlValid: null
-        })
-      }
-    }
-
-    // Also auto-fill URL for existing models that have a blank URL
-    for (const model of models) {
-      if (!model.url && model.name) {
-        const supported = supportedModelsMap.value.get(model.name)
-        if (supported) {
-          model.url = supported.url
-          if (!model.directory) model.directory = supported.directory
-          model.autoFilled = true
-        }
-      }
+    // Keep saved entries that no longer appear in widgets (rare)
+    for (const saved of node.properties?.models || []) {
+      if (!saved?.name || models.some(m => m.name === saved.name)) continue
+      const supportedUrl = supportedModelsMap.value.get(saved.name)
+      models.push({
+        name: saved.name,
+        url: saved.url || supportedUrl || '',
+        directory: getDirectory(node.type, models.length),
+        autoFilled: !saved.url && !!supportedUrl,
+        valid: false,
+        nameValid: null,
+        urlValid: null
+      })
     }
 
     modelNodesList.push({
@@ -858,7 +855,7 @@ const addModel = (nodeInfo: any) => {
   nodeInfo.existingModels.push({
     name: '',
     url: '',
-    directory: getDirectory(nodeInfo.node.type),
+    directory: getDirectory(nodeInfo.node.type, nodeInfo.existingModels.length),
     valid: false,
     nameValid: null,
     urlValid: null
