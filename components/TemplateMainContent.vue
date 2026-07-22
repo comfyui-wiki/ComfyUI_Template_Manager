@@ -189,9 +189,42 @@
             </Select>
           </div>
 
+          <!-- Deprecated node filter (local mode) -->
+          <div v-if="showNodeCompatFilter" class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Deprecated</span>
+            <Select
+              :model-value="selectedCompatStatus"
+              :disabled="!nodeCompatAvailable || nodeCompatScanning"
+              @update:model-value="$emit('update:selectedCompatStatus', $event)"
+            >
+              <SelectTrigger
+                class="h-8 text-xs"
+                :class="selectedCompatStatus !== 'all'
+                  ? 'w-[120px] border-amber-500 text-amber-700'
+                  : 'w-[80px]'"
+              >
+                <SelectValue :placeholder="nodeCompatScanning ? 'Scanning…' : 'All'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="warning">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+                    Has deprecated
+                    <span v-if="nodeCompatStats?.warning" class="text-muted-foreground">({{ nodeCompatStats.warning }})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="ok">
+                  No deprecated
+                  <span v-if="nodeCompatStats?.ok" class="text-muted-foreground">({{ nodeCompatStats.ok }})</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <!-- Clear Filters Button -->
           <Button
-            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || selectedThumbnailStatus !== 'all' || searchQuery"
+            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || selectedThumbnailStatus !== 'all' || selectedCompatStatus !== 'all' || searchQuery"
             variant="outline"
             size="sm"
             @click="$emit('clear-filters')"
@@ -218,8 +251,45 @@
           <span>{{ filteredTemplates.length }} templates</span>
           <span v-if="selectedCategory !== 'all'">in {{ categoryTitle }}</span>
 
+          <div
+            v-if="nodeCompatAvailable || nodeCompatScanning"
+            class="flex items-center gap-3 ml-auto"
+          >
+            <button
+              v-if="nodeCompatStats && nodeCompatStats.warning > 0"
+              type="button"
+              class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-950 rounded text-xs font-medium transition-colors"
+              :title="`Show templates with deprecated nodes (${nodeCompatStats.sourceUrl})`"
+              @click="$emit('update:selectedCompatStatus', selectedCompatStatus === 'warning' ? 'all' : 'warning')"
+            >
+              {{ nodeCompatStats.warning }} with deprecated node{{ nodeCompatStats.warning > 1 ? 's' : '' }}
+            </button>
+            <span
+              v-if="nodeCompatScanning"
+              class="px-2 py-0.5 bg-muted text-muted-foreground rounded text-xs font-medium animate-pulse"
+            >
+              Checking nodes…
+            </span>
+            <span
+              v-else-if="nodeCompatError"
+              class="px-2 py-0.5 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 rounded text-xs font-medium"
+              :title="nodeCompatError"
+            >
+              Node scan failed
+            </span>
+            <span
+              v-else-if="nodeCompatStats"
+              class="text-xs text-muted-foreground"
+              :title="nodeCompatStats.fromCache
+                ? `Cached baseline from ${nodeCompatStats.objectInfoCachedAt || 'previous session'} (${nodeCompatStats.nodeCount} nodes)`
+                : `Live baseline: ${nodeCompatStats.sourceUrl} (${nodeCompatStats.nodeCount} nodes)`"
+            >
+              {{ nodeCompatStats.fromCache ? 'Cached ComfyUI baseline' : '✓ Local ComfyUI' }}
+            </span>
+          </div>
+
           <!-- Diff Stats -->
-          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3 ml-auto">
+          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3" :class="nodeCompatAvailable || nodeCompatScanning ? '' : 'ml-auto'">
             <span class="text-xs">
               <span class="font-mono">{{ selectedRepo }}</span> /
               <span class="font-mono font-semibold">{{ selectedBranch }}</span>
@@ -331,6 +401,22 @@ const props = defineProps<{
   selectedDiffStatus: string
   selectedMode: string
   selectedThumbnailStatus: string
+  selectedCompatStatus: string
+  nodeCompatAvailable: boolean
+  showNodeCompatFilter: boolean
+  nodeCompatStats: {
+    total: number
+    ok: number
+    warning: number
+    error: number
+    issueTemplates: number
+    nodeCount: number
+    sourceUrl?: string
+    fromCache?: boolean
+    objectInfoCachedAt?: string
+  } | null
+  nodeCompatScanning: boolean
+  nodeCompatError: string | null
   searchQuery: string
   sortBy: string
   loading: boolean
@@ -359,6 +445,7 @@ defineEmits<{
   'update:selectedDiffStatus': [value: string]
   'update:selectedMode': [value: string]
   'update:selectedThumbnailStatus': [value: string]
+  'update:selectedCompatStatus': [value: string]
   'update:searchQuery': [value: string]
   'update:sortBy': [value: string]
   'clear-filters': []

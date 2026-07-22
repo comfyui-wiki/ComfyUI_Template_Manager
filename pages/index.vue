@@ -415,6 +415,12 @@
       v-model:selected-diff-status="selectedDiffStatus"
       v-model:selected-mode="selectedMode"
       v-model:selected-thumbnail-status="selectedThumbnailStatus"
+      v-model:selected-compat-status="selectedCompatStatus"
+      :node-compat-available="nodeCompatAvailable"
+      :show-node-compat-filter="showNodeCompatFilter"
+      :node-compat-stats="nodeCompatStats"
+      :node-compat-scanning="nodeCompatScanning"
+      :node-compat-error="nodeCompatError"
       v-model:search-query="searchQuery"
       v-model:sort-by="sortBy"
       :loading="loading"
@@ -492,6 +498,7 @@
     <LocalSettingsModal
       v-if="isMounted"
       v-model:open="showLocalSettings"
+      @saved="handleLocalSettingsSaved"
     />
 
     <!-- Thumbnail Field Editor -->
@@ -566,6 +573,24 @@ const {
   clearCache
 } = useTemplateDiff()
 
+const {
+  isAvailable: nodeCompatAvailable,
+  showNodeCompatFilter,
+  scanStats: nodeCompatStats,
+  isScanning: nodeCompatScanning,
+  scanError: nodeCompatError,
+  getTemplateCompat,
+  scanNodeCompat,
+  resetScan: resetNodeCompatScan
+} = useNodeCompat()
+
+const handleLocalSettingsSaved = () => {
+  resetNodeCompatScan()
+  if (isLocalMode.value) {
+    void scanNodeCompat(true)
+  }
+}
+
 // State
 const loading = ref(true)
 const searchQuery = useLocalStorage('tmgr_searchQuery', '')
@@ -576,6 +601,7 @@ const selectedRunsOn = useLocalStorage('tmgr_selectedRunsOn', 'all') // all, api
 const selectedDiffStatus = useLocalStorage('tmgr_selectedDiffStatus', 'all') // all, new, modified, deleted, unchanged
 const selectedMode = useLocalStorage('tmgr_selectedMode', 'all') // all, app, normal
 const selectedThumbnailStatus = useLocalStorage('tmgr_selectedThumbnailStatus', 'all') // all, missing
+const selectedCompatStatus = useLocalStorage('tmgr_selectedCompatStatus', 'all') // all, ok, warning
 const sortBy = useLocalStorage('tmgr_sortBy', 'latest')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
@@ -669,6 +695,10 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
     console.log('[LoadTemplates] Categories with diff:', categoriesWithDiff.value?.length || 0)
     console.log('[LoadTemplates] Diff stats:', diffStats.value)
     console.log('[LoadTemplates] Branch permission:', branchPermission.value)
+
+    if (isLocalMode.value) {
+      await scanNodeCompat()
+    }
   } catch (error) {
     console.error('[LoadTemplates] Failed to load templates:', error)
   } finally {
@@ -1088,6 +1118,15 @@ const filteredTemplates = computed(() => {
     templates = templates.filter(t => !t.thumbnail?.length)
   }
 
+  // Filter by deprecated nodes (local ComfyUI scan)
+  if (nodeCompatAvailable.value && selectedCompatStatus.value !== 'all') {
+    templates = templates.filter((t) => {
+      const compat = getTemplateCompat(t.name)
+      if (!compat) return selectedCompatStatus.value === 'ok'
+      return compat.status === selectedCompatStatus.value
+    })
+  }
+
   // Filter by mode (app vs normal)
   if (selectedMode.value === 'app') {
     templates = templates.filter(t => t.name?.endsWith('.app'))
@@ -1152,6 +1191,7 @@ const clearFilters = () => {
   selectedDiffStatus.value = 'all'
   selectedMode.value = 'all'
   selectedThumbnailStatus.value = 'all'
+  selectedCompatStatus.value = 'all'
   searchQuery.value = ''
 }
 

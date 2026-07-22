@@ -141,6 +141,15 @@
             </svg>
           </span>
         </span>
+        <!-- Node compat badge (local ComfyUI scan) -->
+        <span
+          v-if="nodeCompatBadge"
+          class="px-1.5 py-0.5 text-[10px] font-bold rounded shadow-lg"
+          :class="nodeCompatBadge.className"
+          :title="nodeCompatTitle"
+        >
+          {{ nodeCompatBadge.label }}
+        </span>
         <!-- Missing Output Files Badge -->
         <span
           v-if="missingOutputFilesCount > 0"
@@ -443,6 +452,32 @@ const showDetailsModal = ref(false)
 const copySuccess = ref(false)
 
 const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
+const { getTemplateCompat } = useNodeCompat()
+
+const nodeCompat = computed(() => getTemplateCompat(props.template.name))
+
+const nodeCompatBadge = computed(() => {
+  if (!nodeCompat.value || nodeCompat.value.status === 'ok') return null
+
+  const deprecatedCount = nodeCompat.value.issues.filter(issue => issue.kind === 'deprecated_node').length
+  if (deprecatedCount === 0) return null
+
+  return {
+    label: `DEPRECATED ${deprecatedCount}`,
+    className: 'bg-amber-600 text-white'
+  }
+})
+
+const nodeCompatTitle = computed(() => {
+  if (!nodeCompat.value || nodeCompat.value.status === 'ok') return ''
+  const lines = nodeCompat.value.issues.slice(0, 6).map((issue) => {
+    return `${issue.nodeType} (#${issue.nodeId}): ${issue.message}`
+  })
+  const extra = nodeCompat.value.issues.length > 6
+    ? `\n…and ${nodeCompat.value.issues.length - 6} more`
+    : ''
+  return [...lines, extra].filter(Boolean).join('\n')
+})
 
 const parseRepo = (fullName: string) => {
   const [owner, name] = fullName.split('/')

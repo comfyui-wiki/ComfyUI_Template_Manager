@@ -72,6 +72,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
+  saved: []
 }>()
 
 const isOpen = ref(props.open)
@@ -114,6 +115,7 @@ const saveSettings = () => {
   localStorage.setItem('comfyui_local_base_url', url)
 
   saveSuccess.value = true
+  emit('saved')
 
   // Close dialog after a short delay
   setTimeout(() => {
