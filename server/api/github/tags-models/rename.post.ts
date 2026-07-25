@@ -2,6 +2,11 @@ import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import i18nConfig from '~/config/i18n-config.json'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 const localeFiles = [
   'index.json',
@@ -26,9 +31,10 @@ interface RenameItem {
 
 export default defineEventHandler(async (event) => {
   try {
+    const localMode = isLocalModeEnabled()
     const session = await getServerSession(event)
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({ statusCode: 401, statusMessage: 'Unauthorized - Please sign in' })
     }
 
@@ -62,16 +68,22 @@ export default defineEventHandler(async (event) => {
     const modelRenames = renames.filter(r => r.type === 'model')
 
     const [owner, repoName] = repo.split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const octokit = localMode
+      ? createLocalOctokit()
+      : new Octokit({ auth: session!.accessToken })
     const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json'
 
-    console.log(`[tags-models rename] Processing ${renames.length} rename(s)`)
+    console.log(`[tags-models rename] Processing ${renames.length} rename(s)${localMode ? ' (local)' : ''}`)
 
-    // Get current commit SHA
-    const { data: refData } = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` })
-    const currentCommitSha = refData.object.sha
-    const { data: commitData } = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: currentCommitSha })
-    const currentTreeSha = commitData.tree.sha
+    let currentCommitSha = 'local'
+    let currentTreeSha = 'local'
+
+    if (!localMode) {
+      const { data: refData } = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` })
+      currentCommitSha = refData.object.sha
+      const { data: commitData } = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: currentCommitSha })
+      currentTreeSha = commitData.tree.sha
+    }
 
     const tree: any[] = []
 
@@ -231,13 +243,29 @@ export default defineEventHandler(async (event) => {
       return { success: true, message: 'No changes needed', commit: null }
     }
 
+    const renameDesc = renames.map(r => `"${r.oldKey}" → "${r.newKey}"`).join(', ')
+    const commitMessage = `Rename ${renames.length} tag/model(s)\n\n${renameDesc}\n\nRenamed via Tag & Model Manager`
+
+    if (localMode) {
+      const { sha } = await writeLocalTreeAndCommit(tree, commitMessage)
+      console.log(`[tags-models rename] Committed locally: ${sha}`)
+
+      return {
+        success: true,
+        message: `Renamed ${renames.length} item(s) successfully`,
+        commit: {
+          sha,
+          url: `local://${sha.substring(0, 7)}`
+        }
+      }
+    }
+
     // Create commit
     const { data: newTree } = await octokit.git.createTree({ owner, repo: repoName, tree, base_tree: currentTreeSha })
 
-    const renameDesc = renames.map(r => `"${r.oldKey}" → "${r.newKey}"`).join(', ')
     const { data: newCommit } = await octokit.git.createCommit({
       owner, repo: repoName,
-      message: `Rename ${renames.length} tag/model(s)\n\n${renameDesc}\n\nRenamed via Tag & Model Manager`,
+      message: commitMessage,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })

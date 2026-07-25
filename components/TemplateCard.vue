@@ -419,6 +419,7 @@ import { getCardDistributionStatuses, isAvailableOnDistribution } from '@/compos
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TemplateDetailsModal from '@/components/TemplateDetailsModal.vue'
+import { buildLocalComfyTemplateUrl, getLocalComfyBaseUrl } from '~/lib/local-comfy-url'
 
 interface LogoInfo {
   provider: string | string[]
@@ -573,26 +574,20 @@ const copyCloudLink = async () => {
 }
 
 const localUrlNotice = computed(() => {
-  const localBaseUrl = localStorage.getItem('comfyui_local_base_url')
-  if (!localBaseUrl) {
+  if (!getLocalComfyBaseUrl()) {
     return 'Configure local URL first'
   }
   return 'Note: This template may not be available in your local instance'
 })
 
 const openInLocal = () => {
-  // Get local base URL from localStorage
-  const localBaseUrl = localStorage.getItem('comfyui_local_base_url')
-
-  if (!localBaseUrl) {
-    // If not set, emit event to parent to open settings
+  const saved = localStorage.getItem('comfyui_local_base_url')?.trim()
+  if (!saved) {
     window.dispatchEvent(new CustomEvent('open-local-settings'))
     return
   }
 
-  // Open template in local ComfyUI directly without confirmation
-  const localUrl = `${localBaseUrl}?template=${props.template.name}`
-  window.open(localUrl, '_blank')
+  window.open(buildLocalComfyTemplateUrl(saved, props.template.name), '_blank')
 }
 
 const openLocalSettings = () => {

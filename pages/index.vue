@@ -438,6 +438,7 @@
       :logo-mapping="logoMapping"
       :creators-data="creatorsData"
       :repo-base-url="repoBaseUrl"
+      :is-local-mode="isLocalMode"
       @clear-filters="clearFilters"
       @refresh="refreshTemplates"
       @edit-template="editTemplate"
@@ -462,6 +463,7 @@
       v-if="isMounted"
       v-model:open="showTagModelManager"
       :index-data="categories"
+      @saved="refreshTemplates"
     />
 
     <!-- Creator Manager Modal -->
@@ -529,6 +531,7 @@ import TagModelManager from '~/components/TagModelManager.vue'
 import CreatorManager from '~/components/CreatorManager.vue'
 import CreatePRModal from '~/components/CreatePRModal.vue'
 import TemplateMainContent from '~/components/TemplateMainContent.vue'
+import { normalizeTemplateSearchQuery, templateMatchesSearch } from '~/lib/template-search'
 import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
@@ -1072,18 +1075,14 @@ const allTags = computed(() => {
 const filteredTemplates = computed(() => {
   let templates = allTemplates.value
 
-  // Filter by search
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    templates = templates.filter(t =>
-      t.name?.toLowerCase().includes(query) ||
-      t.title?.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query)
-    )
+  // Filter by search (global — ignores sidebar category while searching)
+  const activeSearch = normalizeTemplateSearchQuery(searchQuery.value)
+  if (activeSearch) {
+    templates = templates.filter(t => templateMatchesSearch(t, searchQuery.value))
   }
 
-  // Filter by category
-  if (selectedCategory.value !== 'all') {
+  // Filter by category (only when not searching)
+  if (!activeSearch && selectedCategory.value !== 'all') {
     templates = templates.filter(t => t.categoryTitle === selectedCategory.value)
   }
 

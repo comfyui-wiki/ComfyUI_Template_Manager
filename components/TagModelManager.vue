@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
+  saved: []
 }>()
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ const pendingSave = ref(false)
 
 // ─── GitHub repo ──────────────────────────────────────────────────────────────
 
-const { selectedRepo, selectedBranch } = useGitHubRepo()
+const { selectedRepo, selectedBranch, isLocalMode } = useGitHubRepo()
 const { resolveRepoFileUrl } = useRepoAssets()
 
 // ─── Derived data ─────────────────────────────────────────────────────────────
@@ -89,14 +90,67 @@ const modelsList = computed(() =>
     .sort((a, b) => a.count - b.count || a.key.localeCompare(b.key))
 )
 
+// Active template selected via filename search
+const selectedTemplateName = ref<string | null>(null)
+
+function normalizeSearchQuery(raw: string): string {
+  let q = raw.toLowerCase().trim()
+  if (!q) return ''
+  const slash = q.lastIndexOf('/')
+  if (slash >= 0) q = q.slice(slash + 1)
+  if (q.endsWith('.json')) q = q.slice(0, -5)
+  return q
+}
+
+function templateMatchesSearch(tpl: any, rawQuery: string): boolean {
+  const q = normalizeSearchQuery(rawQuery)
+  if (!q) return false
+  const name = String(tpl.name || '').toLowerCase()
+  const title = String(tpl.title || '').toLowerCase()
+  return name.includes(q) || title.includes(q)
+}
+
+const templatesMatchingSearch = computed(() => {
+  const q = normalizeSearchQuery(searchQuery.value)
+  if (!q) return []
+  return allTemplates.value.filter(tpl => templateMatchesSearch(tpl, searchQuery.value))
+})
+
+const selectedTemplatePreview = computed(() => {
+  if (!selectedTemplateName.value) return null
+  return allTemplates.value.find(tpl => tpl.name === selectedTemplateName.value) ?? null
+})
+
+const tagsFromMatchingTemplates = computed(() => {
+  const keys = new Set<string>()
+  for (const tpl of templatesMatchingSearch.value) {
+    for (const tag of tpl.tags ?? []) keys.add(tag)
+  }
+  return keys
+})
+
+const modelsFromMatchingTemplates = computed(() => {
+  const keys = new Set<string>()
+  for (const tpl of templatesMatchingSearch.value) {
+    for (const model of tpl.models ?? []) keys.add(model)
+  }
+  return keys
+})
+
 const filteredTags = computed(() => {
-  const q = searchQuery.value.toLowerCase().trim()
-  return q ? tagsList.value.filter(i => i.key.toLowerCase().includes(q)) : tagsList.value
+  const q = normalizeSearchQuery(searchQuery.value)
+  if (!q) return tagsList.value
+  return tagsList.value.filter(i =>
+    i.key.toLowerCase().includes(q) || tagsFromMatchingTemplates.value.has(i.key)
+  )
 })
 
 const filteredModels = computed(() => {
-  const q = searchQuery.value.toLowerCase().trim()
-  return q ? modelsList.value.filter(i => i.key.toLowerCase().includes(q)) : modelsList.value
+  const q = normalizeSearchQuery(searchQuery.value)
+  if (!q) return modelsList.value
+  return modelsList.value.filter(i =>
+    i.key.toLowerCase().includes(q) || modelsFromMatchingTemplates.value.has(i.key)
+  )
 })
 
 // ─── Pending change summaries ─────────────────────────────────────────────────
@@ -214,6 +268,19 @@ const previewTemplates = computed(() => {
   })
 })
 
+const isTemplateSearchActive = computed(() => {
+  if (selectedTemplatePreview.value) return true
+  const q = normalizeSearchQuery(searchQuery.value)
+  return q.length > 0 && templatesMatchingSearch.value.length > 0 && !previewKey.value
+})
+
+const selectTemplateFromSearch = (name: string) => {
+  selectedTemplateName.value = name
+  selectedItems.value.clear()
+  activePreviewKey.value = null
+  editingItem.value = null
+}
+
 const getThumbnailUrl = (tpl: any) => {
   const [owner, repoName] = (selectedRepo.value || 'Comfy-Org/workflow_templates').split('/')
   const branch = selectedBranch.value || 'main'
@@ -267,6 +334,7 @@ const doSave = async () => {
     saveSuccess.value = lastCommit
       ? { commitSha: lastCommit.sha, commitUrl: lastCommit.url }
       : { commitSha: '', commitUrl: '' }
+    emit('saved')
   } catch (error: any) {
     console.error('[TagModelManager] Save failed:', error)
     const status = error.data?.statusCode || error.statusCode
@@ -285,7 +353,7 @@ const handleSave = () => {
   if (!hasPendingChanges.value) return
 
   const branch = selectedBranch.value || 'main'
-  if (branch === 'main' || branch === 'master') {
+  if (!isLocalMode.value && (branch === 'main' || branch === 'master')) {
     warningTiming.value = 'saving'
     pendingSave.value = true
     showMainBranchWarning.value = true
@@ -305,13 +373,14 @@ const handleWarningContinue = () => {
 watch(() => props.open, (isOpen) => {
   if (!isOpen) {
     searchQuery.value = ''
+    selectedTemplateName.value = null
     selectedItems.value.clear()
     editingItem.value = null
     saveSuccess.value = null
     saveError.value = null
   } else {
     const branch = selectedBranch.value || 'main'
-    if (branch === 'main' || branch === 'master') {
+    if (!isLocalMode.value && (branch === 'main' || branch === 'master')) {
       warningTiming.value = 'opening'
       showMainBranchWarning.value = true
     }
@@ -322,7 +391,28 @@ watch(activeTab, () => {
   selectedItems.value.clear()
   activePreviewKey.value = null
   editingItem.value = null
-  searchQuery.value = ''
+})
+
+watch(searchQuery, (q) => {
+  const normalized = normalizeSearchQuery(q)
+  if (!normalized) {
+    selectedTemplateName.value = null
+    return
+  }
+
+  selectedItems.value.clear()
+  activePreviewKey.value = null
+  editingItem.value = null
+
+  const matches = templatesMatchingSearch.value
+  if (matches.length === 1) {
+    selectedTemplateName.value = matches[0].name
+    return
+  }
+
+  if (selectedTemplateName.value && !matches.some(tpl => tpl.name === selectedTemplateName.value)) {
+    selectedTemplateName.value = null
+  }
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -354,8 +444,36 @@ const displayKey = (key: string) => {
       <div class="flex flex-1 min-h-0">
         <!-- ── Left Panel: List ── -->
         <div class="flex flex-col w-[360px] flex-shrink-0 border-r">
+          <div class="px-4 pt-3 pb-2 border-b flex-shrink-0 space-y-3">
+            <Input
+              v-model="searchQuery"
+              placeholder="Search by filename, e.g. video_ltx2_i2v_lora"
+              class="h-8 text-sm font-mono"
+            />
+
+            <div
+              v-if="templatesMatchingSearch.length > 0"
+              class="rounded-md border bg-muted/30 max-h-[160px] overflow-y-auto"
+            >
+              <p class="px-2.5 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Templates ({{ templatesMatchingSearch.length }})
+              </p>
+              <button
+                v-for="tpl in templatesMatchingSearch"
+                :key="tpl.name"
+                type="button"
+                class="w-full text-left px-2.5 py-2 border-t border-border/40 hover:bg-accent/50 transition-colors"
+                :class="selectedTemplateName === tpl.name ? 'bg-accent' : ''"
+                @click="selectTemplateFromSearch(tpl.name)"
+              >
+                <span class="block text-xs font-mono truncate">{{ tpl.name }}</span>
+                <span v-if="tpl.title" class="block text-[11px] text-muted-foreground truncate mt-0.5">{{ tpl.title }}</span>
+              </button>
+            </div>
+          </div>
+
           <Tabs v-model="activeTab" class="flex flex-col flex-1 min-h-0">
-            <div class="px-4 pt-3 pb-2 border-b flex-shrink-0 space-y-3">
+            <div class="px-4 pt-3 pb-2 border-b flex-shrink-0">
               <TabsList class="w-full">
                 <TabsTrigger value="tags" class="flex-1 gap-1.5">
                   Tags
@@ -366,8 +484,6 @@ const displayKey = (key: string) => {
                   <Badge variant="secondary" class="text-xs px-1.5 py-0 h-5">{{ modelsList.length }}</Badge>
                 </TabsTrigger>
               </TabsList>
-
-              <Input v-model="searchQuery" placeholder="Search..." class="h-8 text-sm" />
             </div>
 
             <!-- Tags List -->
@@ -459,6 +575,9 @@ const displayKey = (key: string) => {
                 </template>
                 <div v-if="filteredTags.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
                   No tags found
+                  <p v-if="searchQuery.trim() && templatesMatchingSearch.length > 0" class="text-xs mt-1">
+                    {{ templatesMatchingSearch.length }} template{{ templatesMatchingSearch.length !== 1 ? 's' : '' }} matched on the right
+                  </p>
                 </div>
               </div>
             </TabsContent>
@@ -549,6 +668,9 @@ const displayKey = (key: string) => {
                 </template>
                 <div v-if="filteredModels.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
                   No models found
+                  <p v-if="searchQuery.trim() && templatesMatchingSearch.length > 0" class="text-xs mt-1">
+                    {{ templatesMatchingSearch.length }} template{{ templatesMatchingSearch.length !== 1 ? 's' : '' }} matched on the right
+                  </p>
                 </div>
               </div>
             </TabsContent>
@@ -635,10 +757,21 @@ const displayKey = (key: string) => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
             <div>
-              Changes committed successfully!
-              <a v-if="saveSuccess.commitUrl" :href="saveSuccess.commitUrl" target="_blank" class="ml-2 underline text-green-700 hover:text-green-900 font-mono text-xs">
+              {{ isLocalMode ? 'Changes saved to local repository.' : 'Changes committed successfully!' }}
+              <a
+                v-if="saveSuccess.commitUrl && saveSuccess.commitUrl.startsWith('https://')"
+                :href="saveSuccess.commitUrl"
+                target="_blank"
+                class="ml-2 underline text-green-700 hover:text-green-900 font-mono text-xs"
+              >
                 {{ saveSuccess.commitSha.substring(0, 7) }}
               </a>
+              <span
+                v-else-if="saveSuccess.commitSha"
+                class="ml-2 font-mono text-xs text-green-700"
+              >
+                {{ saveSuccess.commitSha.substring(0, 7) }}
+              </span>
             </div>
           </div>
 
@@ -700,6 +833,118 @@ const displayKey = (key: string) => {
                     <p class="text-xs text-muted-foreground truncate font-mono mt-0.5">{{ tpl.name }}</p>
                   </div>
                 </div>
+              </div>
+            </template>
+
+            <template v-else-if="isTemplateSearchActive && selectedTemplatePreview">
+              <div class="mb-3 flex items-center gap-2">
+                <span class="text-sm font-medium">Template</span>
+                <code class="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{{ selectedTemplatePreview.name }}</code>
+              </div>
+
+              <div class="border rounded-md overflow-hidden bg-card max-w-sm">
+                <div class="aspect-square bg-muted overflow-hidden">
+                  <img
+                    :src="getThumbnailUrl(selectedTemplatePreview)"
+                    :alt="selectedTemplatePreview.title"
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                    @error="($event.target as HTMLImageElement).style.display = 'none'"
+                  />
+                </div>
+                <div class="px-3 py-2 space-y-2">
+                  <p class="text-sm font-medium">{{ selectedTemplatePreview.title || selectedTemplatePreview.name }}</p>
+                  <p class="text-xs text-muted-foreground font-mono">{{ selectedTemplatePreview.name }}</p>
+                  <div v-if="selectedTemplatePreview.tags?.length" class="space-y-1">
+                    <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</p>
+                    <div class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="tag in selectedTemplatePreview.tags"
+                        :key="tag"
+                        variant="outline"
+                        class="text-[10px] px-1 py-0 cursor-pointer"
+                        @click="activeTab = 'tags'; toggleSelection(tag)"
+                      >
+                        {{ tag }}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div v-if="selectedTemplatePreview.models?.length" class="space-y-1">
+                    <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Models</p>
+                    <div class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="model in selectedTemplatePreview.models"
+                        :key="model"
+                        variant="secondary"
+                        class="text-[10px] px-1 py-0 cursor-pointer font-mono"
+                        @click="activeTab = 'models'; toggleSelection(model)"
+                      >
+                        {{ model }}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="isTemplateSearchActive">
+              <div class="mb-3 flex items-center gap-2">
+                <span class="text-sm font-medium">
+                  Templates matching
+                  <code class="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{{ searchQuery.trim() }}</code>
+                </span>
+                <Badge variant="secondary" class="text-xs">{{ templatesMatchingSearch.length }}</Badge>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div
+                  v-for="tpl in templatesMatchingSearch"
+                  :key="tpl.name"
+                  class="border rounded-md overflow-hidden bg-card hover:bg-accent/30 transition-colors"
+                >
+                  <div class="aspect-square bg-muted overflow-hidden">
+                    <img
+                      :src="getThumbnailUrl(tpl)"
+                      :alt="tpl.title"
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                      @error="($event.target as HTMLImageElement).style.display = 'none'"
+                    />
+                  </div>
+                  <div class="px-2 py-1.5 space-y-1">
+                    <p class="text-xs font-medium truncate leading-tight">{{ tpl.title || tpl.name }}</p>
+                    <p class="text-xs text-muted-foreground truncate font-mono">{{ tpl.name }}</p>
+                    <div v-if="tpl.tags?.length" class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="tag in tpl.tags"
+                        :key="tag"
+                        variant="outline"
+                        class="text-[10px] px-1 py-0 cursor-pointer"
+                        @click="activeTab = 'tags'; toggleSelection(tag)"
+                      >
+                        {{ tag }}
+                      </Badge>
+                    </div>
+                    <div v-if="tpl.models?.length" class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="model in tpl.models"
+                        :key="model"
+                        variant="secondary"
+                        class="text-[10px] px-1 py-0 cursor-pointer font-mono"
+                        @click="activeTab = 'models'; toggleSelection(model)"
+                      >
+                        {{ model }}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="normalizeSearchQuery(searchQuery)">
+              <div class="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-16">
+                <p class="text-sm font-medium">No templates found</p>
+                <p class="text-xs mt-1">No template name or title matches "{{ searchQuery.trim() }}"</p>
               </div>
             </template>
 

@@ -1324,6 +1324,7 @@ import AIAssistBatch from '~/components/AIAssistBatch.vue'
 import LogosEditor from '~/components/LogosEditor.vue'
 import LogoManager from '~/components/LogoManager.vue'
 import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
+import { buildLocalComfyTemplateUrl, getLocalComfyBaseUrl } from '~/lib/local-comfy-url'
 import BundleSelector from '~/components/BundleSelector.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
 
@@ -1335,9 +1336,12 @@ const openInCloud = () => {
 }
 
 const openInLocal = () => {
-  const base = localStorage.getItem('comfyui_local_base_url')
-  if (base) window.open(`${base}?template=${templateName}`, '_blank')
-  else window.dispatchEvent(new CustomEvent('open-local-settings'))
+  const base = getLocalComfyBaseUrl()
+  if (!localStorage.getItem('comfyui_local_base_url')?.trim()) {
+    window.dispatchEvent(new CustomEvent('open-local-settings'))
+    return
+  }
+  window.open(buildLocalComfyTemplateUrl(base, templateName), '_blank')
 }
 
 // Detect if this is create mode (when name is 'new')

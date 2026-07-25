@@ -50,7 +50,22 @@
       </aside>
 
       <!-- Main Content -->
-      <div class="flex-1 min-w-0">
+      <div
+        class="flex-1 min-w-0 relative"
+        @dragenter.prevent="onDragEnter"
+        @dragover.prevent="onDragOver"
+        @dragleave="onDragLeave"
+        @drop.prevent="onDrop"
+      >
+        <div
+          v-if="isLocalMode && isDragging"
+          class="absolute inset-0 z-40 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] pointer-events-none"
+        >
+          <div class="text-center px-6 py-4">
+            <p class="text-sm font-medium">Drop workflow JSON to replace</p>
+            <p class="text-xs text-muted-foreground mt-1">Matches by filename, e.g. video_ltx2_i2v_lora.json</p>
+          </div>
+        </div>
         <!-- Search and Sort -->
         <div class="flex flex-col sm:flex-row gap-4 mb-4">
           <!-- Search -->
@@ -62,7 +77,7 @@
               <Input
                 :model-value="searchQuery"
                 @update:model-value="$emit('update:searchQuery', $event)"
-                placeholder="Search templates..."
+                placeholder="Search by name, title, or filename..."
                 class="pl-10"
               />
             </div>
@@ -249,7 +264,11 @@
         <!-- Stats -->
         <div class="flex items-center gap-4 text-sm text-muted-foreground mb-6">
           <span>{{ filteredTemplates.length }} templates</span>
-          <span v-if="selectedCategory !== 'all'">in {{ categoryTitle }}</span>
+          <span v-if="searchQuery.trim()">matching search</span>
+          <span v-else-if="selectedCategory !== 'all'">in {{ categoryTitle }}</span>
+          <span v-if="isLocalMode" class="text-xs text-muted-foreground">
+            · drag workflow .json here to replace
+          </span>
 
           <div
             v-if="nodeCompatAvailable || nodeCompatScanning"
@@ -331,6 +350,16 @@
           </div>
         </div>
 
+        <div
+          v-if="replaceMessage"
+          class="mb-4 rounded-md px-3 py-2 text-sm"
+          :class="replaceMessage.type === 'success'
+            ? 'dm-callout-success'
+            : 'dm-callout-danger'"
+        >
+          {{ replaceMessage.text }}
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="text-center py-12">
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -373,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -434,10 +463,10 @@ const props = defineProps<{
   logoMapping: Record<string, string>
   creatorsData?: Record<string, { displayName: string; handle: string; avatarUrl: string; summary?: string; social?: string | string[] }>
   repoBaseUrl: string
+  isLocalMode?: boolean
 }>()
 
-// Emits
-defineEmits<{
+const emit = defineEmits<{
   'update:selectedCategory': [value: string]
   'update:selectedModel': [value: string]
   'update:selectedTag': [value: string]
@@ -454,6 +483,88 @@ defineEmits<{
   'view-template': [template: any]
   'edit-thumbnail-field': [template: any]
 }>()
+
+const dragDepth = ref(0)
+const isDragging = computed(() => dragDepth.value > 0)
+const replacing = ref(false)
+const replaceMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
+
+const onDragEnter = () => {
+  if (!props.isLocalMode) return
+  dragDepth.value += 1
+}
+
+const onDragOver = () => {
+  if (!props.isLocalMode) return
+}
+
+const onDragLeave = () => {
+  if (!props.isLocalMode) return
+  dragDepth.value = Math.max(0, dragDepth.value - 1)
+}
+
+const onDrop = async (event: DragEvent) => {
+  dragDepth.value = 0
+  if (!props.isLocalMode || replacing.value) return
+
+  const fileList = event.dataTransfer?.files
+  if (!fileList?.length) return
+
+  const jsonFiles = Array.from(fileList).filter(file =>
+    file.name.toLowerCase().endsWith('.json')
+  )
+  if (jsonFiles.length === 0) {
+    replaceMessage.value = { type: 'error', text: 'Drop workflow .json files only' }
+    return
+  }
+
+  replacing.value = true
+  replaceMessage.value = null
+
+  try {
+    const files = await Promise.all(jsonFiles.map(async file => ({
+      filename: file.name,
+      content: await file.text()
+    })))
+
+    const response = await $fetch<{
+      replaced: number
+      failed: number
+      results: Array<{ filename: string; success: boolean; message: string; templateName?: string }>
+    }>('/api/local/workflow/replace', {
+      method: 'POST',
+      body: { files }
+    })
+
+    const failures = response.results.filter(item => !item.success)
+    if (response.replaced > 0) {
+      const names = response.results
+        .filter(item => item.success)
+        .map(item => item.templateName)
+        .filter(Boolean)
+        .join(', ')
+      replaceMessage.value = {
+        type: failures.length > 0 ? 'error' : 'success',
+        text: failures.length > 0
+          ? `Replaced ${response.replaced}: ${names}. Failed: ${failures.map(f => `${f.filename} (${f.message})`).join('; ')}`
+          : `Replaced ${response.replaced} workflow${response.replaced > 1 ? 's' : ''}: ${names}`
+      }
+      emit('refresh')
+    } else {
+      replaceMessage.value = {
+        type: 'error',
+        text: failures[0]?.message || 'No workflow files were replaced'
+      }
+    }
+  } catch (error: any) {
+    replaceMessage.value = {
+      type: 'error',
+      text: error.data?.statusMessage || error.data?.message || error.message || 'Failed to replace workflow files'
+    }
+  } finally {
+    replacing.value = false
+  }
+}
 
 // Computed
 const categoryTitle = computed(() => {

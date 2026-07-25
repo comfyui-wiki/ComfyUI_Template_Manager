@@ -2,6 +2,11 @@ import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import i18nConfig from '~/config/i18n-config.json'
+import {
+  createLocalOctokit,
+  isLocalModeEnabled,
+  writeLocalTreeAndCommit
+} from '~/server/utils/local-template-persist'
 
 const localeFiles = [
   'index.json',
@@ -20,9 +25,10 @@ const localeFiles = [
 
 export default defineEventHandler(async (event) => {
   try {
+    const localMode = isLocalModeEnabled()
     const session = await getServerSession(event)
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized - Please sign in'
@@ -53,25 +59,31 @@ export default defineEventHandler(async (event) => {
     }
 
     const [owner, repoName] = repo.split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const octokit = localMode
+      ? createLocalOctokit()
+      : new Octokit({ auth: session!.accessToken })
     const i18nPath = i18nConfig.i18nDataPath?.default || 'scripts/data/i18n.json'
 
-    console.log(`[tags-models update] Deleting tags: [${deleteTags.join(', ')}], models: [${deleteModels.join(', ')}]`)
+    console.log(`[tags-models update] Deleting tags: [${deleteTags.join(', ')}], models: [${deleteModels.join(', ')}]${localMode ? ' (local)' : ''}`)
 
-    // Get current commit SHA
-    const { data: refData } = await octokit.git.getRef({
-      owner,
-      repo: repoName,
-      ref: `heads/${branch}`
-    })
-    const currentCommitSha = refData.object.sha
+    let currentCommitSha = 'local'
+    let currentTreeSha = 'local'
 
-    const { data: commitData } = await octokit.git.getCommit({
-      owner,
-      repo: repoName,
-      commit_sha: currentCommitSha
-    })
-    const currentTreeSha = commitData.tree.sha
+    if (!localMode) {
+      const { data: refData } = await octokit.git.getRef({
+        owner,
+        repo: repoName,
+        ref: `heads/${branch}`
+      })
+      currentCommitSha = refData.object.sha
+
+      const { data: commitData } = await octokit.git.getCommit({
+        owner,
+        repo: repoName,
+        commit_sha: currentCommitSha
+      })
+      currentTreeSha = commitData.tree.sha
+    }
 
     const tree: any[] = []
 
@@ -196,6 +208,25 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const deleteDesc: string[] = []
+    if (deleteTags.length > 0) deleteDesc.push(`${deleteTags.length} tag(s)`)
+    if (deleteModels.length > 0) deleteDesc.push(`${deleteModels.length} model(s)`)
+    const commitMessage = `Remove ${deleteDesc.join(' and ')}\n\nDeleted via Tag & Model Manager`
+
+    if (localMode) {
+      const { sha } = await writeLocalTreeAndCommit(tree, commitMessage)
+      console.log(`[tags-models update] Successfully committed changes locally: ${sha}`)
+
+      return {
+        success: true,
+        message: `Deleted ${deleteDesc.join(' and ')} successfully`,
+        commit: {
+          sha,
+          url: `local://${sha.substring(0, 7)}`
+        }
+      }
+    }
+
     // Create new tree and commit
     const { data: newTree } = await octokit.git.createTree({
       owner,
@@ -204,14 +235,10 @@ export default defineEventHandler(async (event) => {
       base_tree: currentTreeSha
     })
 
-    const deleteDesc: string[] = []
-    if (deleteTags.length > 0) deleteDesc.push(`${deleteTags.length} tag(s)`)
-    if (deleteModels.length > 0) deleteDesc.push(`${deleteModels.length} model(s)`)
-
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
       repo: repoName,
-      message: `Remove ${deleteDesc.join(' and ')}\n\nDeleted via Tag & Model Manager`,
+      message: commitMessage,
       tree: newTree.sha,
       parents: [currentCommitSha]
     })

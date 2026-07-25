@@ -32,7 +32,7 @@
               <ul class="list-disc list-inside space-y-1">
                 <li>Make sure your local ComfyUI is running</li>
                 <li>This URL will be saved in your browser's local storage</li>
-                <li>The template will open as: <code class="bg-muted px-1 rounded">YOUR_URL?template=TEMPLATE_NAME</code></li>
+                <li>The template will open as: <code class="bg-muted px-1 rounded">YOUR_URL/?template=TEMPLATE_NAME</code></li>
                 <li><strong>Note:</strong> The template may not be available locally if it hasn't been published to your local instance</li>
               </ul>
             </div>
