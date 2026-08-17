@@ -303,7 +303,7 @@
         </Card>
 
         <!-- Generate Note Section -->
-        <Card v-if="workflowData && modelNodes.length > 0">
+        <Card v-if="workflowData">
           <CardHeader>
             <CardTitle class="text-base">Generate Markdown Note</CardTitle>
           </CardHeader>
@@ -420,6 +420,26 @@ const modelNodes = ref<any[]>([])
 const tutorialUrl = ref('')
 const tutorialTitle = ref('Tutorial')
 const generatedNote = ref('')
+const inputAssets = ref<Array<{ name: string; url: string; path: string }>>([])
+
+const INPUT_NODE_TYPES = new Set(['LoadImage', 'LoadImageOutput', 'LoadImageSetFromFolderNode', 'LoadImageMask', 'LoadVideo', 'VHS_LoadVideo', 'LoadAudio', 'Load3D'])
+const INPUT_FILE_RE = /\.(png|jpe?g|webp|gif|bmp|mp4|webm|mov|avi|mkv|mp3|wav|flac|ogg|glb|gltf|obj|ply|fbx)$/i
+const INPUT_ASSET_BASE_URL = 'https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/input/'
+
+const extractInputFiles = (nodes: any[]) => {
+  const assets = new Map<string, { name: string; url: string; path: string }>()
+  for (const node of nodes) {
+    if (!INPUT_NODE_TYPES.has(node.type) || !Array.isArray(node.widgets_values)) continue
+    for (const value of node.widgets_values) {
+      if (typeof value !== 'string' || !INPUT_FILE_RE.test(value.trim())) continue
+      const name = value.trim().split(/[\\/]/).pop()
+      if (!name) continue
+      const path = `input/${name}`
+      assets.set(name, { name, path, url: `${INPUT_ASSET_BASE_URL}${encodeURIComponent(name)}` })
+    }
+  }
+  return [...assets.values()]
+}
 const nodeRefs = ref<any[]>([])
 
 // Notification system
@@ -619,6 +639,8 @@ const parseWorkflow = () => {
       }
     }
   }
+
+  inputAssets.value = extractInputFiles(nodes)
 
   // Filter model nodes
   const modelNodesList = []
@@ -901,6 +923,15 @@ const generateNote = () => {
   // Model links
   note += template.modelLinksHeader
 
+  // Input assets referenced by LoadImage/LoadVideo/LoadAudio/etc.
+  if (inputAssets.value.length > 0) {
+    note += '**Input Assets** (download these files and place them in `ComfyUI/input/` before running the workflow)\n\n'
+    for (const asset of inputAssets.value) {
+      note += `- [${asset.name}](${asset.url}) — required workflow input (` + '`' + `${asset.path}` + '`' + `)\n`
+    }
+    note += '\n'
+  }
+
   // Group by directory, deduplicate by URL (same model can be used by multiple nodes)
   const modelsByDir: Record<string, any[]> = {}
   const seenUrlByDir: Record<string, Set<string>> = {}
@@ -1050,6 +1081,7 @@ const saveWorkflow = () => {
 const resetEditor = () => {
   workflowData.value = null
   modelNodes.value = []
+  inputAssets.value = []
   jsonInput.value = ''
   generatedNote.value = ''
   tutorialUrl.value = ''

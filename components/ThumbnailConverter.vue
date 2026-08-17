@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
       <!-- FFmpeg Loading Status with Progress -->
-      <div v-if="!ffmpegLoaded" class="space-y-2">
+      <div v-if="!ffmpegLoaded && !useNativeLocalConverter" class="space-y-2">
         <div class="p-2.5 bg-blue-50 border border-blue-200 rounded">
           <div class="flex items-center gap-2 mb-2">
             <svg v-if="!ffmpegLoadError" class="w-4 h-4 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -386,12 +386,12 @@
 
       <!-- Convert Button -->
       <div v-if="sourceFile">
-        <Button @click="convertToWebP" :disabled="isConverting || (isVideo && !ffmpegLoaded)" class="w-full">
+      <Button @click="convertToWebP" :disabled="isConverting || (isVideo && !ffmpegLoaded && !useNativeLocalConverter)" class="w-full">
           <svg v-if="isConverting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          {{ isConverting ? conversionProgress : (isVideo && !ffmpegLoaded ? 'Loading converter...' : 'Convert to WebP') }}
+          {{ isConverting ? conversionProgress : (isVideo && !ffmpegLoaded && !useNativeLocalConverter ? 'Loading converter...' : 'Convert to WebP') }}
         </Button>
       </div>
 
@@ -591,6 +591,8 @@ const ffmpegLoaded = ref(false)
 const ffmpegLoadError = ref(false)
 const ffmpegLoadProgress = ref(0)
 const ffmpegLoadingMessage = ref('Initializing...')
+const runtimeConfig = useRuntimeConfig()
+const useNativeLocalConverter = computed(() => runtimeConfig.public.workflowTemplatesMode === 'local')
 
 // Load FFmpeg function
 const loadFFmpeg = async () => {
@@ -648,7 +650,7 @@ const retryFFmpegLoad = () => {
 }
 
 onMounted(() => {
-  loadFFmpeg()
+  if (!useNativeLocalConverter.value) loadFFmpeg()
 })
 
 const isImage = computed(() => {
@@ -1168,6 +1170,31 @@ const convertImageToWebP = async () => {
 }
 
 const convertVideoToWebP = async () => {
+  if (useNativeLocalConverter.value && sourceFile.value) {
+    const formData = new FormData()
+    formData.append('file', sourceFile.value)
+    formData.append('start', String(videoStartTime.value))
+    formData.append('end', String(videoEndTime.value))
+    formData.append('size', targetSize.value)
+    formData.append('fps', String(videoFps.value))
+    formData.append('quality', String(quality.value))
+    formData.append('fitMode', fitMode.value)
+    if (fitMode.value === 'crop' && sourceDimensions.value) {
+      const scaleX = sourceDimensions.value.width / videoPreviewWidth.value
+      const scaleY = sourceDimensions.value.height / videoPreviewHeight.value
+      formData.append('cropX', String(Math.round(cropBoxX.value * scaleX)))
+      formData.append('cropY', String(Math.round(cropBoxY.value * scaleY)))
+      formData.append('cropSize', String(Math.round(cropBoxSize.value * Math.min(scaleX, scaleY))))
+    }
+    conversionProgress.value = 'Converting with native FFmpeg...'
+    const response = await fetch('/api/local/convert-webp', { method: 'POST', body: formData })
+    if (!response.ok) throw new Error(await response.text() || 'Native FFmpeg conversion failed')
+    const blob = await response.blob()
+    const fileName = sourceFile.value.name.replace(/\.[^/.]+$/, '') + '.webp'
+    convertedFile.value = new File([blob], fileName, { type: 'image/webp' })
+    convertedPreviewUrl.value = URL.createObjectURL(convertedFile.value)
+    return
+  }
   if (!sourceFile.value || !ffmpeg.value) {
     error.value = 'FFmpeg not loaded. Please refresh the page.'
     return
