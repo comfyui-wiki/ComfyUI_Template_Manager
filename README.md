@@ -97,7 +97,6 @@ After success you return to the home page. If the edit page says “not found”
 | Open source | ✅ | ✅ | Whether it runs on open-source stack |
 | Creator | ✅ | ✅ | e.g. GitHub username |
 | Tutorial URL | — | Optional | |
-| VRAM (GB) | — | Optional | |
 | ComfyUI version | — | Optional | |
 | Custom nodes | — | Optional | Can be detected from workflow |
 | Model links | — | Optional | Download URLs in the workflow |

@@ -37,7 +37,6 @@ interface UpdateTemplateRequest {
     includeOnDistributions?: string[]
     targetBundle?: string
     size?: number
-    vram?: number
     usage?: number
     searchRank?: number
     username?: string
@@ -238,7 +237,7 @@ export default defineEventHandler(async (event) => {
         }
       }
       if (metadata.size !== undefined) templateData.size = metadata.size
-      if (metadata.vram !== undefined) templateData.vram = metadata.vram
+      delete templateData.vram
       if (metadata.usage !== undefined) templateData.usage = metadata.usage
       if (metadata.searchRank !== undefined) templateData.searchRank = metadata.searchRank
       if (metadata.username) {

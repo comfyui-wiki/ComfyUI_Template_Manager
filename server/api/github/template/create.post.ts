@@ -37,7 +37,6 @@ interface CreateTemplateRequest {
     includeOnDistributions?: string[]
     targetBundle?: string
     size?: number
-    vram?: number
     usage?: number
     searchRank?: number
     username?: string
@@ -228,12 +227,9 @@ export default defineEventHandler(async (event) => {
     if (metadata.includeOnDistributions && metadata.includeOnDistributions.length > 0) {
       newTemplate.includeOnDistributions = metadata.includeOnDistributions
     }
-    // Add size, vram, usage, searchRank (support 0 values)
+    // Add size, usage, searchRank (support 0 values)
     if (metadata.size !== undefined) {
       newTemplate.size = metadata.size
-    }
-    if (metadata.vram !== undefined) {
-      newTemplate.vram = metadata.vram
     }
     if (metadata.usage !== undefined) {
       newTemplate.usage = metadata.usage

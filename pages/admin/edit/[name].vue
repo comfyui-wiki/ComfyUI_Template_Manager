@@ -152,7 +152,7 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
-              <span>All required fields complete! Consider adding optional fields like Tutorial URL, VRAM, or ComfyUI Version.</span>
+              <span>All required fields complete! Consider adding optional fields like Tutorial URL or ComfyUI Version.</span>
             </div>
           </div>
         </div>
@@ -954,9 +954,8 @@
                     </p>
                   </div>
 
-                  <!-- Size and VRAM (GB) -->
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
+                  <!-- Model Size (GB) -->
+                  <div class="space-y-2">
                       <div class="flex items-center justify-between">
                         <Label for="sizeGB" class="flex items-center gap-1">
                           Model Size (GB)
@@ -1081,45 +1080,9 @@
 
                         <!-- Instructions -->
                         <p class="text-xs text-muted-foreground">
-                          Edit individual model sizes above. Click "Apply to Model Size" or "Apply to VRAM" to use the calculated total.
+                          Edit individual model sizes above. Click "Apply to Model Size" to use the calculated total.
                         </p>
                       </div>
-                    </div>
-
-                    <div class="space-y-2">
-                      <Label for="vramGB">VRAM Required (GB, optional)</Label>
-                      <Input
-                        id="vramGB"
-                        v-model.number="form.vramGB"
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        placeholder="Enter VRAM requirement (optional)"
-                      />
-                      <p class="text-xs text-muted-foreground">
-                        Minimum VRAM needed in GB
-                      </p>
-                      <!-- Show fake VRAM warning -->
-                      <div v-if="form.sizeGB > 0 && form.vramGB > 0 && form.sizeGB === form.vramGB" class="text-xs text-blue-600">
-                        ℹ️ VRAM is currently using a placeholder value (same as Model Size). Please update with actual VRAM requirements if known.
-                      </div>
-                      <!-- Show suggested value in edit mode -->
-                      <div v-if="!isCreateMode && modelSizeCalculation.suggested > 0 && form.vramGB !== Math.round(modelSizeCalculation.suggested * 10) / 10" class="text-xs text-green-600 font-medium">
-                        💡 Suggested: {{ modelSizeCalculation.suggested.toFixed(3) }} GB (placeholder)
-                      </div>
-                      <!-- Apply button for calculated total (show if model sizes available) -->
-                      <div v-if="modelSizes.length > 0" class="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          @click="applyVramTotal"
-                          class="text-xs h-7"
-                        >
-                          Apply Calculated Total ({{ totalModelSizeFromIndividual.toFixed(3) }} GB)
-                        </Button>
-                      </div>
-                    </div>
                   </div>
 
                   <!-- Usage Count and Search Rank -->
@@ -1504,7 +1467,6 @@ const form = ref({
   includeOnDistributions: [] as string[], // Platform availability: ['cloud', 'desktop', 'local'] or empty for all
   targetBundle: '', // PyPI sub-package in bundles.json
   sizeGB: null as number | null, // Size in GB (will be converted to bytes when saving), null means not filled yet
-  vramGB: null as number | null, // VRAM in GB (optional, null means not filled)
   usage: null as number | null, // Usage count (optional, null means not filled)
   searchRank: null as number | null, // Search rank (optional, null means not filled)
   username: '' // Creator username
@@ -1743,12 +1705,6 @@ const applyModelSizeTotal = () => {
   console.log('[Apply] Model Size updated to:', totalModelSizeFromIndividual.value, 'GB')
 }
 
-// Apply calculated model size total to VRAM field
-const applyVramTotal = () => {
-  form.value.vramGB = totalModelSizeFromIndividual.value
-  console.log('[Apply] VRAM updated to:', totalModelSizeFromIndividual.value, 'GB')
-}
-
 // Utility: Convert bytes to GB
 const bytesToGB = (bytes: number): number => {
   if (!bytes || bytes === 0) return 0
@@ -1777,7 +1733,6 @@ const hasFormChanges = computed(() => {
     form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
     // Compare rounded values (1 decimal) to match what's saved in index.json
     gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null) !== (originalTemplate.value.size || 0) ||
-    gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null) !== (originalTemplate.value.vram || 0) ||
     (form.value.usage ?? 0) !== (originalTemplate.value.usage || 0) ||
     (form.value.searchRank ?? 0) !== (originalTemplate.value.searchRank || 0) ||
     JSON.stringify(form.value.tags.sort()) !== JSON.stringify((originalTemplate.value.tags || []).sort()) ||
@@ -1922,10 +1877,6 @@ const completionStatus = computed(() => {
   if (form.value.tutorialUrl?.trim()) {
     completedOptional++
     optionalFields.push('Tutorial URL')
-  }
-  if (form.value.vramGB && form.value.vramGB > 0) {
-    completedOptional++
-    optionalFields.push('VRAM')
   }
   if (form.value.comfyuiVersion?.trim()) {
     completedOptional++
@@ -2977,7 +2928,6 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
         includeOnDistributions: form.value.includeOnDistributions?.length ? form.value.includeOnDistributions : undefined,
         // Round to 1 decimal before converting to bytes for storage (same as submit logic)
         size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
-        vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
         usage: form.value.usage ?? 0,
         searchRank: form.value.searchRank ?? 0
       }
@@ -3142,11 +3092,8 @@ onMounted(async () => {
             title: category.title,
             templateName: templateName,
             templateCount: foundCategoryTemplates.length,
-            // Debug: Check size/vram values immediately after finding template
             templateSize: found.size,
-            templateVram: found.vram,
-            hasSizeField: 'size' in found,
-            hasVramField: 'vram' in found
+            hasSizeField: 'size' in found
           })
           break
         }
@@ -3235,19 +3182,14 @@ onMounted(async () => {
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
     form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
     // Convert bytes to GB for display (use !== undefined to preserve 0 values)
-    console.log('[Load Template] Size/VRAM values from index.json:', {
+    console.log('[Load Template] Size value from index.json:', {
       size: foundTemplate.size,
-      vram: foundTemplate.vram,
       sizeType: typeof foundTemplate.size,
-      vramType: typeof foundTemplate.vram,
-      sizeIsUndefined: foundTemplate.size === undefined,
-      vramIsUndefined: foundTemplate.vram === undefined
+      sizeIsUndefined: foundTemplate.size === undefined
     })
     form.value.sizeGB = foundTemplate.size !== undefined ? bytesToGB(foundTemplate.size) : null
-    form.value.vramGB = foundTemplate.vram !== undefined ? bytesToGB(foundTemplate.vram) : null
     console.log('[Load Template] Converted to GB:', {
-      sizeGB: form.value.sizeGB,
-      vramGB: form.value.vramGB
+      sizeGB: form.value.sizeGB
     })
     form.value.usage = foundTemplate.usage !== undefined ? foundTemplate.usage : null
     form.value.searchRank = foundTemplate.searchRank !== undefined ? foundTemplate.searchRank : null
@@ -3613,7 +3555,6 @@ const handleSubmit = async () => {
           targetBundle: form.value.targetBundle || undefined,
           // Round to 1 decimal before converting to bytes for storage (data loss minimization)
           size: gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null),
-          vram: gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null),
           usage: form.value.usage ?? 0,
           searchRank: form.value.searchRank ?? 0,
           username: form.value.username || undefined,
@@ -3700,7 +3641,6 @@ const handleSubmit = async () => {
         originalTargetBundle.value = form.value.targetBundle
         // Store rounded values (1 decimal) to match what's saved in index.json
         originalTemplate.value.size = gbToBytes(form.value.sizeGB !== null ? Math.round(form.value.sizeGB * 10) / 10 : null)
-        originalTemplate.value.vram = gbToBytes(form.value.vramGB !== null ? Math.round(form.value.vramGB * 10) / 10 : null)
         originalTemplate.value.usage = form.value.usage ?? 0
         originalTemplate.value.searchRank = form.value.searchRank ?? 0
         originalTemplate.value.username = form.value.username || undefined

@@ -242,6 +242,7 @@ export async function syncTemplateToAllLocales(
 
     // Clone the template data
     const newTemplate = { ...templateData }
+    delete newTemplate.vram
 
     // For non-English locales, translate tags using i18n.json mappings
     if (!locale.isDefault && templateData.tags) {
@@ -693,6 +694,12 @@ export async function syncUpdatedTemplateToAllLocales(
           }
         }
 
+        // Drop leftover vram from older templates
+        if ('vram' in updatedTemplate) {
+          delete updatedTemplate.vram
+          updatedFields.push('-vram')
+        }
+
         console.log(`[i18n-sync] Updated ${updatedFields.length} auto-sync fields in ${locale.code}:`, updatedFields.join(', '))
 
         // Update tags - translate to target language using i18n.json mappings
@@ -707,6 +714,7 @@ export async function syncUpdatedTemplateToAllLocales(
         console.log(`[i18n-sync] Template not found in ${locale.code}, adding as new template...`)
 
         updatedTemplate = { ...templateData }
+        delete updatedTemplate.vram
 
         // Try to get translations from i18n.json
         const i18nTemplates = i18nData.templates || {}

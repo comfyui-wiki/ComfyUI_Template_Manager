@@ -92,7 +92,6 @@ These fields are automatically synchronized across all languages without transla
 - `models`
 - `date`
 - `size`
-- `vram`
 - `mediaType`
 - `mediaSubtype`
 - `tutorialUrl`
@@ -195,7 +194,7 @@ User updates template
   },
   "autoSyncFields": {
     "fields": [
-      "name", "models", "date", "size", "vram",
+      "name", "models", "date", "size",
       "mediaType", "mediaSubtype", "tutorialUrl",
       "thumbnailVariant", "requiresCustomNodes",
       "usage", "searchRank", "openSource", "comfyuiVersion"
