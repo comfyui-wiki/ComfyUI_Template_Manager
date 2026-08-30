@@ -32,12 +32,16 @@
     "OpticalFlowLoader": "optical_flow",
     "LoadMoGeModel": "geometry_estimation",
     "LoadMediaPipeFaceLandmarker": "detection",
+    "SAM3DBody_Loader": "detection",
     "LoadBackgroundRemovalModel": "background_removal",
     "LoadDA3Model": "geometry_estimation",
     "LTXAVTextEncoderLoader": ["text_encoders", "checkpoints"]
   },
   "noteTemplate": {
     "header": "Guide: [Subgraph](https://docs.comfy.org/interface/features/subgraph)\n\n",
+    "inputAssetHeader": "## Input Asset\n\n",
+    "inputAssetsHeader": "## Input Assets\n\n",
+    "modelLinkHeader": "## Model Link\n\n",
     "modelLinksHeader": "## Model Links\n\n",
     "storageLocationHeader": "\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n",
     "storageLocationFooter": "```\n",

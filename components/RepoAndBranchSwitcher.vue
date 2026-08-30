@@ -233,16 +233,16 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
             <span v-if="currentBranchComparison.aheadBy > 0 && currentBranchComparison.behindBy > 0" class="text-yellow-600">
-              {{ currentBranchComparison.aheadBy }} ahead, {{ currentBranchComparison.behindBy }} behind upstream
+              {{ currentBranchComparison.aheadBy }} ahead, {{ currentBranchComparison.behindBy }} behind {{ branchCompareLabel }}
             </span>
             <span v-else-if="currentBranchComparison.aheadBy > 0" class="text-blue-600">
-              {{ currentBranchComparison.aheadBy }} commit{{ currentBranchComparison.aheadBy !== 1 ? 's' : '' }} ahead of upstream
+              {{ currentBranchComparison.aheadBy }} commit{{ currentBranchComparison.aheadBy !== 1 ? 's' : '' }} ahead of {{ branchCompareLabel }}
             </span>
             <span v-else-if="currentBranchComparison.behindBy > 0" class="text-orange-600">
-              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind {{ isLocalMode ? (localRepoInfo?.compareRef || 'upstream') : 'upstream' }}
+              {{ currentBranchComparison.behindBy }} commit{{ currentBranchComparison.behindBy !== 1 ? 's' : '' }} behind {{ branchCompareLabel }}
             </span>
             <span v-else class="text-green-600">
-              Up to date with upstream
+              Up to date with {{ branchCompareLabel }}
             </span>
           </div>
 
@@ -523,6 +523,11 @@ const showDebugInfo = ref(false) // Collapsed by default
 const showManageBranches = ref(false)
 const deletingBranch = ref<string | null>(null)
 const currentBranchComparison = ref<any>(null)
+
+const branchCompareLabel = computed(() => {
+  return currentBranchComparison.value?.compareRef
+    || (isLocalMode.value ? (localRepoInfo.value?.compareRef || 'upstream') : 'upstream')
+})
 const showAdvancedSyncOptions = ref(true) // Default to expanded
 const resetMainDialog = ref<InstanceType<typeof ResetMainDialog> | null>(null)
 const resetBranchDialog = ref<InstanceType<typeof ResetBranchDialog> | null>(null)
@@ -915,7 +920,8 @@ const loadCurrentBranchComparison = async () => {
           behindBy: response.behindBy || 0,
           isBehind: response.isBehind,
           isAhead: response.isAhead,
-          isDiverged: response.isDiverged
+          isDiverged: response.isDiverged,
+          compareRef: response.compareRef
         }
       } else {
         currentBranchComparison.value = null

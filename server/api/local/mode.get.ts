@@ -1,4 +1,4 @@
-import { compareWithCompareRef, getGitStatus, getLocalRepoDisplayName, getLocalRepoRoot, gitExec, isLocalRepoMode, getCompareRef } from '~/server/utils/local-repo'
+import { compareWithCompareRef, getGitStatus, getLocalRepoDisplayName, getLocalRepoRoot, gitExec, isLocalRepoMode, resolveCompareRef } from '~/server/utils/local-repo'
 
 export default defineEventHandler(async () => {
   if (!isLocalRepoMode()) {
@@ -19,7 +19,7 @@ export default defineEventHandler(async () => {
     localRepoMode: true,
     repoPath: getLocalRepoRoot(),
     displayName: getLocalRepoDisplayName(),
-    compareRef: getCompareRef(),
+    compareRef: await resolveCompareRef(),
     branch: status.branch,
     commitSha: commitSha || undefined,
     dirty: status.dirty,

@@ -27,6 +27,76 @@ export function getCompareRef(): string {
   return config.workflowTemplatesCompareRef?.trim() || 'upstream/main'
 }
 
+function normalizeGitRemoteUrl(url: string): string {
+  return url
+    .trim()
+    .replace(/\.git$/i, '')
+    .replace(/\/+$/, '')
+    .replace(/^git@github\.com:/i, 'https://github.com/')
+    .replace(/^ssh:\/\/git@github\.com\//i, 'https://github.com/')
+    .toLowerCase()
+}
+
+async function listFetchRemotes(): Promise<Map<string, string>> {
+  const stdout = await gitExec(['remote', '-v'])
+  const remotes = new Map<string, string>()
+  for (const line of stdout.split('\n')) {
+    const match = line.match(/^(\S+)\s+(\S+)\s+\(fetch\)$/)
+    if (match) remotes.set(match[1], match[2])
+  }
+  return remotes
+}
+
+async function gitRefExists(ref: string): Promise<boolean> {
+  try {
+    await gitExec(['rev-parse', '--verify', `${ref}^{commit}`])
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Resolve the compare ref to the newest local remote-tracking branch that
+ * points at the same repo. origin and upstream often both track Comfy-Org,
+ * and a stale upstream/main makes HEAD look dozens of commits ahead of "main".
+ */
+export async function resolveCompareRef(): Promise<string> {
+  const configured = getCompareRef()
+  const { remote, branch } = parseCompareRef(configured)
+  if (!remote || !branch) return configured
+
+  try {
+    const remotes = await listFetchRemotes()
+    const targetUrl = remotes.get(remote)
+    if (!targetUrl) return configured
+
+    const normalized = normalizeGitRemoteUrl(targetUrl)
+    const candidates: string[] = []
+    for (const [name, url] of remotes) {
+      if (normalizeGitRemoteUrl(url) !== normalized) continue
+      const ref = `${name}/${branch}`
+      if (await gitRefExists(ref)) candidates.push(ref)
+    }
+
+    if (candidates.length === 0) return configured
+    if (candidates.length === 1) return candidates[0]
+
+    let best = candidates[0]
+    let bestTime = parseInt(await gitExec(['log', '-1', '--format=%ct', best]), 10) || 0
+    for (const ref of candidates.slice(1)) {
+      const time = parseInt(await gitExec(['log', '-1', '--format=%ct', ref]), 10) || 0
+      if (time > bestTime) {
+        best = ref
+        bestTime = time
+      }
+    }
+    return best
+  } catch {
+    return configured
+  }
+}
+
 /** Resolve a repo-relative path and block path traversal */
 export function resolveRepoPath(relativePath: string): string {
   const root = getLocalRepoRoot()
@@ -187,12 +257,12 @@ export function parseCompareRef(ref: string): { remote: string; branch: string }
   }
 }
 
-/** Compare current HEAD against WORKFLOW_TEMPLATES_COMPARE_REF (e.g. upstream/main) */
+/** Compare current HEAD against the effective compare ref (newest equivalent remote). */
 export async function compareWithCompareRef(): Promise<LocalUpstreamCompare> {
-  const compareRef = getCompareRef()
+  const compareRef = await resolveCompareRef()
 
   try {
-    await gitExec(['rev-parse', '--verify', compareRef])
+    await gitExec(['rev-parse', '--verify', `${compareRef}^{commit}`])
   } catch {
     const { remote } = parseCompareRef(compareRef)
     return {
@@ -232,23 +302,56 @@ export async function compareWithCompareRef(): Promise<LocalUpstreamCompare> {
   }
 }
 
-/** Fetch the remote named in compare ref (e.g. upstream from upstream/main) */
+/** Fetch every remote that points at the same repo as the configured compare ref. */
 export async function fetchCompareRemote(): Promise<{ success: boolean; message: string }> {
-  const compareRef = getCompareRef()
-  const { remote } = parseCompareRef(compareRef)
+  const configured = getCompareRef()
+  const { remote, branch } = parseCompareRef(configured)
 
   if (!remote) {
     return {
       success: false,
-      message: `Cannot fetch: compare ref "${compareRef}" has no remote prefix`
+      message: `Cannot fetch: compare ref "${configured}" has no remote prefix`
     }
   }
 
   try {
-    await gitExec(['fetch', remote])
+    const remotes = await listFetchRemotes()
+    const targetUrl = remotes.get(remote)
+    const names = targetUrl
+      ? [...remotes.entries()]
+          .filter(([, url]) => normalizeGitRemoteUrl(url) === normalizeGitRemoteUrl(targetUrl))
+          .map(([name]) => name)
+      : [remote]
+
+    if (names.length === 0) {
+      return {
+        success: false,
+        message: `Cannot fetch: remote "${remote}" not found`
+      }
+    }
+
+    const fetched: string[] = []
+    const failed: string[] = []
+    for (const name of names) {
+      try {
+        await gitExec(['fetch', name])
+        fetched.push(name)
+      } catch {
+        failed.push(name)
+      }
+    }
+
+    if (fetched.length === 0) {
+      return {
+        success: false,
+        message: `Failed to fetch ${failed.join(', ')} (compare ref: ${configured})`
+      }
+    }
+
+    const extra = failed.length > 0 ? ` (${failed.join(', ')} failed)` : ''
     return {
       success: true,
-      message: `Fetched ${remote} (compare ref: ${compareRef})`
+      message: `Fetched ${fetched.join(', ')} for ${branch}${extra}`
     }
   } catch (error: any) {
     return {

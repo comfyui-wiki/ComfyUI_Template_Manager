@@ -908,26 +908,39 @@ const scrollToFirstInvalid = () => {
   }
 }
 
+const UUID_TYPE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const workflowHasSubgraphs = (workflow: any): boolean => {
+  const defs = workflow?.definitions?.subgraphs
+  if (Array.isArray(defs) && defs.length > 0) return true
+  return Array.isArray(workflow?.nodes)
+    && workflow.nodes.some((node: any) => typeof node?.type === 'string' && UUID_TYPE_RE.test(node.type))
+}
+
 // Generate note
 const generateNote = () => {
   if (!workflowData.value || !config.value) return
 
   const template = config.value.noteTemplate
-  let note = template.header
+  let note = ''
+
+  if (workflowHasSubgraphs(workflowData.value)) {
+    note += template.header
+  }
 
   // Tutorial
   if (tutorialUrl.value) {
     note += `[${tutorialTitle.value}](${tutorialUrl.value})\n\n`
   }
 
-  // Model links
-  note += template.modelLinksHeader
-
-  // Input assets referenced by LoadImage/LoadVideo/LoadAudio/etc.
+  // Input assets sit in their own section above Model Links (not nested under it).
   if (inputAssets.value.length > 0) {
-    note += '**Input Assets** (download these files and place them in `ComfyUI/input/` before running the workflow)\n\n'
+    const singular = inputAssets.value.length === 1
+    note += singular
+      ? (template.inputAssetHeader || '## Input Asset\n\n')
+      : (template.inputAssetsHeader || '## Input Assets\n\n')
     for (const asset of inputAssets.value) {
-      note += `- [${asset.name}](${asset.url}) — required workflow input (` + '`' + `${asset.path}` + '`' + `)\n`
+      note += `- [${asset.name}](${asset.url})\n`
     }
     note += '\n'
   }
@@ -949,16 +962,7 @@ const generateNote = () => {
     }
   }
 
-  // Add models by directory
-  for (const dir in modelsByDir) {
-    note += `**${dir}**\n\n`
-    for (const model of modelsByDir[dir]) {
-      note += `- [${model.name}](${model.url})\n`
-    }
-    note += '\n'
-  }
-
-  // Add custom nodes section (models without URLs), deduplicate by dir+name
+  // Custom nodes section (models without URLs), deduplicate by dir+name
   const customNodeModels: Record<string, any[]> = {}
   const seenCustomByDir: Record<string, Set<string>> = {}
   for (const nodeInfo of modelNodes.value) {
@@ -977,37 +981,55 @@ const generateNote = () => {
     }
   }
 
-  if (Object.keys(customNodeModels).length > 0) {
-    note += `**Custom Nodes** (Please add download links manually)\n\n`
-    for (const dir in customNodeModels) {
-      note += `*${dir}/* (from custom node loaders)\n`
-      for (const model of customNodeModels[dir]) {
-        note += `- ${model.name} (${model.nodeType}): [Add link here]\n`
+  const linkedModelCount = Object.values(modelsByDir).reduce((sum, models) => sum + models.length, 0)
+  const customModelCount = Object.values(customNodeModels).reduce((sum, models) => sum + models.length, 0)
+  const totalModelCount = linkedModelCount + customModelCount
+
+  if (totalModelCount > 0) {
+    note += totalModelCount === 1
+      ? (template.modelLinkHeader || '## Model Link\n\n')
+      : (template.modelLinksHeader || '## Model Links\n\n')
+
+    for (const dir in modelsByDir) {
+      note += `**${dir}**\n\n`
+      for (const model of modelsByDir[dir]) {
+        note += `- [${model.name}](${model.url})\n`
       }
       note += '\n'
     }
-  }
 
-  // Storage location (├── for branch, └── for last/only)
-  note += template.storageLocationHeader
-  const dirs = Object.keys(modelsByDir)
-  const lastDirIndex = dirs.length - 1
-  for (let i = 0; i < dirs.length; i++) {
-    const dir = dirs[i]
-    const isLastDir = i === lastDirIndex
-    const dirBranch = isLastDir ? '└──' : '├──'
-    note += `│   ${dirBranch} 📂 ${dir}/\n`
-    const models = modelsByDir[dir]
-    const lastModelIndex = models.length - 1
-    const modelIndent = isLastDir ? '│       ' : '│   │   '
-    for (let j = 0; j < models.length; j++) {
-      const model = models[j]
-      const isLastModel = j === lastModelIndex
-      const modelBranch = isLastModel ? '└──' : '├──'
-      note += `${modelIndent}${modelBranch} ${model.name}\n`
+    if (customModelCount > 0) {
+      note += `**Custom Nodes** (Please add download links manually)\n\n`
+      for (const dir in customNodeModels) {
+        note += `*${dir}/* (from custom node loaders)\n`
+        for (const model of customNodeModels[dir]) {
+          note += `- ${model.name} (${model.nodeType}): [Add link here]\n`
+        }
+        note += '\n'
+      }
     }
+
+    // Storage location (├── for branch, └── for last/only)
+    note += template.storageLocationHeader
+    const dirs = Object.keys(modelsByDir)
+    const lastDirIndex = dirs.length - 1
+    for (let i = 0; i < dirs.length; i++) {
+      const dir = dirs[i]
+      const isLastDir = i === lastDirIndex
+      const dirBranch = isLastDir ? '└──' : '├──'
+      note += `│   ${dirBranch} 📂 ${dir}/\n`
+      const models = modelsByDir[dir]
+      const lastModelIndex = models.length - 1
+      const modelIndent = isLastDir ? '│       ' : '│   │   '
+      for (let j = 0; j < models.length; j++) {
+        const model = models[j]
+        const isLastModel = j === lastModelIndex
+        const modelBranch = isLastModel ? '└──' : '├──'
+        note += `${modelIndent}${modelBranch} ${model.name}\n`
+      }
+    }
+    note += template.storageLocationFooter
   }
-  note += template.storageLocationFooter
 
   // Report issue section (moved to bottom)
   note += template.reportIssueSection

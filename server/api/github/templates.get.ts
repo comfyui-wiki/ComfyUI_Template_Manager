@@ -8,7 +8,7 @@
  */
 import { getServerSession } from '#auth'
 import {
-  getCompareRef,
+  resolveCompareRef,
   getGitStatus,
   isLocalRepoMode,
   readJsonAtRef,
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   if (isLocalRepoMode()) {
     try {
-      const compareRef = getCompareRef()
+      const compareRef = await resolveCompareRef()
       const data = atRef === 'compare'
         ? await readJsonAtRef<any[]>(compareRef, 'templates/index.json')
         : await readRepoJson<any[]>('templates/index.json')

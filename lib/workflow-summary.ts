@@ -323,6 +323,7 @@ function extractKeyParameters(nodes: WorkflowNode[]): WorkflowParameter[] {
       node: label, settings: { output: String(wv[0]), normalization: String(wv[1]) }
     }),
     LoadDA3Model: (wv, label) => ({ node: label, settings: { model: String(wv[0]) } }),
+    SAM3DBody_Loader: (wv, label) => ({ node: label, settings: { model: String(wv[0]) } }),
     CheckpointLoaderSimple: (wv, label) => ({ node: label, settings: { checkpoint: String(wv[0]) } }),
     UNETLoader: (wv, label) => ({ node: label, settings: { unet: String(wv[0]) } }),
     LoraLoader: (wv, label) => ({ node: label, settings: { lora: String(wv[0]), strength: wv[1] as number } }),
@@ -357,6 +358,7 @@ function inferTechniquesFromFacts(
   const corpus = [purpose, ...subgraphNames, ...mainNodeTypes, guideText.slice(0, 500)].join(' ').toLowerCase()
   const rules: [RegExp, string][] = [
     [/depth|da3|depth anything/i, 'Depth estimation'],
+    [/sam3d|3d body/i, '3D body reconstruction'],
     [/bernini|image edit/i, 'Image editing'],
     [/text.?to.?image|t2i/i, 'Text-to-Image'],
     [/image.?to.?video|i2v/i, 'Image-to-Video'],

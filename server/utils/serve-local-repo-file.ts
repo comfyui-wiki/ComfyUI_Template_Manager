@@ -3,7 +3,7 @@ import { extname } from 'path'
 import { createReadStream } from 'fs'
 import type { H3Event } from 'h3'
 import { sendStream, getQuery, createError, setHeader } from 'h3'
-import { getCompareRef, isLocalRepoMode, readFileBufferAtRef, resolveRepoPath } from '~/server/utils/local-repo'
+import { resolveCompareRef, isLocalRepoMode, readFileBufferAtRef, resolveRepoPath } from '~/server/utils/local-repo'
 
 const MIME: Record<string, string> = {
   '.json': 'application/json',
@@ -36,9 +36,10 @@ export async function serveLocalRepoFile(event: H3Event, options?: { headOnly?: 
   setHeader(event, 'Cache-Control', 'no-cache')
 
   if (ref === 'compare') {
-    const buffer = await readFileBufferAtRef(getCompareRef(), path.replace(/^\//, ''))
+    const compareRef = await resolveCompareRef()
+    const buffer = await readFileBufferAtRef(compareRef, path.replace(/^\//, ''))
     if (!buffer) {
-      throw createError({ statusCode: 404, statusMessage: `File not found at ${getCompareRef()}:${path}` })
+      throw createError({ statusCode: 404, statusMessage: `File not found at ${compareRef}:${path}` })
     }
     setHeader(event, 'Content-Length', String(buffer.length))
     if (headOnly) {

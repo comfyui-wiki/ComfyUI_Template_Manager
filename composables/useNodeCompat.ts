@@ -6,6 +6,7 @@ const isScanning = ref(false)
 const hasAttemptedScan = ref(false)
 const scanError = ref<string | null>(null)
 let autoScanWatcherStarted = false
+let pendingRescan: false | 'normal' | 'force' = false
 
 function getLocalComfyBaseUrl(): string {
   if (!import.meta.client) return 'http://127.0.0.1:8188'
@@ -58,20 +59,22 @@ export const useNodeCompat = () => {
 
   const scanNodeCompat = async (force = false) => {
     if (!import.meta.client) return
-    if (isScanning.value) return
-    if (hasAttemptedScan.value && !force && scanResult.value?.available) return
 
-    const mode = await loadMode(true)
-    if (!mode.localRepoMode) {
-      hasAttemptedScan.value = true
-      scanResult.value = { available: false }
-      scanError.value = null
+    if (isScanning.value) {
+      pendingRescan = force ? 'force' : (pendingRescan === 'force' ? 'force' : 'normal')
       return
     }
 
     isScanning.value = true
     scanError.value = null
     try {
+      const mode = await loadMode()
+      if (!mode.localRepoMode) {
+        hasAttemptedScan.value = true
+        scanResult.value = { available: false }
+        return
+      }
+
       const baseUrl = getLocalComfyBaseUrl()
       const response = await $fetch<NodeCompatScanResult>('/api/comfyui/node-compat', {
         query: {
@@ -91,6 +94,11 @@ export const useNodeCompat = () => {
     } finally {
       hasAttemptedScan.value = true
       isScanning.value = false
+      if (pendingRescan) {
+        const next = pendingRescan
+        pendingRescan = false
+        void scanNodeCompat(next === 'force')
+      }
     }
   }
 
@@ -98,6 +106,7 @@ export const useNodeCompat = () => {
     scanResult.value = null
     hasAttemptedScan.value = false
     scanError.value = null
+    pendingRescan = false
   }
 
   const showNodeCompatFilter = computed(() =>
