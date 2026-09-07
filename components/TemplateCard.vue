@@ -144,11 +144,24 @@
         <!-- Node compat badge (local ComfyUI scan) -->
         <span
           v-if="nodeCompatBadge"
-          class="px-1.5 py-0.5 text-[10px] font-bold rounded shadow-lg"
+          class="px-1.5 py-0.5 text-[10px] font-bold rounded shadow-lg text-right max-w-[148px]"
           :class="nodeCompatBadge.className"
           :title="nodeCompatTitle"
         >
-          {{ nodeCompatBadge.label }}
+          <span class="block leading-tight">DEPRECATED</span>
+          <span
+            v-for="name in nodeCompatBadge.nodeNames"
+            :key="name"
+            class="block font-semibold leading-tight truncate"
+          >
+            {{ name }}
+          </span>
+          <span
+            v-if="nodeCompatBadge.extraCount"
+            class="block font-medium leading-tight opacity-90"
+          >
+            +{{ nodeCompatBadge.extraCount }} more
+          </span>
         </span>
         <!-- Missing Output Files Badge -->
         <span
@@ -457,27 +470,42 @@ const { getTemplateCompat } = useNodeCompat()
 
 const nodeCompat = computed(() => getTemplateCompat(props.template.name))
 
+const deprecatedNodeLabel = (issue: { nodeType: string; message: string }) => {
+  const fromMessage = issue.message.match(/Node is marked deprecated in ComfyUI:\s*(.+)$/)?.[1]?.trim()
+  const raw = fromMessage || issue.nodeType
+  return raw.replace(/\s*\(DEPRECATED\)\s*$/i, '').trim() || issue.nodeType
+}
+
 const nodeCompatBadge = computed(() => {
   if (!nodeCompat.value || nodeCompat.value.status === 'ok') return null
 
-  const deprecatedCount = nodeCompat.value.issues.filter(issue => issue.kind === 'deprecated_node').length
-  if (deprecatedCount === 0) return null
+  const deprecatedIssues = nodeCompat.value.issues.filter(issue => issue.kind === 'deprecated_node')
+  if (deprecatedIssues.length === 0) return null
 
+  const uniqueNames: string[] = []
+  const seenTypes = new Set<string>()
+  for (const issue of deprecatedIssues) {
+    if (seenTypes.has(issue.nodeType)) continue
+    seenTypes.add(issue.nodeType)
+    uniqueNames.push(deprecatedNodeLabel(issue))
+  }
+
+  const visibleLimit = 4
   return {
-    label: `DEPRECATED ${deprecatedCount}`,
+    nodeNames: uniqueNames.slice(0, visibleLimit),
+    extraCount: Math.max(0, uniqueNames.length - visibleLimit),
     className: 'bg-amber-600 text-white'
   }
 })
 
 const nodeCompatTitle = computed(() => {
   if (!nodeCompat.value || nodeCompat.value.status === 'ok') return ''
-  const lines = nodeCompat.value.issues.slice(0, 6).map((issue) => {
-    return `${issue.nodeType} (#${issue.nodeId}): ${issue.message}`
+  const deprecatedIssues = nodeCompat.value.issues.filter(issue => issue.kind === 'deprecated_node')
+  if (deprecatedIssues.length === 0) return ''
+  const lines = deprecatedIssues.map((issue) => {
+    return `${deprecatedNodeLabel(issue)} (${issue.nodeType} #${issue.nodeId})`
   })
-  const extra = nodeCompat.value.issues.length > 6
-    ? `\n…and ${nodeCompat.value.issues.length - 6} more`
-    : ''
-  return [...lines, extra].filter(Boolean).join('\n')
+  return ['Deprecated nodes:', ...lines].join('\n')
 })
 
 const parseRepo = (fullName: string) => {

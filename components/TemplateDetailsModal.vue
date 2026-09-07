@@ -219,9 +219,9 @@
                     <p class="font-medium">{{ formatDate(template.date) }}</p>
                   </div>
 
-                  <div v-if="template?.comfyuiVersion">
+                  <div v-if="templateMinComfyUIVersion">
                     <p class="text-xs font-medium text-muted-foreground mb-1">ComfyUI Version</p>
-                    <p class="font-mono text-xs">{{ template.comfyuiVersion }}</p>
+                    <p class="font-mono text-xs">{{ templateMinComfyUIVersion }}</p>
                   </div>
 
                   <div v-if="template?.openSource !== undefined">
@@ -290,6 +290,7 @@ import { ref, watch, computed } from 'vue'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import { readMinComfyUIVersion } from '~/lib/template-comfyui-version'
 
 interface Props {
   open?: boolean
@@ -304,6 +305,8 @@ const emit = defineEmits<{
 }>()
 
 const { resolveRepoFileUrl } = useRepoAssets()
+
+const templateMinComfyUIVersion = computed(() => readMinComfyUIVersion(props.template))
 
 const repoAssetUrl = (relativePath: string, cacheBust = false) => {
   const [owner, repoName] = props.repo.split('/')

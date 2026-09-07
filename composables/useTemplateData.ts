@@ -1,3 +1,5 @@
+import { readMinComfyUIVersion } from '~/lib/template-comfyui-version'
+
 export const useTemplateData = () => {
   // Parse the real template data from API
   const parseTemplateData = (templatesIndex: any) => {
@@ -50,8 +52,9 @@ export const useTemplateData = () => {
         }
         
         // Collect ComfyUI versions if any
-        if (template.comfyuiVersion && template.comfyuiVersion.trim()) {
-          allComfyuiVersions.add(template.comfyuiVersion.trim())
+        const comfyuiVersion = readMinComfyUIVersion(template)
+        if (comfyuiVersion) {
+          allComfyuiVersions.add(comfyuiVersion)
         }
         
         // Collect titles and descriptions

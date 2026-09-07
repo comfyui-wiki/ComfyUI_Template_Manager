@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { hash } from 'ohash'
 import bundleMappingRules from '~/config/bundle-mapping-rules.json'
+import { readMinComfyUIVersion } from '~/lib/template-comfyui-version'
 import {
   buildTemplateToBundleMap,
   compareBundleChanges,
@@ -289,7 +290,7 @@ export const useTemplateDiff = () => {
       audio: template.audio,
       hoverThumbnail: template.hoverThumbnail,
       tutorialUrl: template.tutorialUrl, // Include tutorial URL
-      comfyuiVersion: template.comfyuiVersion, // Include ComfyUI version
+      comfyuiVersion: readMinComfyUIVersion(template),
       mediaType: template.mediaType, // Include media type
       mediaSubtype: template.mediaSubtype, // Include media subtype
       date: template.date // Include date

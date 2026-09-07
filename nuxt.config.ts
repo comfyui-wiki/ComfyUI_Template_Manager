@@ -68,6 +68,12 @@ export default defineNuxtConfig({
   // Server-side rendering
   ssr: true,
 
+  // Vite 7 still scans the dead `import("#app-manifest")` branch in Nuxt's
+  // client bundle. This admin app does not use payload/prerender manifests.
+  experimental: {
+    appManifest: false
+  },
+
   // Nitro server configuration
   nitro: {
     experimental: {

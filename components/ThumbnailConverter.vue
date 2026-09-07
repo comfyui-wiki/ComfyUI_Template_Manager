@@ -305,7 +305,8 @@
                 </span>
               </div>
               <span class="font-semibold text-blue-600">
-                Duration: {{ formatTime(videoEndTime - videoStartTime) }}
+                Source: {{ formatTime(videoEndTime - videoStartTime) }}
+                <span v-if="playbackSpeed > 1.001"> → Output: {{ formatTime(outputDuration) }} ({{ playbackSpeedLabel }})</span>
               </span>
             </div>
           </div>
@@ -340,7 +341,7 @@
           
           <!-- Quick duration presets -->
           <div class="flex items-center gap-2 text-xs">
-            <span class="text-muted-foreground">Quick select:</span>
+            <span class="text-muted-foreground">Trim to:</span>
             <Button 
               v-for="preset in [1, 2, 3, 5]" 
               :key="preset"
@@ -363,13 +364,65 @@
           </div>
           
           <p class="text-xs text-muted-foreground">
-            🎬 Drag the green and red handles to select the video segment to keep
+            Drag the green and red handles to select the source segment. Trim cuts the clip. Speed below compresses it.
           </p>
           
           <!-- Duration warning -->
-          <div v-if="(videoEndTime - videoStartTime) > 5" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-            ⚠️ Video duration exceeds 5 seconds. Consider shortening it to reduce file size.
+          <div v-if="outputDuration > 5" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+            Output duration exceeds 5 seconds. Speed up or trim it to reduce file size.
           </div>
+        </div>
+
+        <!-- Playback speed for video -->
+        <div v-if="isVideo && videoDuration" class="space-y-2">
+          <div class="flex items-center justify-between">
+            <Label>Playback Speed ({{ playbackSpeedLabel }})</Label>
+            <span class="text-xs font-semibold text-blue-600">Output {{ outputDuration.toFixed(1) }}s</span>
+          </div>
+          <input
+            type="range"
+            v-model.number="videoSpeed"
+            :min="1"
+            :max="16"
+            step="0.1"
+            class="w-full"
+          />
+          <div class="flex items-center gap-2 text-xs flex-wrap">
+            <span class="text-muted-foreground">Speed:</span>
+            <Button
+              v-for="preset in [1, 1.5, 2, 3]"
+              :key="preset"
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-xs"
+              :class="Math.abs(playbackSpeed - preset) < 0.05 ? 'border-blue-500 bg-blue-50 text-blue-700' : ''"
+              @click="videoSpeed = preset"
+            >
+              {{ preset }}x
+            </Button>
+            <span class="text-muted-foreground ml-1">Fit into:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-xs"
+              :class="isFitTarget(1) ? 'border-blue-500 bg-blue-50 text-blue-700' : ''"
+              @click="fitIntoDuration(1)"
+            >
+              1s
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-xs"
+              :class="isFitTarget(3) ? 'border-blue-500 bg-blue-50 text-blue-700' : ''"
+              @click="fitIntoDuration(3)"
+            >
+              3s
+            </Button>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            1x is original speed. Fit into 1s or 3s speeds the selected segment so the cover plays in that length.
+          </p>
         </div>
 
         <!-- FPS for video -->
@@ -518,6 +571,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  clampPlaybackSpeed,
+  outputDurationSeconds,
+  speedToFitDuration,
+  withPlaybackSpeedFilter
+} from '~/lib/webp-playback-speed'
 
 const props = defineProps<{
   initialFile?: File | null
@@ -539,6 +598,7 @@ const videoMaxDuration = ref(3) // Kept for backward compatibility, but now deri
 const videoFps = ref(15)
 const videoStartTime = ref(0)
 const videoEndTime = ref(3)
+const videoSpeed = ref(1)
 
 const isConverting = ref(false)
 const conversionProgress = ref('Converting...')
@@ -660,6 +720,19 @@ const isImage = computed(() => {
 const isVideo = computed(() => {
   return sourceFile.value?.type.startsWith('video/')
 })
+
+const playbackSpeed = computed(() => clampPlaybackSpeed(Number(videoSpeed.value) || 1))
+
+const playbackSpeedLabel = computed(() => {
+  const speed = playbackSpeed.value
+  return Number.isInteger(speed) ? `${speed}x` : `${speed.toFixed(1)}x`
+})
+
+const selectedSegmentDuration = computed(() => Math.max(0.05, videoEndTime.value - videoStartTime.value))
+
+const outputDuration = computed(() => outputDurationSeconds(selectedSegmentDuration.value, playbackSpeed.value))
+
+const isFitTarget = (seconds: number) => Math.abs(outputDuration.value - seconds) < 0.15
 
 const targetSize = computed(() => {
   return isVideo.value ? '350' : '400'
@@ -853,14 +926,17 @@ const endDragTimeline = () => {
   // After dragging ends, reset video previews to start time and resume playing
   if (cropVideoPreview.value) {
     cropVideoPreview.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
     cropVideoPreview.value.play().catch(() => {})
   }
   if (sourceInfoVideo.value) {
     sourceInfoVideo.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
     sourceInfoVideo.value.play().catch(() => {})
   }
   if (beforeComparisonVideo.value) {
     beforeComparisonVideo.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
     beforeComparisonVideo.value.play().catch(() => {})
   }
 }
@@ -902,13 +978,26 @@ const resetTimeline = () => {
   
   videoStartTime.value = 0
   videoEndTime.value = Math.min(3, videoDuration.value)
+  videoSpeed.value = 1
   constrainTimeRange()
+}
+
+const fitIntoDuration = (targetSeconds: number) => {
+  videoSpeed.value = speedToFitDuration(selectedSegmentDuration.value, targetSeconds)
+}
+
+const applyPreviewPlaybackRate = () => {
+  const rate = playbackSpeed.value
+  for (const el of [cropVideoPreview.value, sourceInfoVideo.value, beforeComparisonVideo.value]) {
+    if (el) el.playbackRate = rate
+  }
 }
 
 // Video preview time sync
 const onCropVideoLoaded = () => {
   if (cropVideoPreview.value) {
     cropVideoPreview.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
   }
 }
 
@@ -943,6 +1032,7 @@ const onVideoTimeUpdate = () => {
 const onSourceInfoVideoLoaded = () => {
   if (sourceInfoVideo.value) {
     sourceInfoVideo.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
   }
 }
 
@@ -961,6 +1051,7 @@ const onSourceInfoVideoTimeUpdate = () => {
 const onBeforeComparisonVideoLoaded = () => {
   if (beforeComparisonVideo.value) {
     beforeComparisonVideo.value.currentTime = videoStartTime.value
+    applyPreviewPlaybackRate()
   }
 }
 
@@ -1043,6 +1134,7 @@ const loadVideoDimensions = (file: File): Promise<void> => {
       videoStartTime.value = 0
       videoEndTime.value = Math.min(3, video.duration)
       videoMaxDuration.value = videoEndTime.value - videoStartTime.value
+      videoSpeed.value = 1
       
       initializeVideoCropBox()
       resolve()
@@ -1067,6 +1159,7 @@ const clearFile = () => {
   videoStartTime.value = 0
   videoEndTime.value = 3
   videoMaxDuration.value = 3
+  videoSpeed.value = 1
 
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -1179,6 +1272,7 @@ const convertVideoToWebP = async () => {
     formData.append('fps', String(videoFps.value))
     formData.append('quality', String(quality.value))
     formData.append('fitMode', fitMode.value)
+    formData.append('speed', String(playbackSpeed.value))
     if (fitMode.value === 'crop' && sourceDimensions.value) {
       const scaleX = sourceDimensions.value.width / videoPreviewWidth.value
       const scaleY = sourceDimensions.value.height / videoPreviewHeight.value
@@ -1205,7 +1299,7 @@ const convertVideoToWebP = async () => {
   try {
     const size = parseInt(targetSize.value)
     const startTime = videoStartTime.value
-    const duration = videoEndTime.value - videoStartTime.value
+    const sourceDuration = selectedSegmentDuration.value
     const fps = videoFps.value
     const inputFileName = 'input' + sourceFile.value.name.substring(sourceFile.value.name.lastIndexOf('.'))
     const outputFileName = 'output.webp'
@@ -1235,12 +1329,13 @@ const convertVideoToWebP = async () => {
       // Use lanczos for high-quality scaling
       videoFilter = `fps=${fps},scale=${size}:${size}:flags=lanczos:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=black`
     }
+    videoFilter = withPlaybackSpeedFilter(videoFilter, playbackSpeed.value)
 
-    // Build FFmpeg command with start time (-ss) and duration (-t)
+    // Seek to start, take the selected source segment, then speed it up in -vf
     const ffmpegArgs = [
-      '-ss', startTime.toString(), // Seek to start time
+      '-ss', startTime.toString(),
+      '-t', sourceDuration.toString(),
       '-i', inputFileName,
-      '-t', duration.toString(), // Duration to extract
       '-vf', videoFilter,
       '-vcodec', 'libwebp',
       '-lossless', '0',
@@ -1318,13 +1413,17 @@ watch(fitMode, () => {
 })
 
 // Watch for other settings changes
-watch([quality, videoStartTime, videoEndTime, videoFps], () => {
+watch([quality, videoStartTime, videoEndTime, videoFps, videoSpeed], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
     beforePreviewOffsetX.value = 0
     beforePreviewOffsetY.value = 0
   }
+})
+
+watch(playbackSpeed, () => {
+  nextTick(() => applyPreviewPlaybackRate())
 })
 
 // Watch for initialFile prop and auto-load it

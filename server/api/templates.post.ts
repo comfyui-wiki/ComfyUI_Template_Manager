@@ -145,7 +145,9 @@ export default defineEventHandler(async (event) => {
       ...(body.tutorialUrl && { tutorialUrl: body.tutorialUrl }),
       tags: body.tags,
       models: body.models.map(model => model.displayName).filter(Boolean),
-      ...(body.comfyuiVersion && { comfyuiVersion: body.comfyuiVersion }),
+      ...((body.minComfyUIVersion || body.comfyuiVersion) && {
+        minComfyUIVersion: body.minComfyUIVersion || body.comfyuiVersion
+      }),
       date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       size: templateStats.totalSize
     }

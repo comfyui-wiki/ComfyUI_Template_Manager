@@ -152,7 +152,7 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
-              <span>All required fields complete! Consider adding optional fields like Tutorial URL or ComfyUI Version.</span>
+              <span>All required fields complete! Consider adding optional fields like Tutorial URL.</span>
             </div>
           </div>
         </div>
@@ -796,12 +796,18 @@
 
                   <!-- ComfyUI Version -->
                   <div class="space-y-2">
-                    <Label for="comfyuiVersion">Minimum ComfyUI Version (optional)</Label>
+                    <Label for="comfyuiVersion">
+                      Minimum ComfyUI Version <span class="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="comfyuiVersion"
                       v-model="form.comfyuiVersion"
                       placeholder="0.3.26"
                     />
+                    <p v-if="!form.comfyuiVersion?.trim()" class="text-xs text-red-600">⚠️ ComfyUI version is required</p>
+                    <p v-else class="text-xs text-muted-foreground">
+                      Lowest ComfyUI version this workflow needs to run.
+                    </p>
                   </div>
 
                   <!-- Open Source (Required) -->
@@ -1290,6 +1296,7 @@ import MainBranchWarningDialog from '~/components/MainBranchWarningDialog.vue'
 import { buildLocalComfyTemplateUrl, getLocalComfyBaseUrl } from '~/lib/local-comfy-url'
 import BundleSelector from '~/components/BundleSelector.vue'
 import { calculateWorkflowModelSizes, type ModelSizeDetail } from '~/lib/utils'
+import { applyMinComfyUIVersion, readMinComfyUIVersion } from '~/lib/template-comfyui-version'
 
 const route = useRoute()
 const templateName = route.params.name as string
@@ -1728,7 +1735,7 @@ const hasFormChanges = computed(() => {
     form.value.category !== currentCategoryTitle.value ||
     form.value.thumbnailVariant !== (originalTemplate.value.thumbnailVariant || 'none') ||
     form.value.tutorialUrl !== (originalTemplate.value.tutorialUrl || '') ||
-    form.value.comfyuiVersion !== (originalTemplate.value.comfyuiVersion || '') ||
+    form.value.comfyuiVersion !== readMinComfyUIVersion(originalTemplate.value) ||
     form.value.date !== (originalTemplate.value.date || '') ||
     form.value.openSource !== (originalTemplate.value.openSource !== undefined ? originalTemplate.value.openSource : true) ||
     // Compare rounded values (1 decimal) to match what's saved in index.json
@@ -1827,15 +1834,20 @@ const missingFields = computed(() => {
     missing.push('Creator')
   }
 
+  // Required: Minimum ComfyUI Version
+  if (!form.value.comfyuiVersion?.trim()) {
+    missing.push('ComfyUI Version')
+  }
+
   return missing
 })
 
 // Computed: Completion status with required vs optional fields
 const completionStatus = computed(() => {
   // Required fields count
-  // In create mode: 11 required (title, description, category, thumbnails, workflow, tags, models, date, sizeGB, openSource, creator)
-  // In edit mode: 10 required (same but no workflow)
-  const totalRequired = isCreateMode.value ? 11 : 10
+  // In create mode: 12 required (title, description, category, thumbnails, workflow, tags, models, date, sizeGB, openSource, creator, comfyuiVersion)
+  // In edit mode: 11 required (same but no workflow)
+  const totalRequired = isCreateMode.value ? 12 : 11
   let completedRequired = 0
 
   // Required fields
@@ -1870,6 +1882,9 @@ const completionStatus = computed(() => {
   // Creator (now required)
   if (form.value.username?.trim()) completedRequired++
 
+  // ComfyUI Version (now required)
+  if (form.value.comfyuiVersion?.trim()) completedRequired++
+
   // Optional fields
   let completedOptional = 0
   const optionalFields = []
@@ -1877,10 +1892,6 @@ const completionStatus = computed(() => {
   if (form.value.tutorialUrl?.trim()) {
     completedOptional++
     optionalFields.push('Tutorial URL')
-  }
-  if (form.value.comfyuiVersion?.trim()) {
-    completedOptional++
-    optionalFields.push('ComfyUI Version')
   }
   if (form.value.requiresCustomNodes.length > 0) {
     completedOptional++
@@ -2922,7 +2933,7 @@ watch(() => form.value.category, async (newCategory, oldCategory) => {
         models: form.value.models || [],
         requiresCustomNodes: form.value.requiresCustomNodes?.length ? form.value.requiresCustomNodes : undefined,
         tutorialUrl: form.value.tutorialUrl || undefined,
-        comfyuiVersion: form.value.comfyuiVersion || undefined,
+        minComfyUIVersion: form.value.comfyuiVersion || undefined,
         date: form.value.date || undefined,
         openSource: form.value.openSource,
         includeOnDistributions: form.value.includeOnDistributions?.length ? form.value.includeOnDistributions : undefined,
@@ -3177,7 +3188,7 @@ onMounted(async () => {
       showAdvanced: false // Default to collapsed
     }))
     form.value.requiresCustomNodes = foundTemplate.requiresCustomNodes || []
-    form.value.comfyuiVersion = foundTemplate.comfyuiVersion || ''
+    form.value.comfyuiVersion = readMinComfyUIVersion(foundTemplate)
     form.value.date = foundTemplate.date || ''
     form.value.openSource = foundTemplate.openSource !== undefined ? foundTemplate.openSource : true
     form.value.includeOnDistributions = foundTemplate.includeOnDistributions || []
@@ -3346,6 +3357,10 @@ const handleSubmit = async () => {
   // Validate required fields
   if (form.value.openSource === null) {
     alert('Please select Open Source Status (required field)')
+    return
+  }
+  if (!form.value.comfyuiVersion?.trim()) {
+    alert('Please fill in Minimum ComfyUI Version (required field)')
     return
   }
 
@@ -3548,7 +3563,7 @@ const handleSubmit = async () => {
           }),
           requiresCustomNodes: form.value.requiresCustomNodes,
           tutorialUrl: form.value.tutorialUrl,
-          comfyuiVersion: form.value.comfyuiVersion,
+          minComfyUIVersion: form.value.comfyuiVersion,
           date: form.value.date,
           openSource: form.value.openSource,
           includeOnDistributions: form.value.includeOnDistributions,
@@ -3625,7 +3640,7 @@ const handleSubmit = async () => {
         originalTemplate.value.description = form.value.description
         originalTemplate.value.thumbnailVariant = form.value.thumbnailVariant
         originalTemplate.value.tutorialUrl = form.value.tutorialUrl
-        originalTemplate.value.comfyuiVersion = form.value.comfyuiVersion
+        applyMinComfyUIVersion(originalTemplate.value, form.value.comfyuiVersion)
         originalTemplate.value.date = form.value.date
         originalTemplate.value.tags = [...form.value.tags]
         originalTemplate.value.models = [...form.value.models]

@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
+import { applyMinComfyUIVersion } from '~/lib/template-comfyui-version'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncUpdatedTemplateToAllLocales, trackOutdatedTranslations, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 import { assignTemplateToBundle, findTemplateBundle, resolveTargetBundle } from '~/server/utils/bundles'
@@ -31,6 +32,7 @@ interface UpdateTemplateRequest {
     }>
     requiresCustomNodes?: string[]
     tutorialUrl?: string
+    minComfyUIVersion?: string
     comfyuiVersion?: string
     date?: string
     openSource?: boolean
@@ -226,7 +228,10 @@ export default defineEventHandler(async (event) => {
         }
       }
       if (metadata.tutorialUrl) templateData.tutorialUrl = metadata.tutorialUrl
-      if (metadata.comfyuiVersion) templateData.comfyuiVersion = metadata.comfyuiVersion
+      const incomingVersion = metadata.minComfyUIVersion ?? metadata.comfyuiVersion
+      if (incomingVersion !== undefined) {
+        applyMinComfyUIVersion(templateData, incomingVersion)
+      }
       if (metadata.date) templateData.date = metadata.date
       if (metadata.openSource !== undefined) templateData.openSource = metadata.openSource
       if (metadata.includeOnDistributions !== undefined) {

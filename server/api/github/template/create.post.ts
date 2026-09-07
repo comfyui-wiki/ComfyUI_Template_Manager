@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
+import { applyMinComfyUIVersion } from '~/lib/template-comfyui-version'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { syncTemplateToAllLocales, updateI18nJson, loadI18nConfig, readI18nJson } from '~/server/utils/i18n-sync'
 import { assignTemplateToBundle, resolveTargetBundle } from '~/server/utils/bundles'
@@ -31,6 +32,7 @@ interface CreateTemplateRequest {
     }>
     requiresCustomNodes?: string[]
     tutorialUrl?: string
+    minComfyUIVersion?: string
     comfyuiVersion?: string
     date?: string
     openSource?: boolean
@@ -216,9 +218,10 @@ export default defineEventHandler(async (event) => {
     if (metadata.tutorialUrl) {
       newTemplate.tutorialUrl = metadata.tutorialUrl
     }
-    if (metadata.comfyuiVersion) {
-      newTemplate.comfyuiVersion = metadata.comfyuiVersion
-    }
+    applyMinComfyUIVersion(
+      newTemplate,
+      metadata.minComfyUIVersion || metadata.comfyuiVersion
+    )
     // Set date: use provided date or default to current date (YYYY-MM-DD)
     newTemplate.date = metadata.date || new Date().toISOString().split('T')[0]
     if (metadata.openSource !== undefined) {
