@@ -122,7 +122,7 @@
             >
               <p class="font-semibold">Subgraph instance models do not match download metadata</p>
               <p class="mt-1 text-xs opacity-90">
-                The filename on the instance must appear in that instance or the inner loader <code>properties.models</code> with a URL.
+                Detection only: the filename on the subgraph instance must match the inner loader <code>properties.models</code>. This editor does not auto-write model links onto the subgraph definition.
               </p>
               <ul class="mt-2 space-y-1 text-xs font-mono">
                 <li v-for="(message, index) in subgraphIssueMessages" :key="index">
@@ -596,8 +596,10 @@ const stats = computed(() => {
   }
 })
 
+const detectedSubgraphIssues = ref<string[]>([])
+
 const subgraphIssueMessages = computed(() => {
-  const messages: string[] = []
+  const messages = [...detectedSubgraphIssues.value]
   for (const nodeInfo of modelNodes.value) {
     for (const issue of nodeInfo.subgraphIssues || []) {
       if (!messages.includes(issue)) messages.push(issue)
@@ -645,20 +647,24 @@ const persistModelsToWorkflow = () => {
 
   for (const nodeInfo of modelNodes.value) {
     if (nodeInfo.isCustomNode) continue
+    if (nodeInfo.isSubgraphInstance) continue
 
     const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
     if (!node) continue
     if (!node.properties) node.properties = {}
 
-    const validModels = nodeInfo.existingModels.filter((m: any) =>
-      m.name && m.url && (m.directory || nodeInfo.isSubgraphInstance)
-    )
+    const validModels = nodeInfo.existingModels.filter((m: any) => {
+      if (!m.name || !m.url || !m.directory) return false
+      // Do not auto-write supported-model URLs onto subgraph definitions (blueprints).
+      if (nodeInfo.node._source === 'subgraph' && m.autoFilled) return false
+      return true
+    })
 
     if (validModels.length > 0) {
       node.properties.models = validModels.map((m: any) => ({
         name: m.name,
         url: m.url,
-        ...(m.directory ? { directory: m.directory } : {})
+        directory: m.directory
       }))
     }
   }
@@ -675,10 +681,15 @@ const collectSubgraphIssuesByNode = () => {
   )
   for (const issue of subgraphAnalysis.issues) {
     if (issue.kind !== 'subgraph_missing_urls' && issue.kind !== 'subgraph_stale_definition') continue
-    const key = `${issue.scope}:${issue.nodeId}`
-    const list = issuesByNode.get(key) || []
-    list.push(issue.message)
-    issuesByNode.set(key, list)
+    const keys = [`${issue.scope}:${issue.nodeId}`]
+    if (issue.innerNodeId && issue.nodeType) {
+      keys.push(`subgraph ${issue.nodeType}:${issue.innerNodeId}`)
+    }
+    for (const key of keys) {
+      const list = issuesByNode.get(key) || []
+      list.push(issue.message)
+      issuesByNode.set(key, list)
+    }
   }
   return issuesByNode
 }
@@ -692,6 +703,13 @@ const subgraphIssueKey = (nodeInfo: any) => {
 const refreshSubgraphIssues = () => {
   persistModelsToWorkflow()
   const issuesByNode = collectSubgraphIssuesByNode()
+  const bannerMessages: string[] = []
+  for (const list of issuesByNode.values()) {
+    for (const message of list) {
+      if (!bannerMessages.includes(message)) bannerMessages.push(message)
+    }
+  }
+  detectedSubgraphIssues.value = bannerMessages
   for (const nodeInfo of modelNodes.value) {
     nodeInfo.subgraphIssues = issuesByNode.get(subgraphIssueKey(nodeInfo))
       || issuesByNode.get(`top-level:${nodeInfo.node.id}`)
@@ -747,12 +765,19 @@ const parseWorkflow = () => {
   inputAssets.value = extractInputFiles(nodes)
 
   const issuesByNode = collectSubgraphIssuesByNode()
+  const bannerMessages: string[] = []
+  for (const list of issuesByNode.values()) {
+    for (const message of list) {
+      if (!bannerMessages.includes(message)) bannerMessages.push(message)
+    }
+  }
+  detectedSubgraphIssues.value = bannerMessages
 
-  // Filter model nodes
+  // Filter model nodes. Subgraph instances are detection-only, never auto-filled here.
   const modelNodesList = []
   for (const node of nodes) {
-    const isInstance = isSubgraphNode(String(node.type || ''))
-    const isModelNode = (node.properties?.['Node name for S&R'] && node.type in directoryRules.value) || isInstance
+    if (isSubgraphNode(String(node.type || ''))) continue
+    const isModelNode = node.properties?.['Node name for S&R'] && node.type in directoryRules.value
     if (!isModelNode) continue
 
     const modelFiles = extractModelFiles(node)
@@ -775,7 +800,9 @@ const parseWorkflow = () => {
       if (!fileName) continue
 
       const saved = savedModelsByName.get(fileName)
-      const supportedUrl = supportedModelsMap.value.get(fileName)
+      const supportedUrl = node._source === 'subgraph'
+        ? ''
+        : (supportedModelsMap.value.get(fileName) || '')
       const url = saved?.url || supportedUrl || ''
 
       models.push({
@@ -792,7 +819,9 @@ const parseWorkflow = () => {
     // Keep saved entries that no longer appear in widgets (rare)
     for (const saved of node.properties?.models || []) {
       if (!saved?.name || models.some(m => m.name === saved.name)) continue
-      const supportedUrl = supportedModelsMap.value.get(saved.name)
+      const supportedUrl = node._source === 'subgraph'
+        ? ''
+        : (supportedModelsMap.value.get(saved.name) || '')
       models.push({
         name: saved.name,
         url: saved.url || supportedUrl || '',
@@ -814,7 +843,7 @@ const parseWorkflow = () => {
       modelFiles,
       existingModels: models,
       isCustomNode, // Mark if this is a custom node
-      isSubgraphInstance: isInstance,
+      isSubgraphInstance: false,
       subgraphIssues,
       hasErrors: false,
       hasWarnings: false,
