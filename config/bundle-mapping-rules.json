@@ -1,20 +1,21 @@
 {
   "categoryMapping": {
-    "Use cases": "media-assets-01",
-    "Image": "media-assets-01",
-    "Video": "media-assets-01",
-    "Audio": "media-assets-01",
-    "3D": "media-assets-01",
-    "Utility": "media-assets-01",
-    "Getting Started": "media-assets-01"
+    "Use cases": "media-assets-02",
+    "Image": "media-assets-02",
+    "Video": "media-assets-02",
+    "Audio": "media-assets-02",
+    "3D": "media-assets-02",
+    "Utility": "media-assets-02",
+    "Getting Started": "media-assets-02"
   },
-  "defaultBundle": "media-assets-01",
-  "recommendedAssetBundle": "media-assets-01",
+  "defaultBundle": "media-assets-02",
+  "recommendedAssetBundle": "media-assets-02",
   "frozenBundles": [
     "media-api",
     "media-image",
     "media-video",
-    "media-other"
+    "media-other",
+    "media-assets-01"
   ],
   "sizeLimitMB": 100,
   "bundles": {
@@ -45,14 +46,20 @@
     "media-assets-01": {
       "label": "Media Assets 01",
       "pypiPackage": "comfyui-workflow-templates-media-assets-01",
+      "frozen": true,
+      "frozenReason": "Asset shard 01 is frozen near PyPI 100 MB limit (0.1.47, ~89.8 MB) — do not add new templates"
+    },
+    "media-assets-02": {
+      "label": "Media Assets 02",
+      "pypiPackage": "comfyui-workflow-templates-media-assets-02",
       "frozen": false
     }
   },
   "notes": {
     "description": "Maps template categories to bundle names",
-    "categoryMapping": "New templates should use recommendedAssetBundle (media-assets-01). Legacy media-* bundles are frozen.",
+    "categoryMapping": "New templates should use recommendedAssetBundle (media-assets-02). Frozen bundles are media-* plus media-assets-01.",
     "defaultBundle": "Default bundle when category is unknown",
-    "frozenBundles": "Legacy PyPI wheels — shown read-only if template is already assigned; not selectable for new assignments",
+    "frozenBundles": "Frozen PyPI wheels — shown read-only if the template is already assigned; not selectable for new assignments",
     "sizeLimitMB": "PyPI wheel size soft limit used for bundle capacity indicators"
   }
 }

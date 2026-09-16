@@ -17,7 +17,7 @@
     <p class="text-xs text-muted-foreground">
       Choose which PyPI sub-package this template belongs to. New templates should use
       <code class="font-mono">{{ recommendedAssetBundle }}</code>.
-      Legacy <code class="font-mono">media-*</code> bundles are frozen and not selectable.
+      Frozen bundles (legacy <code class="font-mono">media-*</code> and filled asset shards) are not selectable for new templates.
     </p>
 
     <div
@@ -165,7 +165,7 @@ const error = ref('')
 const bundles = ref<BundleStatusItem[]>([])
 const legacyCurrentBundle = ref<BundleStatusItem | null>(null)
 const suggestedBundle = ref('')
-const recommendedAssetBundle = ref('media-assets-01')
+const recommendedAssetBundle = ref('media-assets-02')
 const sizeLimitLabel = ref('100.0 MB')
 
 const loadBundleStatus = async () => {
@@ -191,7 +191,7 @@ const loadBundleStatus = async () => {
     bundles.value = response.bundles
     legacyCurrentBundle.value = response.legacyCurrentBundle || null
     suggestedBundle.value = response.suggestedBundle
-    recommendedAssetBundle.value = response.recommendedAssetBundle || 'media-assets-01'
+    recommendedAssetBundle.value = response.recommendedAssetBundle || 'media-assets-02'
     sizeLimitLabel.value = response.sizeLimitLabel
 
     if (!props.modelValue && response.currentBundle) {

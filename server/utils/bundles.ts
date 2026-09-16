@@ -24,7 +24,7 @@ export function isFrozenBundle(bundleId: string): boolean {
 }
 
 export function getRecommendedAssetBundle(): string {
-  return bundleMappingRules.recommendedAssetBundle || bundleMappingRules.defaultBundle || 'media-assets-01'
+  return bundleMappingRules.recommendedAssetBundle || bundleMappingRules.defaultBundle || 'media-assets-02'
 }
 
 export function getBundleLabel(bundleId: string): string {
