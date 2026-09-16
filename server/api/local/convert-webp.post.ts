@@ -23,16 +23,19 @@ export default defineEventHandler(async (event) => {
   const cropSize = Math.max(1, Math.round(Number(value('cropSize', '0')) || 0))
   const cropX = Math.max(0, Math.round(Number(value('cropX', '0')) || 0))
   const cropY = Math.max(0, Math.round(Number(value('cropY', '0')) || 0))
+  const overlay = parts?.find(part => part.name === 'overlay' && part.data)
   const tempDir = await fs.mkdtemp('/tmp/comfyui-webp-')
   const inputPath = `${tempDir}/input`
   const outputPath = `${tempDir}/output.webp`
   try {
     await fs.writeFile(inputPath, file.data)
+    const overlayPath = `${tempDir}/overlay.png`
+    if (overlay) await fs.writeFile(overlayPath, overlay.data)
     const baseFilter = fitMode === 'crop' && cropSize > 0
       ? `fps=${fps},crop=${cropSize}:${cropSize}:${cropX}:${cropY},scale=${size}:${size}:flags=lanczos`
       : `fps=${fps},scale=${size}:${size}:force_original_aspect_ratio=decrease,pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=black`
     const filter = withPlaybackSpeedFilter(baseFilter, speed)
-    await execFileAsync('ffmpeg', ['-y', '-ss', String(start), '-t', String(end - start), '-i', inputPath, '-vf', filter, '-vcodec', 'libwebp', '-lossless', '0', '-compression_level', '4', '-q:v', String(quality), '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', outputPath], { maxBuffer: 10 * 1024 * 1024 })
+    await execFileAsync('ffmpeg', ['-y', '-ss', String(start), '-t', String(end - start), '-i', inputPath, ...(overlay ? ['-i', overlayPath, '-filter_complex', `[0:v]${filter}[base];[base][1:v]overlay=0:0:format=auto[out]`, '-map', '[out]'] : ['-vf', filter]), '-vcodec', 'libwebp', '-lossless', '0', '-compression_level', '4', '-q:v', String(quality), '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', outputPath], { maxBuffer: 10 * 1024 * 1024 })
     setHeader(event, 'Content-Type', 'image/webp')
     return await fs.readFile(outputPath)
   } catch (error: any) {

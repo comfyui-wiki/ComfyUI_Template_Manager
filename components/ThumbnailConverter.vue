@@ -189,12 +189,17 @@
           </div>
           <div class="flex-1 space-y-1 text-xs">
             <div><strong>Name:</strong> {{ sourceFile.name }}</div>
-            <div><strong>Size:</strong> {{ formatFileSize(sourceFile.size) }}</div>
+            <div><strong>Size:</strong> {{ formatFileSize(sourceFile?.size || 0) }}</div>
             <div v-if="sourceDimensions"><strong>Dimensions:</strong> {{ sourceDimensions.width }}x{{ sourceDimensions.height }}</div>
             <div v-if="isVideo && videoDuration"><strong>Duration:</strong> {{ videoDuration.toFixed(2) }}s</div>
           </div>
         </div>
       </div>
+
+      <ThumbnailOverlayEditor v-if="sourceFile && sourceDimensions" ref="overlayEditor"
+        :src="sourcePreviewUrl" :video="!!isVideo" :size="Number(targetSize)"
+        :crop="overlayCrop" :start="videoStartTime" :end="videoEndTime"
+        :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" />
 
       <!-- Conversion Settings -->
       <div v-if="sourceFile" class="space-y-3 p-3 border rounded-lg bg-muted/30">
@@ -489,7 +494,7 @@
               />
             </div>
             <div class="text-xs text-muted-foreground text-center">
-              Original: {{ formatFileSize(sourceFile.size) }}<br>
+              Original: {{ formatFileSize(sourceFile?.size || 0) }}<br>
               <span class="text-[10px] text-gray-500">Drag to adjust position</span>
             </div>
           </div>
@@ -564,7 +569,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import ThumbnailOverlayEditor from './ThumbnailOverlayEditor.vue'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 import { Button } from '@/components/ui/button'
@@ -586,6 +592,18 @@ const emit = defineEmits<{
   converted: [file: File]
 }>()
 
+const overlayEditor = ref<InstanceType<typeof ThumbnailOverlayEditor>>()
+const invalidateOutput = () => {
+  if (convertedPreviewUrl.value) URL.revokeObjectURL(convertedPreviewUrl.value)
+  convertedFile.value = null
+  convertedPreviewUrl.value = ''
+}
+const overlayCrop = computed(() => {
+  if (fitMode.value !== 'crop') return null
+  return isVideo.value
+    ? { x: cropBoxX.value / videoPreviewWidth.value, y: cropBoxY.value / videoPreviewHeight.value, size: cropBoxSize.value / videoPreviewWidth.value }
+    : { x: imageCropBoxX.value / imagePreviewWidth.value, y: imageCropBoxY.value / imagePreviewHeight.value, size: imageCropBoxSize.value / imagePreviewWidth.value }
+})
 const fileInput = ref<HTMLInputElement>()
 const sourceFile = ref<File | null>(null)
 const sourcePreviewUrl = ref('')
@@ -1087,8 +1105,23 @@ onMounted(() => {
   document.addEventListener('mouseup', endDragTimeline)
 })
 
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', updateDragImageCropBox)
+  document.removeEventListener('mouseup', endDragImageCropBox)
+  document.removeEventListener('mousemove', updateDragCropBox)
+  document.removeEventListener('mouseup', endDragCropBox)
+  document.removeEventListener('mousemove', updateDragBeforePreview)
+  document.removeEventListener('mouseup', endDragBeforePreview)
+  document.removeEventListener('mousemove', updateDragTimeline)
+  document.removeEventListener('mouseup', endDragTimeline)
+  if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
+  invalidateOutput()
+})
+
 // Load file programmatically (for initial file prop)
 const loadFile = async (file: File) => {
+  if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
+  invalidateOutput()
   sourceFile.value = file
   sourcePreviewUrl.value = URL.createObjectURL(file)
   error.value = ''
@@ -1144,6 +1177,8 @@ const loadVideoDimensions = (file: File): Promise<void> => {
 }
 
 const clearFile = () => {
+  if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
+  invalidateOutput()
   sourceFile.value = null
   sourcePreviewUrl.value = ''
   sourceDimensions.value = null
@@ -1246,6 +1281,8 @@ const convertImageToWebP = async () => {
     ctx.drawImage(img, dx, dy, dWidth, dHeight)
   }
 
+  overlayEditor.value?.drawOverlays(ctx, size)
+
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -1263,9 +1300,11 @@ const convertImageToWebP = async () => {
 }
 
 const convertVideoToWebP = async () => {
+  const overlayPng = await overlayEditor.value?.exportPng()
   if (useNativeLocalConverter.value && sourceFile.value) {
     const formData = new FormData()
     formData.append('file', sourceFile.value)
+    if (overlayPng) formData.append('overlay', overlayPng, 'overlay.png')
     formData.append('start', String(videoStartTime.value))
     formData.append('end', String(videoEndTime.value))
     formData.append('size', targetSize.value)
@@ -1331,12 +1370,14 @@ const convertVideoToWebP = async () => {
     }
     videoFilter = withPlaybackSpeedFilter(videoFilter, playbackSpeed.value)
 
+    if (overlayPng) await ffmpeg.value.writeFile('overlay.png', new Uint8Array(await overlayPng.arrayBuffer()))
+
     // Seek to start, take the selected source segment, then speed it up in -vf
     const ffmpegArgs = [
       '-ss', startTime.toString(),
       '-t', sourceDuration.toString(),
       '-i', inputFileName,
-      '-vf', videoFilter,
+      ...(overlayPng ? ['-i', 'overlay.png', '-filter_complex', `[0:v]${videoFilter}[base];[base][1:v]overlay=0:0:format=auto[out]`, '-map', '[out]'] : ['-vf', videoFilter]),
       '-vcodec', 'libwebp',
       '-lossless', '0',
       '-compression_level', '4',
@@ -1349,12 +1390,14 @@ const convertVideoToWebP = async () => {
     ]
 
     console.log('[Video Conversion] FFmpeg command:', ffmpegArgs.join(' '))
-    await ffmpeg.value.exec(ffmpegArgs)
+    const exitCode = await ffmpeg.value.exec(ffmpegArgs)
+    if (exitCode !== 0) throw new Error('FFmpeg conversion failed')
 
     conversionProgress.value = 'Reading output...'
 
     const data = await ffmpeg.value.readFile(outputFileName)
-    const blob = new Blob([data], { type: 'image/webp' })
+    if (typeof data === 'string') throw new Error('Unexpected FFmpeg output')
+    const blob = new Blob([new Uint8Array(data)], { type: 'image/webp' })
 
     const fileName = sourceFile.value.name.replace(/\.[^/.]+$/, '') + '.webp'
     convertedFile.value = new File([blob], fileName, { type: 'image/webp' })
@@ -1362,6 +1405,7 @@ const convertVideoToWebP = async () => {
 
     await ffmpeg.value.deleteFile(inputFileName)
     await ffmpeg.value.deleteFile(outputFileName)
+    if (overlayPng) await ffmpeg.value.deleteFile('overlay.png')
 
     error.value = ''
     console.log('[Video Conversion] Success:', fileName, formatFileSize(convertedFile.value.size))
@@ -1413,6 +1457,8 @@ watch(fitMode, () => {
 })
 
 // Watch for other settings changes
+watch([targetSize, imageCropBoxX, imageCropBoxY, cropBoxX, cropBoxY], invalidateOutput)
+
 watch([quality, videoStartTime, videoEndTime, videoFps, videoSpeed], () => {
   if (convertedFile.value) {
     convertedFile.value = null
