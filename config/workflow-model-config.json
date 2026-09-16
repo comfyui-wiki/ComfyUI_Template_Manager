@@ -1,4 +1,17 @@
 {
+  "modelCheckIgnoreNodeTypes": [
+    "MarkdownNote",
+    "Note",
+    "DownloadAndLoadSAM2Model",
+    "DownloadAndLoadDepthAnythingV2Model",
+    "WanVideoLoraSelectMulti",
+    "WanVideoModelLoader",
+    "WanVideoVAELoader",
+    "LoadWanVideoT5TextEncoder",
+    "MelBandRoFormerModelLoader",
+    "SeedVR2LoadDiTModel",
+    "SeedVR2LoadVAEModel"
+  ],
   "customNodeRules": [
     "DownloadAndLoadDepthAnythingV2Model",
     "MelBandRoFormerModelLoader"
@@ -9,6 +22,8 @@
     "ControlNetLoader": "controlnet",
     "CLIPLoader": "text_encoders",
     "CLIPVisionLoader": "clip_vision",
+    "ConditioningLoader": "embeddings",
+    "Load Conditioning": "embeddings",
     "DiffusersLoader": "diffusers",
     "DualCLIPLoader": "text_encoders",
     "DiffControlNetLoader": "controlnet",

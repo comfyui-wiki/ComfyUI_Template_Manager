@@ -204,6 +204,39 @@
             </Select>
           </div>
 
+          <!-- Model download links (local mode) -->
+          <div v-if="showModelLinkFilter" class="flex items-center gap-1">
+            <span class="text-xs text-muted-foreground whitespace-nowrap">Model URLs</span>
+            <Select
+              :model-value="selectedModelLinkStatus"
+              :disabled="!modelLinkAvailable || modelLinkScanning"
+              @update:model-value="$emit('update:selectedModelLinkStatus', $event)"
+            >
+              <SelectTrigger
+                class="h-8 text-xs"
+                :class="selectedModelLinkStatus !== 'all'
+                  ? 'w-[120px] border-rose-500 text-rose-700'
+                  : 'w-[80px]'"
+              >
+                <SelectValue :placeholder="modelLinkScanning ? 'Scanning…' : 'All'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="error">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0"></span>
+                    Has issues
+                    <span v-if="modelLinkStats?.error" class="text-muted-foreground">({{ modelLinkStats.error }})</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="ok">
+                  All links OK
+                  <span v-if="modelLinkStats?.ok" class="text-muted-foreground">({{ modelLinkStats.ok }})</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <!-- Deprecated node filter (local mode) -->
           <div v-if="showNodeCompatFilter" class="flex items-center gap-1">
             <span class="text-xs text-muted-foreground whitespace-nowrap">Deprecated</span>
@@ -239,7 +272,7 @@
 
           <!-- Clear Filters Button -->
           <Button
-            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || selectedThumbnailStatus !== 'all' || selectedCompatStatus !== 'all' || searchQuery"
+            v-if="selectedModel !== 'all' || selectedTag !== 'all' || selectedRunsOn !== 'all' || selectedDiffStatus !== 'all' || selectedMode !== 'all' || selectedThumbnailStatus !== 'all' || selectedCompatStatus !== 'all' || selectedModelLinkStatus !== 'all' || searchQuery"
             variant="outline"
             size="sm"
             @click="$emit('clear-filters')"
@@ -271,9 +304,31 @@
           </span>
 
           <div
-            v-if="nodeCompatAvailable || nodeCompatScanning"
+            v-if="nodeCompatAvailable || nodeCompatScanning || modelLinkAvailable || modelLinkScanning || modelLinkError"
             class="flex items-center gap-3 ml-auto"
           >
+            <button
+              v-if="modelLinkStats && modelLinkStats.error > 0"
+              type="button"
+              class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-900 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-950 rounded text-xs font-medium transition-colors"
+              title="Show templates whose subgraph instance models are missing download URLs or do not match the definition"
+              @click="$emit('update:selectedModelLinkStatus', selectedModelLinkStatus === 'error' ? 'all' : 'error')"
+            >
+              {{ modelLinkStats.error }} with model URL issue{{ modelLinkStats.error > 1 ? 's' : '' }}
+            </button>
+            <span
+              v-if="modelLinkScanning"
+              class="px-2 py-0.5 bg-muted text-muted-foreground rounded text-xs font-medium animate-pulse"
+            >
+              Checking model URLs…
+            </span>
+            <span
+              v-else-if="modelLinkError"
+              class="px-2 py-0.5 bg-rose-100 text-rose-900 dark:bg-rose-950/50 dark:text-rose-200 rounded text-xs font-medium"
+              :title="modelLinkError"
+            >
+              Model URL scan failed
+            </span>
             <button
               v-if="nodeCompatStats && nodeCompatStats.warning > 0"
               type="button"
@@ -308,7 +363,7 @@
           </div>
 
           <!-- Diff Stats -->
-          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3" :class="nodeCompatAvailable || nodeCompatScanning ? '' : 'ml-auto'">
+          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3" :class="nodeCompatAvailable || nodeCompatScanning || modelLinkAvailable || modelLinkScanning || modelLinkError ? '' : 'ml-auto'">
             <span class="text-xs">
               <span class="font-mono">{{ selectedRepo }}</span> /
               <span class="font-mono font-semibold">{{ selectedBranch }}</span>
@@ -431,8 +486,20 @@ const props = defineProps<{
   selectedMode: string
   selectedThumbnailStatus: string
   selectedCompatStatus: string
+  selectedModelLinkStatus: string
   nodeCompatAvailable: boolean
   showNodeCompatFilter: boolean
+  showModelLinkFilter: boolean
+  modelLinkAvailable: boolean
+  modelLinkStats: {
+    total: number
+    ok: number
+    error: number
+    checkedWorkflows: number
+    issueTemplates: number
+  } | null
+  modelLinkScanning: boolean
+  modelLinkError: string | null
   nodeCompatStats: {
     total: number
     ok: number
@@ -475,6 +542,7 @@ const emit = defineEmits<{
   'update:selectedMode': [value: string]
   'update:selectedThumbnailStatus': [value: string]
   'update:selectedCompatStatus': [value: string]
+  'update:selectedModelLinkStatus': [value: string]
   'update:searchQuery': [value: string]
   'update:sortBy': [value: string]
   'clear-filters': []

@@ -1399,6 +1399,8 @@ const modelLinksValidation = ref<{
   missingLinks: number
   invalidLinks: number
   customNodeMissingLinks: number
+  subgraphIssues: number
+  subgraphIssueMessages: string[]
   validating: boolean
 } | null>(null)
 
@@ -2318,16 +2320,30 @@ const validateModelLinks = async (debounce = false) => {
 
   const runValidation = async () => {
     try {
-      modelLinksValidation.value = { totalModels: 0, missingLinks: 0, invalidLinks: 0, customNodeMissingLinks: 0, validating: true }
+      modelLinksValidation.value = {
+        totalModels: 0,
+        missingLinks: 0,
+        invalidLinks: 0,
+        customNodeMissingLinks: 0,
+        subgraphIssues: 0,
+        subgraphIssueMessages: [],
+        validating: true
+      }
 
       // Load config from API endpoint
       const configResponse = await fetch('/api/config/workflow-model-config.json')
       const config = await configResponse.json()
       const directoryRules = config.directoryRules
       const customNodeRules = config.customNodeRules || []
+      const { analyzeWorkflowModelLinks, normalizeWhitelist } = await import('~/lib/model-link-scan/analyze')
 
       // Parse workflow
       const workflow = JSON.parse(currentWorkflow)
+      const subgraphAnalysis = analyzeWorkflowModelLinks(
+        templateName.value,
+        workflow,
+        normalizeWhitelist(config.modelCheckIgnoreNodeTypes)
+      )
 
       // Collect all nodes (main + subgraph)
       const nodes: any[] = []
@@ -2410,11 +2426,17 @@ const validateModelLinks = async (debounce = false) => {
         }
       }
 
+      const subgraphIssueMessages = subgraphAnalysis.issues
+        .filter(issue => issue.kind === 'subgraph_missing_urls' || issue.kind === 'subgraph_stale_definition')
+        .map(issue => issue.message)
+
       modelLinksValidation.value = {
         totalModels,
         missingLinks,
         invalidLinks,
         customNodeMissingLinks,
+        subgraphIssues: subgraphIssueMessages.length,
+        subgraphIssueMessages,
         validating: false
       }
     } catch (error) {

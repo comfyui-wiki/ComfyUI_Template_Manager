@@ -102,6 +102,19 @@
 
           <LocalModeBanner class="mt-3" />
 
+          <ModelLinkScanBanner
+            v-if="isMounted && isLocalMode"
+            class="mt-3"
+            :scanning="modelLinkScanning"
+            :available="modelLinkAvailable"
+            :error="modelLinkError"
+            :checked-workflows="modelLinkStats?.checkedWorkflows ?? 0"
+            :issue-count="modelLinkStats?.error ?? 0"
+            :issue-summaries="modelLinkIssueSummaries"
+            @filter-issues="showModelLinkIssues"
+            @select-template="jumpToModelLinkIssue"
+          />
+
           <!-- Branch Info and PR Actions -->
           <div v-if="isMounted && selectedRepo && selectedBranch" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
             <!-- Branch Info -->
@@ -416,11 +429,17 @@
       v-model:selected-mode="selectedMode"
       v-model:selected-thumbnail-status="selectedThumbnailStatus"
       v-model:selected-compat-status="selectedCompatStatus"
+      v-model:selected-model-link-status="selectedModelLinkStatus"
       :node-compat-available="nodeCompatAvailable"
       :show-node-compat-filter="showNodeCompatFilter"
+      :show-model-link-filter="showModelLinkFilter"
       :node-compat-stats="nodeCompatStats"
       :node-compat-scanning="nodeCompatScanning"
       :node-compat-error="nodeCompatError"
+      :model-link-available="modelLinkAvailable"
+      :model-link-stats="modelLinkStats"
+      :model-link-scanning="modelLinkScanning"
+      :model-link-error="modelLinkError"
       v-model:search-query="searchQuery"
       v-model:sort-by="sortBy"
       :loading="loading"
@@ -536,6 +555,7 @@ import bundleMappingRules from '~/config/bundle-mapping-rules.json'
 import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 import LocalModeBanner from '~/components/LocalModeBanner.vue'
+import ModelLinkScanBanner from '~/components/ModelLinkScanBanner.vue'
 
 const { status } = useAuth()
 const { resolveRepoFileUrl } = useRepoAssets()
@@ -587,10 +607,24 @@ const {
   resetScan: resetNodeCompatScan
 } = useNodeCompat()
 
+const {
+  isAvailable: modelLinkAvailable,
+  showModelLinkFilter,
+  scanStats: modelLinkStats,
+  isScanning: modelLinkScanning,
+  scanError: modelLinkError,
+  getTemplateModelLinks,
+  issueSummaries: modelLinkIssueSummaries,
+  scanModelLinks,
+  resetScan: resetModelLinkScan
+} = useModelLinkScan()
+
 const handleLocalSettingsSaved = () => {
   resetNodeCompatScan()
+  resetModelLinkScan()
   if (isLocalMode.value) {
     void scanNodeCompat(true)
+    void scanModelLinks()
   }
 }
 
@@ -605,6 +639,7 @@ const selectedDiffStatus = useLocalStorage('tmgr_selectedDiffStatus', 'all') // 
 const selectedMode = useLocalStorage('tmgr_selectedMode', 'all') // all, app, normal
 const selectedThumbnailStatus = useLocalStorage('tmgr_selectedThumbnailStatus', 'all') // all, missing
 const selectedCompatStatus = useLocalStorage('tmgr_selectedCompatStatus', 'all') // all, ok, warning
+const selectedModelLinkStatus = useLocalStorage('tmgr_selectedModelLinkStatus', 'all') // all, ok, error
 const sortBy = useLocalStorage('tmgr_sortBy', 'latest')
 const noticeDismissed = ref(false)
 const showTranslationManager = ref(false)
@@ -700,7 +735,7 @@ const loadTemplates = async (owner: string, repo: string, branch: string, forceR
     console.log('[LoadTemplates] Branch permission:', branchPermission.value)
 
     if (isLocalMode.value) {
-      await scanNodeCompat()
+      await Promise.all([scanNodeCompat(), scanModelLinks()])
     }
   } catch (error) {
     console.error('[LoadTemplates] Failed to load templates:', error)
@@ -847,6 +882,8 @@ onActivated(async () => {
         await checkPRStatus()
       }
     }
+  } else if (isLocalMode.value) {
+    await scanModelLinks()
   }
 })
 
@@ -1126,6 +1163,14 @@ const filteredTemplates = computed(() => {
     })
   }
 
+  if (modelLinkAvailable.value && selectedModelLinkStatus.value !== 'all') {
+    templates = templates.filter((t) => {
+      const modelLinks = getTemplateModelLinks(t.name)
+      if (!modelLinks) return selectedModelLinkStatus.value === 'ok'
+      return modelLinks.status === selectedModelLinkStatus.value
+    })
+  }
+
   // Filter by mode (app vs normal)
   if (selectedMode.value === 'app') {
     templates = templates.filter(t => t.name?.endsWith('.app'))
@@ -1183,6 +1228,16 @@ const filteredTemplates = computed(() => {
 // }
 
 // Methods
+const showModelLinkIssues = () => {
+  selectedModelLinkStatus.value = 'error'
+  searchQuery.value = ''
+}
+
+const jumpToModelLinkIssue = (templateName: string) => {
+  selectedModelLinkStatus.value = 'error'
+  searchQuery.value = templateName
+}
+
 const clearFilters = () => {
   selectedModel.value = 'all'
   selectedTag.value = 'all'
@@ -1191,6 +1246,7 @@ const clearFilters = () => {
   selectedMode.value = 'all'
   selectedThumbnailStatus.value = 'all'
   selectedCompatStatus.value = 'all'
+  selectedModelLinkStatus.value = 'all'
   searchQuery.value = ''
 }
 

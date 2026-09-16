@@ -27,7 +27,8 @@ export const FILESYSTEM_COMBO_INPUT_NAMES = new Set([
   'video',
   'model_name',
   'model_file',
-  'weight_name'
+  'weight_name',
+  'conditioning_name'
 ])
 
 export const CONTROL_AFTER_GENERATE_VALUES = new Set([

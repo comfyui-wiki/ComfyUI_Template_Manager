@@ -79,7 +79,7 @@
             </div>
           </CardHeader>
           <CardContent>
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
               <div class="text-center p-3 dm-muted-row">
                 <div class="text-2xl font-bold text-foreground">{{ stats.totalModels }}</div>
                 <div class="text-xs text-muted-foreground">Total Models</div>
@@ -100,6 +100,35 @@
                 <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ stats.errorFormats }}</div>
                 <div class="text-xs text-muted-foreground">Format Errors</div>
               </div>
+              <div
+                class="text-center p-3 rounded-lg cursor-pointer"
+                :class="stats.subgraphIssues > 0
+                  ? 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/55'
+                  : 'bg-emerald-50 dark:bg-emerald-950/35'"
+                @click="scrollToFirstSubgraphIssue"
+              >
+                <div
+                  class="text-2xl font-bold"
+                  :class="stats.subgraphIssues > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+                >
+                  {{ stats.subgraphIssues }}
+                </div>
+                <div class="text-xs text-muted-foreground">Subgraph URL Issues</div>
+              </div>
+            </div>
+            <div
+              v-if="subgraphIssueMessages.length"
+              class="mt-4 rounded-lg border border-rose-400/70 bg-rose-50 px-3 py-3 text-sm text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100"
+            >
+              <p class="font-semibold">Subgraph instance models do not match download metadata</p>
+              <p class="mt-1 text-xs opacity-90">
+                The filename on the instance must appear in that instance or the inner loader <code>properties.models</code> with a URL.
+              </p>
+              <ul class="mt-2 space-y-1 text-xs font-mono">
+                <li v-for="(message, index) in subgraphIssueMessages" :key="index">
+                  {{ message }}
+                </li>
+              </ul>
             </div>
           </CardContent>
         </Card>
@@ -122,7 +151,10 @@
               <div class="flex items-center gap-2">
                 <span class="font-medium text-sm">{{ nodeInfo.node.type }}</span>
                 <span class="text-xs text-muted-foreground">ID: {{ nodeInfo.node.id }}</span>
-                <span v-if="nodeInfo.node._source === 'subgraph'" class="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/55 dark:text-purple-200">
+                <span v-if="nodeInfo.isSubgraphInstance" class="text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/55 dark:text-rose-200">
+                  Subgraph instance
+                </span>
+                <span v-else-if="nodeInfo.node._source === 'subgraph'" class="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/55 dark:text-purple-200">
                   📦 Subgraph
                 </span>
                 <span v-if="nodeInfo.isCustomNode" class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950/55 dark:text-blue-200" title="Custom node - manual link addition required">
@@ -133,6 +165,15 @@
                 <span v-if="nodeInfo.hasErrors" class="text-xs text-red-600 font-medium">Errors: {{ nodeInfo.errorCount }}</span>
                 <span v-if="nodeInfo.hasWarnings" class="text-xs text-amber-800 dark:text-amber-400/95 font-medium">Warnings: {{ nodeInfo.warningCount }}</span>
               </div>
+            </div>
+
+            <div
+              v-if="nodeInfo.subgraphIssues?.length"
+              class="mb-3 rounded-md border border-rose-300/80 bg-rose-50 px-3 py-2 text-xs text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100"
+            >
+              <p v-for="(issue, issueIndex) in nodeInfo.subgraphIssues" :key="issueIndex">
+                {{ issue }}
+              </p>
             </div>
 
             <!-- Model File Paths -->
@@ -374,15 +415,15 @@
           <Button
             @click="saveWorkflow"
             class="gap-2"
-            :variant="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0 ? 'destructive' : 'default'"
+            :variant="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0 || stats.subgraphIssues > 0 ? 'destructive' : 'default'"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Download Updated JSON
           </Button>
-          <p v-if="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0" class="text-xs text-orange-600 text-center">
-            ⚠️ There are {{ stats.errorFormats + stats.missingLinks + stats.invalidLinks }} issue(s), but you can still download
+          <p v-if="stats.errorFormats > 0 || stats.missingLinks > 0 || stats.invalidLinks > 0 || stats.subgraphIssues > 0" class="text-xs text-orange-600 text-center">
+            ⚠️ There are {{ stats.errorFormats + stats.missingLinks + stats.invalidLinks + stats.subgraphIssues }} issue(s), but you can still download
           </p>
         </div>
       </DialogFooter>
@@ -398,6 +439,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
+import { analyzeWorkflowModelLinks, isSubgraphNode, normalizeWhitelist } from '~/lib/model-link-scan/analyze'
 
 interface Props {
   open?: boolean
@@ -489,32 +531,8 @@ watch(() => props.open, (value) => {
 
 watch(isOpen, (value, oldValue) => {
   emit('update:open', value)
-  // When dialog closes, save models to workflow and emit the updated workflow
   if (oldValue && !value && workflowData.value) {
-    // Save all model data to node properties before emitting
-    for (const nodeInfo of modelNodes.value) {
-      // Skip custom nodes - they don't need properties.models
-      if (nodeInfo.isCustomNode) continue
-
-      const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
-      if (!node) continue
-
-      if (!node.properties) node.properties = {}
-
-      // Filter valid models
-      const validModels = nodeInfo.existingModels.filter((m: any) =>
-        m.name && m.url && m.directory
-      )
-
-      if (validModels.length > 0) {
-        node.properties.models = validModels.map((m: any) => ({
-          name: m.name,
-          url: m.url,
-          directory: m.directory
-        }))
-      }
-    }
-
+    persistModelsToWorkflow()
     emit('workflow-updated', workflowData.value)
   }
 })
@@ -536,6 +554,7 @@ onMounted(async () => {
       }
     }
     supportedModelsMap.value = map
+    if (workflowData.value) parseWorkflow()
   } catch (error) {
     console.error('[WorkflowModelLinksEditor] Failed to load config:', error)
   }
@@ -572,8 +591,19 @@ const stats = computed(() => {
     validModels: valid,
     missingLinks: missing,
     invalidLinks: invalid,
-    errorFormats: errors
+    errorFormats: errors,
+    subgraphIssues: subgraphIssueMessages.value.length
   }
+})
+
+const subgraphIssueMessages = computed(() => {
+  const messages: string[] = []
+  for (const nodeInfo of modelNodes.value) {
+    for (const issue of nodeInfo.subgraphIssues || []) {
+      if (!messages.includes(issue)) messages.push(issue)
+    }
+  }
+  return messages
 })
 
 // Handle file upload
@@ -607,6 +637,79 @@ const parseJSON = async () => {
   }
 }
 
+let isParsingWorkflow = false
+let subgraphRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+const persistModelsToWorkflow = () => {
+  if (!workflowData.value) return
+
+  for (const nodeInfo of modelNodes.value) {
+    if (nodeInfo.isCustomNode) continue
+
+    const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
+    if (!node) continue
+    if (!node.properties) node.properties = {}
+
+    const validModels = nodeInfo.existingModels.filter((m: any) =>
+      m.name && m.url && (m.directory || nodeInfo.isSubgraphInstance)
+    )
+
+    if (validModels.length > 0) {
+      node.properties.models = validModels.map((m: any) => ({
+        name: m.name,
+        url: m.url,
+        ...(m.directory ? { directory: m.directory } : {})
+      }))
+    }
+  }
+}
+
+const collectSubgraphIssuesByNode = () => {
+  const issuesByNode = new Map<string, string[]>()
+  if (!workflowData.value) return issuesByNode
+
+  const subgraphAnalysis = analyzeWorkflowModelLinks(
+    'workflow',
+    workflowData.value,
+    normalizeWhitelist(config.value?.modelCheckIgnoreNodeTypes)
+  )
+  for (const issue of subgraphAnalysis.issues) {
+    if (issue.kind !== 'subgraph_missing_urls' && issue.kind !== 'subgraph_stale_definition') continue
+    const key = `${issue.scope}:${issue.nodeId}`
+    const list = issuesByNode.get(key) || []
+    list.push(issue.message)
+    issuesByNode.set(key, list)
+  }
+  return issuesByNode
+}
+
+const subgraphIssueKey = (nodeInfo: any) => {
+  const node = nodeInfo.node
+  const scope = node._source === 'subgraph' ? `subgraph ${node._subgraphId || node._subgraphIndex}` : 'top-level'
+  return `${scope}:${node.id}`
+}
+
+const refreshSubgraphIssues = () => {
+  persistModelsToWorkflow()
+  const issuesByNode = collectSubgraphIssuesByNode()
+  for (const nodeInfo of modelNodes.value) {
+    nodeInfo.subgraphIssues = issuesByNode.get(subgraphIssueKey(nodeInfo))
+      || issuesByNode.get(`top-level:${nodeInfo.node.id}`)
+      || []
+    updateNodeStats(nodeInfo)
+  }
+  updateAllStats()
+}
+
+const scheduleSubgraphRefresh = () => {
+  if (isParsingWorkflow) return
+  if (subgraphRefreshTimer) clearTimeout(subgraphRefreshTimer)
+  subgraphRefreshTimer = setTimeout(() => {
+    subgraphRefreshTimer = null
+    refreshSubgraphIssues()
+  }, 200)
+}
+
 // Parse workflow to extract model nodes
 const parseWorkflow = () => {
   if (!workflowData.value) return
@@ -633,7 +736,8 @@ const parseWorkflow = () => {
           nodes.push({
             ...node,
             _source: 'subgraph',
-            _subgraphIndex: i
+            _subgraphIndex: i,
+            _subgraphId: subgraph.id
           })
         }
       }
@@ -642,10 +746,13 @@ const parseWorkflow = () => {
 
   inputAssets.value = extractInputFiles(nodes)
 
+  const issuesByNode = collectSubgraphIssuesByNode()
+
   // Filter model nodes
   const modelNodesList = []
   for (const node of nodes) {
-    const isModelNode = node.properties?.['Node name for S&R'] && node.type in directoryRules.value
+    const isInstance = isSubgraphNode(String(node.type || ''))
+    const isModelNode = (node.properties?.['Node name for S&R'] && node.type in directoryRules.value) || isInstance
     if (!isModelNode) continue
 
     const modelFiles = extractModelFiles(node)
@@ -697,11 +804,18 @@ const parseWorkflow = () => {
       })
     }
 
+    const scope = node._source === 'subgraph' ? `subgraph ${node._subgraphId || node._subgraphIndex}` : 'top-level'
+    const subgraphIssues = issuesByNode.get(`${scope}:${node.id}`)
+      || issuesByNode.get(`top-level:${node.id}`)
+      || []
+
     modelNodesList.push({
       node,
       modelFiles,
       existingModels: models,
       isCustomNode, // Mark if this is a custom node
+      isSubgraphInstance: isInstance,
+      subgraphIssues,
       hasErrors: false,
       hasWarnings: false,
       errorCount: 0,
@@ -711,20 +825,32 @@ const parseWorkflow = () => {
 
   modelNodes.value = modelNodesList
 
-  // Validate all models
-  for (const nodeInfo of modelNodes.value) {
-    for (const model of nodeInfo.existingModels) {
-      validateModel(model, nodeInfo)
+  isParsingWorkflow = true
+  try {
+    for (const nodeInfo of modelNodes.value) {
+      for (const model of nodeInfo.existingModels) {
+        validateModel(model, nodeInfo)
+      }
     }
+  } finally {
+    isParsingWorkflow = false
   }
 }
 
 // Extract model files from node
 const extractModelFiles = (node: any): string[] => {
-  if (!node.widgets_values || !Array.isArray(node.widgets_values)) return []
+  const widgets = node.widgets_values
+  let values: unknown[] = []
+  if (Array.isArray(widgets)) {
+    values = widgets
+  } else if (widgets && typeof widgets === 'object') {
+    values = Object.values(widgets)
+  } else {
+    return []
+  }
 
   const files = []
-  for (const value of node.widgets_values) {
+  for (const value of values) {
     if (typeof value === 'string' && value.trim()) {
       const lowerValue = value.toLowerCase()
       if (lowerValue.includes('.safetensors') || lowerValue.includes('.sft')) {
@@ -781,6 +907,7 @@ const validateModel = (model: any, nodeInfo: any) => {
   // Update node stats
   updateNodeStats(nodeInfo)
   updateAllStats()
+  scheduleSubgraphRefresh()
 }
 
 // Update node statistics
@@ -807,9 +934,10 @@ const updateNodeStats = (nodeInfo: any) => {
     }
   }
 
-  nodeInfo.errorCount = errors
+  const subgraphErrors = nodeInfo.subgraphIssues?.length || 0
+  nodeInfo.errorCount = errors + subgraphErrors
   nodeInfo.warningCount = warnings
-  nodeInfo.hasErrors = errors > 0
+  nodeInfo.hasErrors = errors + subgraphErrors > 0
   nodeInfo.hasWarnings = warnings > 0
 }
 
@@ -861,6 +989,7 @@ const updateWidgetsValue = (nodeInfo: any, index: number, newValue: string) => {
   for (const model of nodeInfo.existingModels) {
     validateModel(model, nodeInfo)
   }
+  scheduleSubgraphRefresh()
 }
 
 // Find node in workflow data
@@ -882,12 +1011,14 @@ const addModel = (nodeInfo: any) => {
     nameValid: null,
     urlValid: null
   })
+  scheduleSubgraphRefresh()
 }
 
 // Remove model
 const removeModel = (nodeInfo: any, index: number) => {
   nodeInfo.existingModels.splice(index, 1)
   updateNodeStats(nodeInfo)
+  scheduleSubgraphRefresh()
 }
 
 // Scroll to first missing
@@ -903,6 +1034,13 @@ const scrollToFirstMissing = () => {
 // Scroll to first invalid
 const scrollToFirstInvalid = () => {
   const index = modelNodes.value.findIndex(n => n.hasErrors)
+  if (index !== -1 && nodeRefs.value[index]) {
+    nodeRefs.value[index].scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
+const scrollToFirstSubgraphIssue = () => {
+  const index = modelNodes.value.findIndex(n => n.subgraphIssues?.length)
   if (index !== -1 && nodeRefs.value[index]) {
     nodeRefs.value[index].scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
@@ -1054,32 +1192,8 @@ const copyNote = async () => {
 const saveWorkflow = () => {
   if (!workflowData.value) return
 
-  // Update all nodes with model data (skip custom nodes)
-  for (const nodeInfo of modelNodes.value) {
-    // Skip custom nodes - they don't need properties.models
-    if (nodeInfo.isCustomNode) {
-      console.log(`[WorkflowModelLinksEditor] Skipping custom node: ${nodeInfo.node.type}`)
-      continue
-    }
-
-    const node = findNode(nodeInfo.node.id, nodeInfo.node._source, nodeInfo.node._subgraphIndex)
-    if (!node) continue
-
-    if (!node.properties) node.properties = {}
-
-    // Filter valid models
-    const validModels = nodeInfo.existingModels.filter((m: any) =>
-      m.name && m.url && m.directory
-    )
-
-    if (validModels.length > 0) {
-      node.properties.models = validModels.map((m: any) => ({
-        name: m.name,
-        url: m.url,
-        directory: m.directory
-      }))
-    }
-  }
+  persistModelsToWorkflow()
+  refreshSubgraphIssues()
 
   // Download JSON
   const json = JSON.stringify(workflowData.value, null, 2)

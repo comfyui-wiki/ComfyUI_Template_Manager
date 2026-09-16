@@ -141,6 +141,27 @@
             </svg>
           </span>
         </span>
+        <!-- Model download URL issues (local scan) -->
+        <span
+          v-if="modelLinkBadge"
+          class="px-1.5 py-0.5 text-[10px] font-bold rounded shadow-lg text-right max-w-[148px] bg-rose-600 text-white"
+          :title="modelLinkTitle"
+        >
+          <span class="block leading-tight">MODEL URL</span>
+          <span
+            v-for="label in modelLinkBadge.labels"
+            :key="label"
+            class="block font-semibold leading-tight truncate"
+          >
+            {{ label }}
+          </span>
+          <span
+            v-if="modelLinkBadge.extraCount"
+            class="block font-medium leading-tight opacity-90"
+          >
+            +{{ modelLinkBadge.extraCount }} more
+          </span>
+        </span>
         <!-- Node compat badge (local ComfyUI scan) -->
         <span
           v-if="nodeCompatBadge"
@@ -467,8 +488,29 @@ const copySuccess = ref(false)
 
 const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
 const { getTemplateCompat } = useNodeCompat()
+const { getTemplateModelLinks } = useModelLinkScan()
 
 const nodeCompat = computed(() => getTemplateCompat(props.template.name))
+const modelLinks = computed(() => getTemplateModelLinks(props.template.name))
+
+const modelLinkBadge = computed(() => {
+  if (!modelLinks.value || modelLinks.value.status === 'ok') return null
+  const labels: string[] = []
+  for (const issue of modelLinks.value.issues) {
+    const modelName = issue.models?.[0]?.split('/').pop() || issue.kind
+    if (!labels.includes(modelName)) labels.push(modelName)
+  }
+  const visibleLimit = 3
+  return {
+    labels: labels.slice(0, visibleLimit),
+    extraCount: Math.max(0, labels.length - visibleLimit)
+  }
+})
+
+const modelLinkTitle = computed(() => {
+  if (!modelLinks.value || modelLinks.value.status === 'ok') return ''
+  return ['Model download issues:', ...modelLinks.value.issues.map(issue => issue.message)].join('\n')
+})
 
 const deprecatedNodeLabel = (issue: { nodeType: string; message: string }) => {
   const fromMessage = issue.message.match(/Node is marked deprecated in ComfyUI:\s*(.+)$/)?.[1]?.trim()
