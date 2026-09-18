@@ -1212,8 +1212,11 @@
 
     <!-- Thumbnail Converter Dialog -->
     <Dialog v-model:open="isConverterDialogOpen">
-      <DialogScrollContent class="m-0 flex h-[100dvh] w-screen max-w-none flex-col rounded-none border-0 p-4 sm:h-[min(96dvh,920px)] sm:w-[min(96vw,1280px)] sm:max-w-none sm:rounded-xl sm:border lg:overflow-hidden lg:p-6">
-        <DialogHeader class="shrink-0 pr-8">
+      <DialogScrollContent
+        overlay-class="overflow-hidden place-items-stretch"
+        class="m-0 flex h-dvh max-h-dvh w-screen max-w-none flex-col gap-2 rounded-none border-0 p-3 shadow-none sm:rounded-none sm:max-w-none lg:overflow-hidden"
+      >
+        <DialogHeader class="shrink-0 space-y-0 pr-8 text-left">
           <DialogTitle>Thumbnail editor · {{ getThumbnailLabel(converterTargetIndex) }}</DialogTitle>
           <DialogDescription>
             Choose a source, place overlay images on the canvas, then export {{ getThumbnailLabel(converterTargetIndex) }} as WebP.

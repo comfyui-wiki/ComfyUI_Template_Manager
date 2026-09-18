@@ -230,7 +230,7 @@
                   <!-- Model URL -->
                   <div>
                     <div class="flex items-center gap-1.5 mb-1">
-                      <Label class="text-xs">Model URL</Label>
+                      <Label class="text-xs">Download URL</Label>
                       <span
                         v-if="model.autoFilled"
                         class="text-[10px] px-1.5 py-0.5 rounded font-medium leading-none bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
@@ -242,7 +242,7 @@
                         v-model="model.url"
                         @input="model.autoFilled = false; validateModel(model, nodeInfo)"
                         @blur="convertHuggingFaceUrl(model)"
-                        placeholder="Model download URL"
+                        placeholder="Direct file download URL"
                         class="text-xs"
                       />
                       <div
@@ -289,6 +289,45 @@
                       class="text-xs"
                       :disabled="true"
                     />
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <div class="flex items-center gap-1.5 mb-1">
+                    <Label class="text-xs">Repository URL</Label>
+                    <span
+                      v-if="model.repoAutoFilled"
+                      class="text-[10px] px-1.5 py-0.5 rounded font-medium leading-none bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200"
+                    >from download URL</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <div class="relative flex-1">
+                      <Input
+                        v-model="model.repo"
+                        @input="model.repoAutoFilled = false; validateModel(model, nodeInfo)"
+                        placeholder="Hugging Face / ModelScope / GitHub repo page"
+                        class="text-xs pr-7"
+                      />
+                      <div
+                        v-if="model.repo && model.repoValid === false"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-red-500"
+                        title="Invalid repository URL"
+                      ></div>
+                      <div
+                        v-else-if="model.repo && model.repoValid === true"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-green-500"
+                        title="Valid repository URL"
+                      ></div>
+                    </div>
+                    <a
+                      v-if="model.repo && model.repoValid"
+                      :href="model.repo"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex h-9 shrink-0 items-center rounded-md border px-2 text-[11px] text-sky-700 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/40"
+                    >
+                      Open repo
+                    </a>
                   </div>
                 </div>
 
@@ -398,7 +437,7 @@
               <div class="font-semibold mb-1">📝 Next Steps</div>
               <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Click <strong>"Download Updated JSON"</strong> to save the workflow with model links</li>
-                <li>Generate and copy the <strong>Note</strong> above (contains model download links)</li>
+                <li>Generate and copy the <strong>Note</strong> above (download URLs plus repository pages)</li>
                 <li>Add the note to your workflow documentation to help users find required models</li>
                 <li>Re-upload the updated workflow file to replace the current version</li>
               </ol>
@@ -440,6 +479,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { analyzeWorkflowModelLinks, isSubgraphNode, normalizeWhitelist } from '~/lib/model-link-scan/analyze'
+import { isHttpUrl, repoLinkLabel, repoUrlFromDownloadUrl } from '~/lib/model-repo-url'
 
 interface Props {
   open?: boolean
@@ -664,7 +704,8 @@ const persistModelsToWorkflow = () => {
       node.properties.models = validModels.map((m: any) => ({
         name: m.name,
         url: m.url,
-        directory: m.directory
+        directory: m.directory,
+        ...(m.repo && isHttpUrl(m.repo) ? { repo: m.repo.trim() } : {})
       }))
     }
   }
@@ -786,7 +827,7 @@ const parseWorkflow = () => {
     // Check if this is a custom node
     const isCustomNode = customNodeRules.value.includes(node.type)
 
-    const savedModelsByName = new Map<string, { name?: string; url?: string; directory?: string }>()
+    const savedModelsByName = new Map<string, { name?: string; url?: string; directory?: string; repo?: string }>()
     for (const model of node.properties?.models || []) {
       if (model?.name) savedModelsByName.set(model.name, model)
     }
@@ -804,15 +845,20 @@ const parseWorkflow = () => {
         ? ''
         : (supportedModelsMap.value.get(fileName) || '')
       const url = saved?.url || supportedUrl || ''
+      const derivedRepo = repoUrlFromDownloadUrl(url)
+      const repo = saved?.repo || derivedRepo || ''
 
       models.push({
         name: fileName,
         url,
+        repo,
         directory: getDirectory(node.type, fileIdx),
         autoFilled: !saved?.url && !!supportedUrl,
+        repoAutoFilled: !saved?.repo && !!derivedRepo,
         valid: false,
         nameValid: null,
-        urlValid: null
+        urlValid: null,
+        repoValid: null
       })
     }
 
@@ -822,14 +868,18 @@ const parseWorkflow = () => {
       const supportedUrl = node._source === 'subgraph'
         ? ''
         : (supportedModelsMap.value.get(saved.name) || '')
+      const derivedRepo = repoUrlFromDownloadUrl(saved.url || supportedUrl || '')
       models.push({
         name: saved.name,
         url: saved.url || supportedUrl || '',
+        repo: saved.repo || derivedRepo || '',
         directory: getDirectory(node.type, models.length),
         autoFilled: !saved.url && !!supportedUrl,
+        repoAutoFilled: !saved.repo && !!derivedRepo,
         valid: false,
         nameValid: null,
-        urlValid: null
+        urlValid: null,
+        repoValid: null
       })
     }
 
@@ -903,6 +953,19 @@ const validateModel = (model: any, nodeInfo: any) => {
   }
   model.nameValid = model.name ? (nameMatched || null) : null
 
+  if (model.repoAutoFilled !== false) {
+    const derivedRepo = repoUrlFromDownloadUrl(model.url || '')
+    if (derivedRepo && (!model.repo || model.repoAutoFilled)) {
+      model.repo = derivedRepo
+      model.repoAutoFilled = true
+    }
+  }
+  if (!model.repo) {
+    model.repoValid = null
+  } else {
+    model.repoValid = isHttpUrl(model.repo)
+  }
+
   // Validate URL
   model.isCivitai = false
   if (!model.url) {
@@ -954,7 +1017,7 @@ const updateNodeStats = (nodeInfo: any) => {
   } else {
     // Standard nodes show errors for invalid links
     for (const model of nodeInfo.existingModels) {
-      if (model.nameValid === false || model.urlValid === false) {
+      if (model.nameValid === false || model.urlValid === false || model.repoValid === false) {
         errors++
       }
       if (!model.url) {
@@ -1035,10 +1098,13 @@ const addModel = (nodeInfo: any) => {
   nodeInfo.existingModels.push({
     name: '',
     url: '',
+    repo: '',
     directory: getDirectory(nodeInfo.node.type, nodeInfo.existingModels.length),
     valid: false,
     nameValid: null,
-    urlValid: null
+    urlValid: null,
+    repoValid: null,
+    repoAutoFilled: false
   })
   scheduleSubgraphRefresh()
 }
@@ -1157,6 +1223,16 @@ const generateNote = () => {
       ? (template.modelLinkHeader || '## Model Link\n\n')
       : (template.modelLinksHeader || '## Model Links\n\n')
 
+    const seenRepos = new Set<string>()
+    for (const dir in modelsByDir) {
+      for (const model of modelsByDir[dir]) {
+        const repo = typeof model.repo === 'string' ? model.repo.trim() : ''
+        if (!repo || !isHttpUrl(repo) || seenRepos.has(repo)) continue
+        seenRepos.add(repo)
+        note += `- [${repoLinkLabel(repo)}](${repo})\n`
+      }
+    }
+    if (seenRepos.size) note += '\n'
     for (const dir in modelsByDir) {
       note += `**${dir}**\n\n`
       for (const model of modelsByDir[dir]) {

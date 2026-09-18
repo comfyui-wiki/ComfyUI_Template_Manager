@@ -4,17 +4,23 @@
       <div class="flex items-center justify-between mb-4">
         <div>
           <h3 class="font-semibold">Thumbnail canvas</h3>
-          <p class="text-xs text-muted-foreground">Preview matches the exported square. Overlays sit on top of the cropped source.</p>
+          <p class="text-xs text-muted-foreground">
+            {{ isSlideshow
+              ? `Looping preview at ${slideDuration.toFixed(2)}s per still. Overlays stay on every frame.`
+              : 'Preview matches the exported square. Overlays sit on top of the cropped source.' }}
+          </p>
         </div>
         <span class="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{{ targetSize }} × {{ targetSize }} · WebP</span>
       </div>
       <ThumbnailOverlayEditor v-if="sourceFile && sourceDimensions" ref="overlayEditor"
-        :src="sourcePreviewUrl" :video="!!isVideo" :size="Number(targetSize)"
+        :src="canvasSourceUrl"
+        :reset-key="sourceResetKey"
+        :video="!!isVideo" :size="Number(targetSize)"
         :crop="overlayCrop" :start="videoStartTime" :end="videoEndTime"
         :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" />
       <div v-if="!sourceFile" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-background/60 text-muted-foreground">
         <span class="text-sm font-medium text-foreground/80">No source yet</span>
-        <span class="text-xs">Choose an image or video in Source File to start.</span>
+        <span class="text-xs">Choose a still, several stills for a looping cover, or a video.</span>
       </div>
     </section>
     <section class="min-w-0 space-y-4 lg:overflow-y-auto lg:pr-2" aria-label="Source and export settings">
@@ -58,19 +64,51 @@
           <Input
             ref="fileInput"
             type="file"
-            accept="image/jpeg,image/jpg,image/png,video/mp4,video/quicktime"
+            multiple
+            accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/quicktime"
             @change="onFileSelect"
             class="flex-1"
           />
           <Button v-if="sourceFile" variant="outline" size="sm" @click="clearFile">Clear</Button>
         </div>
         <p class="text-xs text-muted-foreground">
-          Supported: JPG, PNG, MP4, MOV (videos will be converted to animated WebP)
+          One still or video, or several stills (JPG, PNG, WebP) to merge into one looping animated WebP at {{ isSlideshow ? '400×400' : 'cover size' }}.
         </p>
       </div>
 
+      <div v-if="isSlideshow" class="space-y-3 rounded-lg border bg-muted/30 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <Label>Slideshow frames ({{ slideFrames.length }})</Label>
+          <Button type="button" variant="outline" size="xs" @click="slideshowPlaying = !slideshowPlaying">
+            {{ slideshowPlaying ? 'Pause preview' : 'Play preview' }}
+          </Button>
+        </div>
+        <p class="text-[11px] text-muted-foreground">
+          Canvas loops in play order. Click a still to pause on that frame.
+        </p>
+        <ul class="space-y-2">
+          <li
+            v-for="(frame, index) in slideFrames"
+            :key="frame.url"
+            class="flex items-center gap-2 rounded-md border p-1.5"
+            :class="previewSlideIndex === index ? 'border-sky-500 bg-sky-500/10' : 'border-border bg-background'"
+          >
+            <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left" @click="selectSlide(index)">
+              <img :src="frame.url" alt="" class="h-10 w-10 shrink-0 rounded object-cover bg-zinc-900">
+              <span class="min-w-0 truncate text-xs">{{ index + 1 }}. {{ frame.file.name }}</span>
+            </button>
+            <div class="flex shrink-0 gap-1">
+              <Button type="button" variant="ghost" size="xs" :disabled="index === 0" @click="moveSlide(index, -1)">Up</Button>
+              <Button type="button" variant="ghost" size="xs" :disabled="index === slideFrames.length - 1" @click="moveSlide(index, 1)">Down</Button>
+              <Button type="button" variant="ghost" size="xs" class="text-destructive" :disabled="slideFrames.length <= 2" @click="removeSlide(index)">Remove</Button>
+            </div>
+          </li>
+        </ul>
+        <p class="text-[11px] text-muted-foreground">Play order top to bottom. Each still is cropped or padded to 400×400.</p>
+      </div>
+
       <!-- Crop Preview for Images -->
-      <div v-if="sourceFile && isImage && fitMode === 'crop'" class="space-y-2">
+      <div v-if="sourceFile && isImage && !isSlideshow && fitMode === 'crop'" class="space-y-2">
         <Label>Crop Area (drag the box to adjust position)</Label>
         <div class="relative inline-block bg-muted/30 p-4 rounded">
           <div
@@ -190,7 +228,7 @@
       </div>
 
       <!-- Source Info (compact for when not cropping) -->
-      <div v-if="sourceFile && fitMode !== 'crop'" class="space-y-2">
+      <div v-if="sourceFile && fitMode !== 'crop' && !isSlideshow" class="space-y-2">
         <Label>Source Info</Label>
         <div class="flex gap-3 items-start">
           <div class="w-24 h-24 bg-muted rounded flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -224,7 +262,7 @@
         <div class="space-y-2">
           <Label>Target Size</Label>
           <div class="px-3 py-2 bg-muted rounded-md text-sm">
-            {{ isVideo ? '350x350 (Video)' : '400x400 (Image)' }}
+            {{ isVideo ? '350x350 (Video)' : '400x400 (Image / slideshow)' }}
           </div>
         </div>
 
@@ -239,7 +277,17 @@
             </SelectContent>
           </Select>
           <p class="text-xs text-muted-foreground">
-            {{ fitMode === 'crop' ? 'Crop to fill the square - drag above to adjust' : 'Fit within square with black bars' }}
+            {{ fitMode === 'crop'
+              ? (isSlideshow ? 'Center-crop every still to fill the square' : 'Crop to fill the square - drag above to adjust')
+              : 'Fit within square with black bars' }}
+          </p>
+        </div>
+
+        <div v-if="isSlideshow" class="space-y-2">
+          <Label>Time per still ({{ slideDuration.toFixed(2) }}s)</Label>
+          <input type="range" v-model.number="slideDuration" min="0.15" max="3" step="0.05" class="w-full accent-sky-600" />
+          <p class="text-xs text-muted-foreground">
+            Loop length {{ (slideFrames.length * slideDuration).toFixed(1) }}s at {{ frameRateFromDuration(slideDuration) }} fps.
           </p>
         </div>
 
@@ -452,19 +500,21 @@
           <p class="text-xs text-muted-foreground">Lower FPS = smaller file. 15 fps recommended</p>
         </div>
 
-        <div v-if="isVideo" class="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-          ✨ Video will be converted to <strong>animated WebP</strong> (looping)
+        <div v-if="isVideo || isSlideshow" class="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+          {{ isSlideshow
+            ? 'Stills will be merged into one looping animated WebP (same cover format as video covers).'
+            : 'Video will be converted to looping animated WebP.' }}
         </div>
       </div>
 
       <!-- Convert Button -->
       <div v-if="sourceFile">
-      <Button @click="convertToWebP" :disabled="isConverting || (isVideo && !ffmpegLoaded && !useNativeLocalConverter)" class="w-full">
+      <Button @click="convertToWebP" :disabled="isConverting || ((isVideo || isSlideshow) && !ffmpegLoaded && !useNativeLocalConverter)" class="w-full">
           <svg v-if="isConverting" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          {{ isConverting ? conversionProgress : (isVideo && !ffmpegLoaded && !useNativeLocalConverter ? 'Loading converter...' : 'Convert to WebP') }}
+          {{ convertButtonLabel }}
         </Button>
       </div>
 
@@ -516,9 +566,9 @@
 
           <!-- After (Converted) -->
           <div class="flex-1 space-y-2">
-            <div class="text-xs font-medium text-center">After (WebP)</div>
+            <div class="text-xs font-medium text-center">After (WebP{{ isSlideshow || isVideo ? ', looping' : '' }})</div>
             <div class="relative rounded overflow-hidden border border-border" style="width: 250px; height: 250px; background: black;">
-              <img :src="convertedPreviewUrl" alt="After" class="w-full h-full object-cover" />
+              <img :key="convertedPreviewUrl" :src="convertedPreviewUrl" alt="After" class="w-full h-full object-cover" />
             </div>
             <div class="text-xs text-muted-foreground text-center">
               Converted: {{ formatFileSize(convertedFile.size) }}
@@ -539,25 +589,24 @@
 
         <!-- Size recommendation -->
         <!-- Video warnings -->
-        <div v-if="isVideo && convertedFile.size > 4 * 1024 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-          🚫 Video size exceeds 4MB limit! Please reduce quality setting significantly.
+        <div v-if="(isVideo || isSlideshow) && convertedFile.size > 4 * 1024 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          Cover size exceeds 4MB. Lower quality or use fewer / shorter stills.
         </div>
-        <div v-else-if="isVideo && convertedFile.size > 1 * 1024 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-          ⚠️ Video size exceeds 1MB (recommended). Consider reducing quality for better performance.
+        <div v-else-if="(isVideo || isSlideshow) && convertedFile.size > 1 * 1024 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          Cover is over 1MB (recommended). Consider lower quality or shorter hold time.
         </div>
-        <div v-else-if="isVideo" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
-          ✓ Video size is optimal (under 1MB).
+        <div v-else-if="isVideo || isSlideshow" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+          Animated cover size is under 1MB.
         </div>
 
-        <!-- Image warnings -->
-        <div v-if="isImage && convertedFile.size > 200 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-          🚫 Image size exceeds 200KB limit! Please reduce quality setting significantly.
+        <div v-if="isImage && !isSlideshow && convertedFile.size > 200 * 1024" class="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          Image size exceeds 200KB. Please reduce quality.
         </div>
-        <div v-else-if="isImage && convertedFile.size > 100 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-          ⚠️ Image size exceeds 100KB (recommended). Consider reducing quality for better performance.
+        <div v-else-if="isImage && !isSlideshow && convertedFile.size > 100 * 1024" class="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+          Image size exceeds 100KB (recommended).
         </div>
-        <div v-else-if="isImage" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
-          ✓ Image size is optimal (under 100KB).
+        <div v-else-if="isImage && !isSlideshow" class="p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+          Image size is under 100KB.
         </div>
 
         <div class="flex gap-2">
@@ -599,6 +648,17 @@ import {
   speedToFitDuration,
   withPlaybackSpeedFilter
 } from '~/lib/webp-playback-speed'
+import {
+  SLIDESHOW_MAX_FRAMES,
+  SLIDESHOW_MIN_FRAMES,
+  SLIDESHOW_SIZE,
+  clampFrameDuration,
+  frameRateFromDuration,
+  sequenceFrameName,
+  slideshowFfmpegArgs,
+  stillDrawParams,
+  stillOverlayCrop,
+} from '~/lib/thumbnail-slideshow'
 
 const props = defineProps<{
   initialFile?: File | null
@@ -616,6 +676,10 @@ const invalidateOutput = () => {
 }
 const overlayCrop = computed(() => {
   if (fitMode.value !== 'crop') return null
+  if (slideFrames.value.length >= 2) {
+    const frame = slideFrames.value[previewSlideIndex.value] || slideFrames.value[0]
+    return stillOverlayCrop(frame.width, frame.height)
+  }
   return isVideo.value
     ? { x: cropBoxX.value / videoPreviewWidth.value, y: cropBoxY.value / videoPreviewHeight.value, size: cropBoxSize.value / videoPreviewWidth.value }
     : { x: imageCropBoxX.value / imagePreviewWidth.value, y: imageCropBoxY.value / imagePreviewHeight.value, size: imageCropBoxSize.value / imagePreviewWidth.value }
@@ -625,6 +689,14 @@ const sourceFile = ref<File | null>(null)
 const sourcePreviewUrl = ref('')
 const sourceDimensions = ref<{ width: number; height: number } | null>(null)
 const videoDuration = ref<number | null>(null)
+const sourceResetKey = ref(0)
+type SlideFrame = { file: File; url: string; width: number; height: number }
+const slideFrames = ref<SlideFrame[]>([])
+const selectedSlideIndex = ref(0)
+const playbackIndex = ref(0)
+const slideshowPlaying = ref(true)
+const slideDuration = ref(0.5)
+let slideshowTimer: ReturnType<typeof setInterval> | null = null
 
 const fitMode = ref('crop')
 const quality = ref(95)
@@ -703,7 +775,7 @@ const loadFFmpeg = async () => {
     })
 
     ffmpegInstance.on('progress', ({ progress }) => {
-      if (isConverting.value && isVideo.value) {
+      if (isConverting.value && (isVideo.value || slideFrames.value.length >= 2)) {
         conversionProgress.value = `Processing video... ${Math.round(progress * 100)}%`
       }
     })
@@ -747,12 +819,52 @@ onMounted(() => {
   if (!useNativeLocalConverter.value) loadFFmpeg()
 })
 
+const isSlideshow = computed(() => slideFrames.value.length >= SLIDESHOW_MIN_FRAMES)
+
+const previewSlideIndex = computed(() => {
+  if (!isSlideshow.value) return 0
+  return slideshowPlaying.value ? playbackIndex.value : selectedSlideIndex.value
+})
+
+const stopSlideshowPreview = () => {
+  if (slideshowTimer) {
+    clearInterval(slideshowTimer)
+    slideshowTimer = null
+  }
+}
+
+const startSlideshowPreview = () => {
+  stopSlideshowPreview()
+  if (!isSlideshow.value || !slideshowPlaying.value || isConverting.value) return
+  const ms = Math.round(clampFrameDuration(slideDuration.value) * 1000)
+  slideshowTimer = setInterval(() => {
+    const count = slideFrames.value.length
+    if (count < SLIDESHOW_MIN_FRAMES) return
+    playbackIndex.value = (playbackIndex.value + 1) % count
+  }, ms)
+}
+
+const canvasSourceUrl = computed(() => {
+  if (isSlideshow.value) {
+    return slideFrames.value[previewSlideIndex.value]?.url || sourcePreviewUrl.value
+  }
+  return sourcePreviewUrl.value
+})
+
+const convertButtonLabel = computed(() => {
+  if (isConverting.value) return conversionProgress.value
+  if ((isVideo.value || isSlideshow.value) && !ffmpegLoaded.value && !useNativeLocalConverter.value) {
+    return 'Loading converter...'
+  }
+  return isSlideshow.value || isVideo.value ? 'Convert to animated WebP' : 'Convert to WebP'
+})
+
 const isImage = computed(() => {
-  return sourceFile.value?.type.startsWith('image/')
+  return !!sourceFile.value?.type.startsWith('image/')
 })
 
 const isVideo = computed(() => {
-  return sourceFile.value?.type.startsWith('video/')
+  return !!sourceFile.value?.type.startsWith('video/')
 })
 
 const playbackSpeed = computed(() => clampPlaybackSpeed(Number(videoSpeed.value) || 1))
@@ -773,10 +885,12 @@ const targetSize = computed(() => {
 })
 
 const compressionRatio = computed(() => {
-  if (!sourceFile.value || !convertedFile.value) return 0
-  const original = sourceFile.value.size
-  const converted = convertedFile.value.size
-  return ((original - converted) / original) * 100
+  if (!convertedFile.value) return 0
+  const original = isSlideshow.value
+    ? slideFrames.value.reduce((sum, frame) => sum + frame.file.size, 0)
+    : (sourceFile.value?.size || 0)
+  if (!original) return 0
+  return ((original - convertedFile.value.size) / original) * 100
 })
 
 const formatFileSize = (bytes: number) => {
@@ -1122,6 +1236,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopSlideshowPreview()
   document.removeEventListener('mousemove', updateDragImageCropBox)
   document.removeEventListener('mouseup', endDragImageCropBox)
   document.removeEventListener('mousemove', updateDragCropBox)
@@ -1136,10 +1251,12 @@ onBeforeUnmount(() => {
 
 // Load file programmatically (for initial file prop)
 const loadFile = async (file: File) => {
+  clearSlides()
   if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
   invalidateOutput()
   sourceFile.value = file
   sourcePreviewUrl.value = URL.createObjectURL(file)
+  sourceResetKey.value += 1
   error.value = ''
   convertedFile.value = null
   convertedPreviewUrl.value = ''
@@ -1151,16 +1268,117 @@ const loadFile = async (file: File) => {
   }
 }
 
-const onFileSelect = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-
-  await loadFile(file)
+const decodeImageFile = (file: File): Promise<SlideFrame> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => resolve({ file, url, width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error(`Could not read ${file.name}`))
+    }
+    img.src = url
+  })
 }
 
-const loadImageDimensions = (file: File): Promise<void> => {
-  return new Promise((resolve) => {
+const clearSlides = () => {
+  slideFrames.value.forEach(frame => URL.revokeObjectURL(frame.url))
+  slideFrames.value = []
+  selectedSlideIndex.value = 0
+}
+
+const applySlideSelection = async (index: number) => {
+  const frame = slideFrames.value[index]
+  if (!frame) return
+  selectedSlideIndex.value = index
+  sourceFile.value = frame.file
+  sourcePreviewUrl.value = frame.url
+  sourceDimensions.value = { width: frame.width, height: frame.height }
+  await loadImageDimensions(frame.file, frame.url)
+}
+
+const loadSlideshow = async (files: File[]) => {
+  if (files.length > SLIDESHOW_MAX_FRAMES) {
+    throw new Error(`Use at most ${SLIDESHOW_MAX_FRAMES} stills`)
+  }
+  if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
+  sourcePreviewUrl.value = ''
+  clearSlides()
+  invalidateOutput()
+  error.value = ''
+  const frames: SlideFrame[] = []
+  for (const file of files) {
+    frames.push(await decodeImageFile(file))
+  }
+  slideFrames.value = frames
+  sourceResetKey.value += 1
+  slideshowPlaying.value = true
+  playbackIndex.value = 0
+  await applySlideSelection(0)
+}
+
+const selectSlide = async (index: number) => {
+  slideshowPlaying.value = false
+  playbackIndex.value = index
+  await applySlideSelection(index)
+}
+
+const moveSlide = async (index: number, delta: number) => {
+  const next = index + delta
+  if (next < 0 || next >= slideFrames.value.length) return
+  const copy = [...slideFrames.value]
+  const [item] = copy.splice(index, 1)
+  copy.splice(next, 0, item)
+  slideFrames.value = copy
+  await applySlideSelection(next)
+  invalidateOutput()
+}
+
+const removeSlide = async (index: number) => {
+  if (slideFrames.value.length <= SLIDESHOW_MIN_FRAMES) return
+  const copy = [...slideFrames.value]
+  const [removed] = copy.splice(index, 1)
+  URL.revokeObjectURL(removed.url)
+  slideFrames.value = copy
+  await applySlideSelection(Math.min(index, copy.length - 1))
+  invalidateOutput()
+}
+
+const onFileSelect = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  target.value = ''
+  if (!files.length) return
+
+  const images = files.filter(file => file.type.startsWith('image/'))
+  const videos = files.filter(file => file.type.startsWith('video/'))
+  error.value = ''
+
+  try {
+    if (videos.length && images.length) {
+      throw new Error('Pick either stills or one video, not both')
+    }
+    if (videos.length > 1) {
+      throw new Error('Use a single video file')
+    }
+    if (videos.length === 1) {
+      await loadFile(videos[0])
+      return
+    }
+    if (images.length >= SLIDESHOW_MIN_FRAMES) {
+      await loadSlideshow(images)
+      return
+    }
+    if (images.length === 1) {
+      await loadFile(images[0])
+    }
+  } catch (err: any) {
+    error.value = err.message || 'Could not load files'
+  }
+}
+
+const loadImageDimensions = (file: File, previewUrl?: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
       sourceDimensions.value = { width: img.width, height: img.height }
@@ -1168,7 +1386,8 @@ const loadImageDimensions = (file: File): Promise<void> => {
       initializeImageCropBox()
       resolve()
     }
-    img.src = URL.createObjectURL(file)
+    img.onerror = () => reject(new Error(`Could not read ${file.name}`))
+    img.src = previewUrl || URL.createObjectURL(file)
   })
 }
 
@@ -1193,7 +1412,10 @@ const loadVideoDimensions = (file: File): Promise<void> => {
 }
 
 const clearFile = () => {
-  if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
+  if (sourcePreviewUrl.value && !slideFrames.value.some(frame => frame.url === sourcePreviewUrl.value)) {
+    URL.revokeObjectURL(sourcePreviewUrl.value)
+  }
+  clearSlides()
   invalidateOutput()
   sourceFile.value = null
   sourcePreviewUrl.value = ''
@@ -1203,6 +1425,7 @@ const clearFile = () => {
   convertedPreviewUrl.value = ''
   error.value = ''
   sourceImage.value = undefined
+  sourceResetKey.value += 1
   beforePreviewOffsetX.value = 0
   beforePreviewOffsetY.value = 0
   
@@ -1218,7 +1441,7 @@ const clearFile = () => {
 }
 
 const convertToWebP = async () => {
-  if (!sourceFile.value) return
+  if (!sourceFile.value && !isSlideshow.value) return
 
   isConverting.value = true
   error.value = ''
@@ -1227,7 +1450,9 @@ const convertToWebP = async () => {
   beforePreviewOffsetY.value = 0
 
   try {
-    if (isImage.value) {
+    if (isSlideshow.value) {
+      await convertSlideshowToWebP()
+    } else if (isImage.value) {
       await convertImageToWebP()
     } else if (isVideo.value) {
       await convertVideoToWebP()
@@ -1237,6 +1462,81 @@ const convertToWebP = async () => {
     console.error('Conversion error:', err)
   } finally {
     isConverting.value = false
+  }
+}
+
+const rasterizeSlide = async (frame: SlideFrame, size: number) => {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error(`Could not decode ${frame.file.name}`))
+    image.src = frame.url
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.fillStyle = 'black'
+  ctx.fillRect(0, 0, size, size)
+  const draw = stillDrawParams(img.naturalWidth, img.naturalHeight, size, fitMode.value === 'pad' ? 'pad' : 'crop')
+  ctx.drawImage(img, draw.sx, draw.sy, draw.sw, draw.sh, draw.dx, draw.dy, draw.dw, draw.dh)
+  overlayEditor.value?.drawOverlays(ctx, size)
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Failed to rasterize still')), 'image/png')
+  })
+}
+
+const convertSlideshowToWebP = async () => {
+  if (slideFrames.value.length < SLIDESHOW_MIN_FRAMES) return
+  const size = SLIDESHOW_SIZE
+  const duration = clampFrameDuration(slideDuration.value)
+  const fps = frameRateFromDuration(duration)
+  const qualityValue = Math.round(quality.value)
+  conversionProgress.value = 'Preparing stills...'
+  const pngs: Blob[] = []
+  for (const [index, frame] of slideFrames.value.entries()) {
+    conversionProgress.value = `Rendering still ${index + 1}/${slideFrames.value.length}...`
+    pngs.push(await rasterizeSlide(frame, size))
+  }
+
+  if (useNativeLocalConverter.value) {
+    const formData = new FormData()
+    pngs.forEach((png, index) => formData.append('frame', png, sequenceFrameName(index)))
+    formData.append('duration', String(duration))
+    formData.append('quality', String(qualityValue))
+    conversionProgress.value = 'Encoding animated WebP...'
+    const response = await fetch('/api/local/convert-webp-sequence', { method: 'POST', body: formData })
+    if (!response.ok) throw new Error(await response.text() || 'Native slideshow conversion failed')
+    const blob = await response.blob()
+    const fileName = slideFrames.value[0].file.name.replace(/\.[^/.]+$/, '') + '.webp'
+    convertedFile.value = new File([blob], fileName, { type: 'image/webp' })
+    convertedPreviewUrl.value = URL.createObjectURL(convertedFile.value)
+    return
+  }
+
+  if (!ffmpeg.value) {
+    throw new Error('FFmpeg not loaded. Please refresh the page.')
+  }
+
+  conversionProgress.value = 'Encoding animated WebP...'
+  const outputFileName = 'output.webp'
+  for (const [index, png] of pngs.entries()) {
+    const name = sequenceFrameName(index)
+    await ffmpeg.value.writeFile(name, new Uint8Array(await png.arrayBuffer()))
+  }
+  const args = slideshowFfmpegArgs({ fps, quality: qualityValue, outputFileName })
+  const exitCode = await ffmpeg.value.exec(args)
+  if (exitCode !== 0) throw new Error('FFmpeg slideshow conversion failed')
+  const data = await ffmpeg.value.readFile(outputFileName)
+  if (typeof data === 'string') throw new Error('Unexpected FFmpeg output')
+  const blob = new Blob([new Uint8Array(data)], { type: 'image/webp' })
+  const fileName = slideFrames.value[0].file.name.replace(/\.[^/.]+$/, '') + '.webp'
+  convertedFile.value = new File([blob], fileName, { type: 'image/webp' })
+  convertedPreviewUrl.value = URL.createObjectURL(convertedFile.value)
+  await ffmpeg.value.deleteFile(outputFileName)
+  for (let index = 0; index < pngs.length; index++) {
+    await ffmpeg.value.deleteFile(sequenceFrameName(index)).catch(() => undefined)
   }
 }
 
@@ -1475,7 +1775,7 @@ watch(fitMode, () => {
 // Watch for other settings changes
 watch([targetSize, imageCropBoxX, imageCropBoxY, cropBoxX, cropBoxY], invalidateOutput)
 
-watch([quality, videoStartTime, videoEndTime, videoFps, videoSpeed], () => {
+watch([quality, videoStartTime, videoEndTime, videoFps, videoSpeed, slideDuration], () => {
   if (convertedFile.value) {
     convertedFile.value = null
     convertedPreviewUrl.value = ''
@@ -1483,6 +1783,8 @@ watch([quality, videoStartTime, videoEndTime, videoFps, videoSpeed], () => {
     beforePreviewOffsetY.value = 0
   }
 })
+
+watch([isSlideshow, slideshowPlaying, slideDuration, isConverting, () => slideFrames.value.length], startSlideshowPreview)
 
 watch(playbackSpeed, () => {
   nextTick(() => applyPreviewPlaybackRate())

@@ -168,7 +168,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { overlaySourceCrop, fitOverlaySize, overlayPosition } from '~/lib/thumbnail-overlay-layout'
 
-const props = defineProps<{ src: string; video: boolean; size: number; crop: { x: number; y: number; size: number } | null; start: number; end: number; speed: number; disabled: boolean }>()
+const props = defineProps<{ src: string; video: boolean; size: number; crop: { x: number; y: number; size: number } | null; start: number; end: number; speed: number; disabled: boolean; resetKey?: number }>()
 const emit = defineEmits<{ change: [] }>()
 type Overlay = { id: number; name: string; image: HTMLImageElement; url: string; x: number; y: number; w: number; h: number; border: number; radius: number; ratio: string; focusX: number; focusY: number }
 const items = ref<Overlay[]>([])
@@ -321,7 +321,10 @@ function render() {
 function play() { if (media.value) { media.value.currentTime = props.start; media.value.playbackRate = props.speed; media.value.play().catch(() => {}) } }
 function loop() { if (media.value && media.value.currentTime >= props.end) media.value.currentTime = props.start }
 function reset() { generation++; items.value.forEach(i => URL.revokeObjectURL(i.url)); items.value = []; selected.value = 0; drag = null }
-watch(() => props.src, reset)
+watch(() => props.resetKey ?? props.src, reset)
+watch(() => props.src, () => {
+  still.value?.decode?.().catch(() => {})
+})
 watch(() => [props.start, props.end, props.speed], play)
 onMounted(() => { frame = requestAnimationFrame(render) })
 onBeforeUnmount(() => { disposed = true; cancelAnimationFrame(frame); reset() })
