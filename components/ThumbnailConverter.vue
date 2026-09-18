@@ -1,5 +1,24 @@
 <template>
-  <div class="space-y-4">
+  <div class="grid min-h-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:h-full">
+    <section class="min-w-0 rounded-xl bg-muted/20 p-3 lg:overflow-y-auto lg:p-5" aria-label="Thumbnail canvas">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="font-semibold">Thumbnail canvas</h3>
+          <p class="text-xs text-muted-foreground">Preview matches the exported square. Overlays sit on top of the cropped source.</p>
+        </div>
+        <span class="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{{ targetSize }} × {{ targetSize }} · WebP</span>
+      </div>
+      <ThumbnailOverlayEditor v-if="sourceFile && sourceDimensions" ref="overlayEditor"
+        :src="sourcePreviewUrl" :video="!!isVideo" :size="Number(targetSize)"
+        :crop="overlayCrop" :start="videoStartTime" :end="videoEndTime"
+        :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" />
+      <div v-if="!sourceFile" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-background/60 text-muted-foreground">
+        <span class="text-sm font-medium text-foreground/80">No source yet</span>
+        <span class="text-xs">Choose an image or video in Source File to start.</span>
+      </div>
+    </section>
+    <section class="min-w-0 space-y-4 lg:overflow-y-auto lg:pr-2" aria-label="Source and export settings">
+
       <!-- FFmpeg Loading Status with Progress -->
       <div v-if="!ffmpegLoaded && !useNativeLocalConverter" class="space-y-2">
         <div class="p-2.5 bg-blue-50 border border-blue-200 rounded">
@@ -196,10 +215,6 @@
         </div>
       </div>
 
-      <ThumbnailOverlayEditor v-if="sourceFile && sourceDimensions" ref="overlayEditor"
-        :src="sourcePreviewUrl" :video="!!isVideo" :size="Number(targetSize)"
-        :crop="overlayCrop" :start="videoStartTime" :end="videoEndTime"
-        :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" />
 
       <!-- Conversion Settings -->
       <div v-if="sourceFile" class="space-y-3 p-3 border rounded-lg bg-muted/30">
@@ -456,7 +471,7 @@
       <!-- Before/After Comparison -->
       <div v-if="convertedFile" class="space-y-2">
         <Label>Before/After Comparison - 250x250 preview</Label>
-        <div class="flex gap-4">
+        <div class="flex flex-col gap-4">
           <!-- Before (Original) -->
           <div class="flex-1 space-y-2">
             <div class="flex items-center justify-between px-2">
@@ -565,6 +580,7 @@
       <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
         {{ error }}
       </div>
+    </section>
   </div>
 </template>
 
@@ -774,7 +790,7 @@ const initializeImageCropBox = () => {
   if (!sourceDimensions.value) return
 
   const { width, height } = sourceDimensions.value
-  const maxSize = 500
+  const maxSize = 280
 
   // Calculate preview dimensions
   let previewWidth = width
@@ -800,7 +816,7 @@ const initializeVideoCropBox = () => {
   if (!sourceDimensions.value) return
 
   const { width, height } = sourceDimensions.value
-  const maxSize = 500
+  const maxSize = 280
 
   // Calculate preview dimensions
   let previewWidth = width

@@ -1212,14 +1212,14 @@
 
     <!-- Thumbnail Converter Dialog -->
     <Dialog v-model:open="isConverterDialogOpen">
-      <DialogScrollContent class="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Convert to WebP - {{ getThumbnailLabel(converterTargetIndex) }}</DialogTitle>
+      <DialogScrollContent class="m-0 flex h-[100dvh] w-screen max-w-none flex-col rounded-none border-0 p-4 sm:h-[min(96dvh,920px)] sm:w-[min(96vw,1280px)] sm:max-w-none sm:rounded-xl sm:border lg:overflow-hidden lg:p-6">
+        <DialogHeader class="shrink-0 pr-8">
+          <DialogTitle>Thumbnail editor · {{ getThumbnailLabel(converterTargetIndex) }}</DialogTitle>
           <DialogDescription>
-            Convert your image or video file to optimized WebP format for {{ getThumbnailLabel(converterTargetIndex) }}
+            Choose a source, place overlay images on the canvas, then export {{ getThumbnailLabel(converterTargetIndex) }} as WebP.
           </DialogDescription>
         </DialogHeader>
-        <ThumbnailConverter :initial-file="converterInitialFile" @converted="handleConvertedThumbnail" />
+        <ThumbnailConverter class="min-h-0 flex-1" :initial-file="converterInitialFile" @converted="handleConvertedThumbnail" />
       </DialogScrollContent>
     </Dialog>
 
