@@ -6,7 +6,7 @@
       <aside class="w-64 flex-shrink-0 hidden lg:block" id="sidebar">
         <div class="sidebar-scroll sticky top-6 space-y-4 max-h-[calc(100vh-3rem)] overflow-y-auto pr-2">
           <!-- Repository & Branch Switcher (only when logged in) -->
-          <RepoAndBranchSwitcher v-if="isMounted && status === 'authenticated'" />
+          <RepoAndBranchSwitcher v-if="isMounted && showRepoTools" />
 
           <Card>
             <CardHeader>
@@ -176,7 +176,7 @@
           </div>
 
           <!-- Diff Status Filter -->
-          <div v-if="isMounted && status === 'authenticated' && selectedBranch" class="flex items-center gap-1">
+          <div v-if="isMounted && showRepoTools && selectedBranch" class="flex items-center gap-1">
             <span class="text-xs text-muted-foreground whitespace-nowrap">Changes</span>
             <Select :model-value="selectedDiffStatus" @update:model-value="$emit('update:selectedDiffStatus', $event)">
               <SelectTrigger class="h-8 text-xs" :class="selectedDiffStatus !== 'all' ? 'w-[110px] border-primary' : 'w-[80px]'">
@@ -286,7 +286,7 @@
 
         <!-- Bundle publish impact (main content — keeps sidebar categories unobstructed) -->
         <BundleChangeSummary
-          v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch && !isMainBranch && (loading || (bundleDiff?.changedBundleCount ?? 0) > 0)"
+          v-if="isMounted && showRepoTools && selectedRepo && selectedBranch && !isMainBranch && (loading || (bundleDiff?.changedBundleCount ?? 0) > 0)"
           class="mb-4"
           :bundle-diff="bundleDiff"
           :loading="loading"
@@ -363,7 +363,7 @@
           </div>
 
           <!-- Diff Stats -->
-          <div v-if="isMounted && status === 'authenticated' && selectedRepo && selectedBranch" class="flex items-center gap-3" :class="nodeCompatAvailable || nodeCompatScanning || modelLinkAvailable || modelLinkScanning || modelLinkError ? '' : 'ml-auto'">
+          <div v-if="isMounted && showRepoTools && selectedRepo && selectedBranch" class="flex items-center gap-3" :class="nodeCompatAvailable || nodeCompatScanning || modelLinkAvailable || modelLinkScanning || modelLinkError ? '' : 'ml-auto'">
             <span class="text-xs">
               <span class="font-mono">{{ selectedRepo }}</span> /
               <span class="font-mono font-semibold">{{ selectedBranch }}</span>
@@ -469,6 +469,7 @@ import BundleChangeSummary from '~/components/BundleChangeSummary.vue'
 import type { BundleDiffResult } from '~/lib/bundle-diff'
 
 const { status } = useAuth()
+const showRepoTools = computed(() => props.isLocalMode || status.value === 'authenticated')
 
 // Props
 const props = defineProps<{

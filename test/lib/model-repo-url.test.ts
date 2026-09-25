@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHttpUrl, repoLinkLabel, repoUrlFromDownloadUrl } from '../../lib/model-repo-url'
+import { isHttpUrl, repoLinkLabel, repoUrlFromDownloadUrl, uniqueRepoMarkdownLinks } from '../../lib/model-repo-url'
 
 describe('model repo url', () => {
   it('strips Hugging Face resolve/blob paths down to the repo page', () => {
@@ -32,5 +32,18 @@ describe('model repo url', () => {
     expect(repoLinkLabel('https://huggingface.co/Comfy-Org/MoGe')).toBe('Hugging Face:Comfy-Org/MoGe')
     expect(isHttpUrl('https://huggingface.co/Comfy-Org/MoGe')).toBe(true)
     expect(isHttpUrl('not a url')).toBe(false)
+  })
+
+  it('lists unique repo pages once for the generated note', () => {
+    expect(
+      uniqueRepoMarkdownLinks([
+        'https://huggingface.co/Comfy-Org/MoGe/resolve/main/geometry_estimation/moge_3_vitg_fp16.safetensors',
+        'https://huggingface.co/Comfy-Org/MoGe/resolve/main/geometry_estimation/moge_3_vitl_fp16.safetensors',
+        'https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors'
+      ])
+    ).toEqual([
+      '[Hugging Face:Comfy-Org/MoGe](https://huggingface.co/Comfy-Org/MoGe)',
+      '[Hugging Face:Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged)'
+    ])
   })
 })

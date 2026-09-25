@@ -30,7 +30,7 @@
               </Button>
 
               <Button
-                v-if="status === 'authenticated' && isMounted"
+                v-if="canManageTemplates && isMounted"
                 @click="showTranslationManager = true"
                 size="sm"
                 variant="outline"
@@ -44,7 +44,7 @@
               </Button>
 
               <Button
-                v-if="status === 'authenticated' && isMounted"
+                v-if="canManageTemplates && isMounted"
                 @click="showTagModelManager = true"
                 size="sm"
                 variant="outline"
@@ -58,7 +58,7 @@
               </Button>
 
               <Button
-                v-if="status === 'authenticated' && isMounted"
+                v-if="canManageTemplates && isMounted"
                 @click="showCreatorManager = true"
                 size="sm"
                 variant="outline"
@@ -72,7 +72,7 @@
               </Button>
 
               <Button
-                v-if="status === 'authenticated' && isMounted"
+                v-if="canManageTemplates && isMounted"
                 @click="showUsageUpdateModal = true"
                 size="sm"
                 variant="outline"
@@ -86,7 +86,7 @@
               </Button>
 
               <Button
-                v-if="status === 'authenticated' && isMounted"
+                v-if="canManageTemplates && isMounted"
                 @click="navigateTo('/admin/edit/new')"
                 size="sm"
                 :disabled="!canEditCurrentRepo || isViewingPR"
@@ -342,7 +342,7 @@
             </p>
             <div class="mt-2 flex flex-wrap gap-2">
               <Button
-                v-if="status === 'authenticated'"
+                v-if="canManageTemplates"
                 size="sm"
                 variant="outline"
                 class="h-7 text-xs bg-background/90 dark:bg-purple-950/60 hover:bg-purple-50 dark:hover:bg-purple-900/70"
@@ -575,6 +575,7 @@ const {
   selectedBranch,
   hasRepoWriteAccess,
   canEditCurrentRepo,
+  canManageTemplates,
   hasFork,
   hasMainRepoAccess,
   branchPermission,
@@ -1251,7 +1252,7 @@ const clearFilters = () => {
 }
 
 const editTemplate = (template: any) => {
-  if (status.value !== 'authenticated') {
+  if (!canManageTemplates.value) {
     alert('Please sign in to edit templates')
     return
   }

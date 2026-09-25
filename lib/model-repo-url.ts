@@ -56,3 +56,17 @@ export function repoLinkLabel(url: string): string {
 export function isHttpUrl(url: string): boolean {
   return parseHttpUrl(url) !== null
 }
+
+/** Unique Hugging Face / ModelScope / GitHub pages derived from download URLs. */
+export function uniqueRepoMarkdownLinks(urls: string[]): string[] {
+  const seen = new Set<string>()
+  const links: string[] = []
+  for (const url of urls) {
+    if (typeof url !== 'string' || !url.trim()) continue
+    const repo = repoUrlFromDownloadUrl(url)
+    if (!repo || seen.has(repo)) continue
+    seen.add(repo)
+    links.push(`[${repoLinkLabel(repo)}](${repo})`)
+  }
+  return links
+}

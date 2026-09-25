@@ -365,6 +365,8 @@ export const useGitHubRepo = () => {
   })
 
   // Can edit current repository and branch (push to current branch)
+  const canManageTemplates = computed(() => isLocalMode.value || status.value === 'authenticated')
+
   const canEditCurrentRepo = computed(() => {
     if (isLocalMode.value) {
       return true
@@ -569,6 +571,7 @@ export const useGitHubRepo = () => {
     // Computed
     availableRepos,
     hasRepoWriteAccess,
+    canManageTemplates,
     canEditCurrentRepo,
 
     // Methods

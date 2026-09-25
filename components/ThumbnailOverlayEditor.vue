@@ -23,56 +23,58 @@
       >
     </label>
 
-    <div ref="stage" class="relative mx-auto aspect-square w-full max-w-[min(100%,56vh)] overflow-hidden rounded-xl bg-zinc-950 shadow-inner ring-1 ring-border touch-none" @pointermove="move" @pointerup="end" @pointercancel="end">
-      <canvas ref="preview" class="absolute inset-0 h-full w-full" />
-      <div
-        v-for="item in items"
-        :key="item.id"
-        class="absolute cursor-move"
-        :style="{ left: item.x * 100 + '%', top: item.y * 100 + '%', width: item.w * 100 + '%', height: item.h * 100 + '%' }"
-        :class="selected === item.id ? 'z-10' : 'z-0'"
-        @pointerdown="start($event, item, false)"
-      >
-        <span
-          class="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-offset-0"
-          :class="selected === item.id ? 'ring-sky-400' : 'ring-transparent'"
-        />
-        <button
-          v-if="selected === item.id"
-          type="button"
-          aria-label="Resize overlay"
-          class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-sm border border-sky-500 bg-white text-sky-700 shadow cursor-nwse-resize"
-          @pointerdown.stop="start($event, item, true)"
-        >
-          <svg viewBox="0 0 12 12" class="h-3 w-3" aria-hidden="true">
-            <path d="M11 5v6H5" fill="none" stroke="currentColor" stroke-width="1.6" />
-            <path d="M7 11 11 7" fill="none" stroke="currentColor" stroke-width="1.6" />
-          </svg>
-        </button>
+    <div class="flex flex-row items-start gap-3">
+      <div class="min-w-0 flex-1 space-y-3">
+        <div ref="stage" class="relative mx-auto aspect-square w-full max-w-[min(100%,56vh)] overflow-hidden rounded-xl bg-zinc-950 shadow-inner ring-1 ring-border touch-none" @pointermove="move" @pointerup="end" @pointercancel="end">
+          <canvas ref="preview" class="absolute inset-0 h-full w-full" />
+          <div
+            v-for="item in items"
+            :key="item.id"
+            class="absolute cursor-move"
+            :style="{ left: item.x * 100 + '%', top: item.y * 100 + '%', width: item.w * 100 + '%', height: item.h * 100 + '%' }"
+            :class="selected === item.id ? 'z-10' : 'z-0'"
+            @pointerdown="start($event, item, false)"
+          >
+            <span
+              class="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-offset-0"
+              :class="selected === item.id ? 'ring-sky-400' : 'ring-transparent'"
+            />
+            <button
+              v-if="selected === item.id"
+              type="button"
+              aria-label="Resize overlay"
+              class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-sm border border-sky-500 bg-white text-sky-700 shadow cursor-nwse-resize"
+              @pointerdown.stop="start($event, item, true)"
+            >
+              <svg viewBox="0 0 12 12" class="h-3 w-3" aria-hidden="true">
+                <path d="M11 5v6H5" fill="none" stroke="currentColor" stroke-width="1.6" />
+                <path d="M7 11 11 7" fill="none" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="items.length" class="flex flex-wrap gap-2">
+          <button
+            v-for="(item, index) in items"
+            :key="item.id"
+            type="button"
+            class="inline-flex max-w-[12rem] items-center gap-2 rounded-lg border px-2 py-1 text-left text-xs transition-colors"
+            :class="selected === item.id
+              ? 'border-sky-500 bg-sky-500/10 text-foreground'
+              : 'border-border bg-background text-muted-foreground hover:bg-muted/60'"
+            :aria-pressed="selected === item.id"
+            @click="selected = item.id"
+          >
+            <img :src="item.url" alt="" class="h-7 w-7 shrink-0 rounded object-cover bg-zinc-900">
+            <span class="min-w-0 truncate">{{ index + 1 }}. {{ item.name }}</span>
+          </button>
+        </div>
       </div>
-    </div>
 
-    <div v-if="items.length" class="flex flex-wrap gap-2">
-      <button
-        v-for="(item, index) in items"
-        :key="item.id"
-        type="button"
-        class="inline-flex max-w-[12rem] items-center gap-2 rounded-lg border px-2 py-1 text-left text-xs transition-colors"
-        :class="selected === item.id
-          ? 'border-sky-500 bg-sky-500/10 text-foreground'
-          : 'border-border bg-background text-muted-foreground hover:bg-muted/60'"
-        :aria-pressed="selected === item.id"
-        @click="selected = item.id"
-      >
-        <img :src="item.url" alt="" class="h-7 w-7 shrink-0 rounded object-cover bg-zinc-900">
-        <span class="min-w-0 truncate">{{ index + 1 }}. {{ item.name }}</span>
-      </button>
-    </div>
-
-    <div v-if="active" class="space-y-4 rounded-xl border bg-background p-4 shadow-sm">
-      <div class="grid gap-4 sm:grid-cols-2">
+      <aside v-if="active" class="w-44 shrink-0 space-y-3 rounded-xl border bg-background p-3 sticky top-0 sm:w-52">
         <fieldset :disabled="disabled" class="space-y-2">
-          <legend class="text-sm font-medium">Position</legend>
+          <legend class="text-sm font-medium">Quick layout</legend>
           <div class="grid w-[132px] grid-cols-3 gap-1">
             <button
               v-for="position in positions"
@@ -90,31 +92,48 @@
             </button>
           </div>
         </fieldset>
-
-        <div class="space-y-3 text-sm">
-          <label class="block space-y-1.5">
-            <span class="font-medium">Crop ratio</span>
-            <select
-              aria-label="Overlay crop ratio"
-              :value="active.ratio"
-              :disabled="disabled"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              @change="setRatio(($event.target as HTMLSelectElement).value)"
-            >
-              <option value="original">Original</option>
-              <option value="1">1:1 Square</option>
-              <option :value="4 / 3">4:3 Landscape</option>
-              <option :value="3 / 4">3:4 Portrait</option>
-              <option :value="16 / 9">16:9 Widescreen</option>
-              <option :value="9 / 16">9:16 Vertical</option>
-            </select>
-          </label>
-          <label class="block space-y-1.5">
-            <span class="flex justify-between"><span>Width</span><span class="tabular-nums text-muted-foreground">{{ Math.round(active.w * 100) }}%</span></span>
-            <input aria-label="Overlay width" type="range" min="4" max="100" :value="active.w * 100" :disabled="disabled" class="w-full accent-sky-600" @input="setWidth(Number(($event.target as HTMLInputElement).value) / 100)">
-          </label>
+        <div class="grid grid-cols-2 gap-1">
+          <Button type="button" size="xs" :variant="layoutScope === 'selected' ? 'default' : 'outline'" :disabled="disabled" aria-label="Layout this image" @click="setLayoutScope('selected')">This image</Button>
+          <Button type="button" size="xs" :variant="layoutScope === 'all' ? 'default' : 'outline'" :disabled="disabled || items.length < 2" aria-label="Layout all overlays" @click="setLayoutScope('all')">All overlays</Button>
         </div>
-      </div>
+        <label class="block space-y-1 text-xs">
+          <span class="flex justify-between"><span>Spacing</span><span class="tabular-nums text-muted-foreground">{{ Math.round(stackGap * 100) }}%</span></span>
+          <input aria-label="Overlay group spacing" type="range" min="0" max="12" step="1" :value="stackGap * 100" :disabled="disabled || layoutScope !== 'all' || items.length < 2" class="w-full accent-sky-600" @input="setGap(Number(($event.target as HTMLInputElement).value) / 100)">
+        </label>
+        <label class="block space-y-1 text-xs">
+          <span class="flex justify-between"><span>Width</span><span class="tabular-nums text-muted-foreground">{{ Math.round(active.w * 100) }}%</span></span>
+          <input aria-label="Overlay width" type="range" min="4" max="100" :value="active.w * 100" :disabled="disabled" class="w-full accent-sky-600" @input="setWidth(Number(($event.target as HTMLInputElement).value) / 100)">
+        </label>
+        <label class="block space-y-1 text-xs">
+          <span class="flex justify-between"><span>White border</span><span class="tabular-nums text-muted-foreground">{{ active.border }} px</span></span>
+          <input aria-label="White border width" type="range" min="0" max="24" :value="active.border" :disabled="disabled" class="w-full accent-sky-600" @input="setBorder(Number(($event.target as HTMLInputElement).value))">
+        </label>
+        <label class="block space-y-1 text-xs">
+          <span class="flex justify-between"><span>Corner radius</span><span class="tabular-nums text-muted-foreground">{{ active.radius }} px</span></span>
+          <input aria-label="Corner radius" type="range" min="0" max="100" :value="active.radius" :disabled="disabled" class="w-full accent-sky-600" @input="setRadius(Number(($event.target as HTMLInputElement).value))">
+        </label>
+        <p class="text-[11px] text-muted-foreground">All overlays share the edge, spacing, width, border, and corners. New stills reuse these settings. This image edits only the selected still.</p>
+      </aside>
+    </div>
+
+    <div v-if="active" class="space-y-4 rounded-xl border bg-background p-4 shadow-sm">
+      <label class="block space-y-1.5 text-sm">
+        <span class="font-medium">Crop ratio</span>
+        <select
+          aria-label="Overlay crop ratio"
+          :value="active.ratio"
+          :disabled="disabled"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          @change="setRatio(($event.target as HTMLSelectElement).value)"
+        >
+          <option value="original">Original</option>
+          <option value="1">1:1 Square</option>
+          <option :value="4 / 3">4:3 Landscape</option>
+          <option :value="3 / 4">3:4 Portrait</option>
+          <option :value="16 / 9">16:9 Widescreen</option>
+          <option :value="9 / 16">9:16 Vertical</option>
+        </select>
+      </label>
 
       <div v-if="active.ratio !== 'original'" class="space-y-2 rounded-lg bg-muted/40 p-3 text-sm">
         <p class="font-medium">Crop focus</p>
@@ -125,17 +144,6 @@
         <label class="block space-y-1">
           <span class="text-xs text-muted-foreground">Vertical</span>
           <input v-model.number="active.focusY" aria-label="Crop vertical focus" type="range" min="0" max="1" step="0.01" :disabled="disabled" class="w-full accent-sky-600" @input="changed">
-        </label>
-      </div>
-
-      <div class="grid gap-3 sm:grid-cols-2">
-        <label class="block space-y-1 text-sm">
-          <span class="flex justify-between"><span>White border</span><span class="tabular-nums text-muted-foreground">{{ active.border }} px</span></span>
-          <input v-model.number="active.border" :disabled="disabled" aria-label="White border width" type="range" min="0" max="24" class="w-full accent-sky-600" @input="changed">
-        </label>
-        <label class="block space-y-1 text-sm">
-          <span class="flex justify-between"><span>Corner radius</span><span class="tabular-nums text-muted-foreground">{{ active.radius }} px</span></span>
-          <input v-model.number="active.radius" :disabled="disabled" aria-label="Corner radius" type="range" min="0" max="100" class="w-full accent-sky-600" @input="changed">
         </label>
       </div>
 
@@ -166,13 +174,18 @@ import {
   Trash2,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { overlaySourceCrop, fitOverlaySize, overlayPosition } from '~/lib/thumbnail-overlay-layout'
+import { overlaySourceCrop, fitOverlaySize, overlayPosition, layoutOverlaysOnEdge, clampOverlayGap } from '~/lib/thumbnail-overlay-layout'
+import { loadOverlayStylePrefs, saveOverlayStylePrefs } from '~/lib/thumbnail-overlay-style'
 
 const props = defineProps<{ src: string; video: boolean; size: number; crop: { x: number; y: number; size: number } | null; start: number; end: number; speed: number; disabled: boolean; resetKey?: number }>()
 const emit = defineEmits<{ change: [] }>()
 type Overlay = { id: number; name: string; image: HTMLImageElement; url: string; x: number; y: number; w: number; h: number; border: number; radius: number; ratio: string; focusX: number; focusY: number }
 const items = ref<Overlay[]>([])
 const selected = ref(0)
+const remembered = loadOverlayStylePrefs()
+const layoutScope = ref<'selected' | 'all'>(remembered.layoutScope)
+const stackGap = ref(remembered.gap)
+const lastLayout = ref<{ x: number; y: number } | null>(remembered.layout)
 const active = computed(() => items.value.find(i => i.id === selected.value))
 const stage = ref<HTMLElement>()
 const preview = ref<HTMLCanvasElement>()
@@ -195,37 +208,109 @@ const positions: { label: string; icon: Component; x: number; y: number }[] = [
   { label: 'Bottom right', icon: ArrowDownRight, x: 1, y: 1 },
 ]
 function isAt(x: number, y: number) {
+  if (layoutScope.value === 'all' && items.value.length > 1 && lastLayout.value) {
+    return lastLayout.value.x === x && lastLayout.value.y === y
+  }
   if (!active.value) return false
   const placed = overlayPosition(active.value.w, active.value.h, x, y)
   return Math.abs(placed.x - active.value.x) < 0.02 && Math.abs(placed.y - active.value.y) < 0.02
 }
+function persistPrefs() {
+  const item = active.value
+  remembered.width = item?.w ?? remembered.width
+  remembered.border = item?.border ?? remembered.border
+  remembered.radius = item?.radius ?? remembered.radius
+  remembered.gap = stackGap.value
+  remembered.layoutScope = layoutScope.value
+  remembered.layout = lastLayout.value
+  saveOverlayStylePrefs(remembered)
+}
+function styleSnapshot() {
+  const item = active.value
+  return {
+    width: item?.w ?? remembered.width,
+    border: item?.border ?? remembered.border,
+    radius: item?.radius ?? remembered.radius,
+  }
+}
+function setLayoutScope(scope: 'selected' | 'all') {
+  layoutScope.value = scope
+  persistPrefs()
+}
+function applyGroupLayout(horizontal: number, vertical: number) {
+  const packed = layoutOverlaysOnEdge(
+    items.value.map(item => ({ w: item.w, h: item.h })),
+    horizontal,
+    vertical,
+    stackGap.value
+  )
+  packed.forEach((pos, index) => {
+    items.value[index].x = pos.x
+    items.value[index].y = pos.y
+  })
+  lastLayout.value = { x: horizontal, y: vertical }
+}
 function place(x: number, y: number) {
-  if (!active.value || props.disabled) return
-  Object.assign(active.value, overlayPosition(active.value.w, active.value.h, x, y))
+  if (props.disabled) return
+  lastLayout.value = { x, y }
+  if (layoutScope.value === 'all' && items.value.length > 1) applyGroupLayout(x, y)
+  else if (active.value) Object.assign(active.value, overlayPosition(active.value.w, active.value.h, x, y))
+  persistPrefs()
   changed()
 }
-function resizeTo(width: number, ratio: number) {
-  const item = active.value!
+function setGap(value: number) {
+  stackGap.value = clampOverlayGap(value)
+  relayoutIfGrouped()
+  persistPrefs()
+  changed()
+}
+function styleTargets() {
+  if (layoutScope.value === 'all' && items.value.length > 1) return items.value
+  return active.value ? [active.value] : []
+}
+function resizeItem(item: Overlay, width: number, ratio: number) {
   const cx = item.x + item.w / 2, cy = item.y + item.h / 2
   Object.assign(item, fitOverlaySize(width, ratio))
   item.x = Math.max(0, Math.min(1 - item.w, cx - item.w / 2))
   item.y = Math.max(0, Math.min(1 - item.h, cy - item.h / 2))
 }
+function relayoutIfGrouped() {
+  if (layoutScope.value === 'all' && lastLayout.value && items.value.length > 1) {
+    applyGroupLayout(lastLayout.value.x, lastLayout.value.y)
+  }
+}
 function setRatio(value: string) {
   if (!active.value || props.disabled) return
   active.value.ratio = value
   active.value.focusX = active.value.focusY = .5
-  resizeTo(active.value.w, value === 'original' ? active.value.image.naturalWidth / active.value.image.naturalHeight : Number(value))
+  resizeItem(active.value, active.value.w, value === 'original' ? active.value.image.naturalWidth / active.value.image.naturalHeight : Number(value))
+  relayoutIfGrouped()
+  persistPrefs()
   changed()
 }
 function setWidth(width: number) {
-  if (!active.value || props.disabled) return
-  resizeTo(width, active.value.w / active.value.h)
+  if (props.disabled) return
+  for (const item of styleTargets()) resizeItem(item, width, item.w / item.h)
+  relayoutIfGrouped()
+  persistPrefs()
+  changed()
+}
+function setBorder(value: number) {
+  if (props.disabled) return
+  for (const item of styleTargets()) item.border = value
+  persistPrefs()
+  changed()
+}
+function setRadius(value: number) {
+  if (props.disabled) return
+  for (const item of styleTargets()) item.radius = value
+  persistPrefs()
   changed()
 }
 async function addFiles(files: File[]) {
   error.value = ''
   const version = generation
+  const style = styleSnapshot()
   for (const file of files) {
     const url = URL.createObjectURL(file), image = new Image()
     try {
@@ -233,12 +318,17 @@ async function addFiles(files: File[]) {
       await image.decode()
       if (disposed || version !== generation) { URL.revokeObjectURL(url); continue }
       const ratio = image.naturalWidth / image.naturalHeight
-      const w = Math.min(.35, .35 * ratio), h = w / ratio
-      items.value.push({ id: ++nextId, name: file.name, image, url, x: .1, y: .1, w, h, border: 4, radius: 12, ratio: 'original', focusX: .5, focusY: .5 })
+      const size = fitOverlaySize(style.width, ratio)
+      const pos = lastLayout.value
+        ? overlayPosition(size.w, size.h, lastLayout.value.x, lastLayout.value.y)
+        : { x: .1, y: .1 }
+      items.value.push({ id: ++nextId, name: file.name, image, url, ...pos, ...size, border: style.border, radius: style.radius, ratio: 'original', focusX: .5, focusY: .5 })
       selected.value = nextId
       changed()
     } catch { URL.revokeObjectURL(url); error.value = `Could not load ${file.name}` }
   }
+  relayoutIfGrouped()
+  persistPrefs()
 }
 async function addImages(event: Event) {
   const input = event.target as HTMLInputElement
@@ -280,7 +370,7 @@ function move(e: PointerEvent) {
   }
   changed()
 }
-function end() { drag = null }
+function end() { drag = null; persistPrefs() }
 function drawOverlays(ctx: CanvasRenderingContext2D, size: number) {
   for (const item of items.value) {
     const snap = (n: number) => Math.round(n * 1e6) / 1e6

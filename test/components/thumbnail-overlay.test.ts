@@ -1,10 +1,12 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import Editor from '../../components/ThumbnailOverlayEditor.vue'
+import { OVERLAY_STYLE_STORAGE_KEY } from '../../lib/thumbnail-overlay-style'
 
 const ctx = { save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), roundRect: vi.fn(), clip: vi.fn(), drawImage: vi.fn(), stroke: vi.fn() }
 let wrapper: ReturnType<typeof mount>
 beforeEach(() => {
+  localStorage.removeItem(OVERLAY_STYLE_STORAGE_KEY)
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   vi.stubGlobal('cancelAnimationFrame', vi.fn())
   vi.stubGlobal('Image', class { naturalWidth = 400; naturalHeight = 200; src = ''; decode = () => Promise.resolve() })
@@ -12,10 +14,16 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(new Blob(['png'], { type: 'image/png' })))
   wrapper = mount(Editor, { props: { src: 'base.png', video: false, size: 500, crop: null, start: 0, end: 3, speed: 1, disabled: false } })
 })
-afterEach(() => { wrapper.unmount(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.clearAllMocks() })
-async function upload() {
+afterEach(() => {
+  wrapper.unmount()
+  localStorage.removeItem(OVERLAY_STYLE_STORAGE_KEY)
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.clearAllMocks()
+})
+async function upload(files = [new File(['a'], 'one.png'), new File(['b'], 'two.png')]) {
   const input = wrapper.get('input[type=file]')
-  Object.defineProperty(input.element, 'files', { value: [new File(['a'], 'one.png'), new File(['b'], 'two.png')], configurable: true })
+  Object.defineProperty(input.element, 'files', { value: files, configurable: true })
   await input.trigger('change'); await flushPromises()
 }
 function draw() { (wrapper.vm as any).drawOverlays(ctx, 500) }
@@ -52,8 +60,44 @@ describe('thumbnail overlay editor', () => {
     draw()
     expect(ctx.roundRect).toHaveBeenLastCalledWith(0, 0, 350, 175, 12)
   })
+  it('shares width, border, and radius across overlays until This image is selected', async () => {
+    await upload()
+    await wrapper.get('[aria-label="Layout all overlays"]').trigger('click')
+    await wrapper.get('[aria-label="Overlay width"]').setValue('20')
+    await wrapper.get('[aria-label="White border width"]').setValue('8')
+    await wrapper.get('[aria-label="Corner radius"]').setValue('20')
+    draw()
+    const first = ctx.roundRect.mock.calls.at(-2)!
+    const second = ctx.roundRect.mock.calls.at(-1)!
+    expect(first[2]).toBe(100)
+    expect(second[2]).toBe(100)
+    expect(first[4]).toBe(20)
+    expect(second[4]).toBe(20)
+    expect((ctx as any).lineWidth).toBe(16)
+    await wrapper.get('[aria-label="Layout this image"]').trigger('click')
+    await wrapper.get('[aria-label="Corner radius"]').setValue('0')
+    draw()
+    expect(ctx.roundRect.mock.calls.at(-1)![4]).toBe(0)
+    expect(ctx.roundRect.mock.calls.at(-2)![4]).toBe(20)
+  })
+  it('stacks all overlays on an edge with the spacing slider', async () => {
+    await upload()
+    await wrapper.get('[aria-label="Layout all overlays"]').trigger('click')
+    await wrapper.get('[aria-label="Center left"]').trigger('click')
+    draw()
+    const first = ctx.roundRect.mock.calls.at(-2)!
+    const second = ctx.roundRect.mock.calls.at(-1)!
+    expect(first[0]).toBeCloseTo(second[0])
+    expect(second[1]).toBeCloseTo(first[1] + first[3] + 15)
+    await wrapper.get('[aria-label="Overlay group spacing"]').setValue('6')
+    draw()
+    const afterGap = ctx.roundRect.mock.calls.at(-1)!
+    const beforeGap = ctx.roundRect.mock.calls.at(-2)!
+    expect(afterGap[1]).toBeCloseTo(beforeGap[1] + beforeGap[3] + 30)
+  })
   it('applies presets only to the selected overlay and crops without stretching', async () => {
     await upload()
+    await wrapper.get('[aria-label="Layout this image"]').trigger('click')
     await wrapper.get('[aria-label="Overlay crop ratio"]').setValue('1')
     await wrapper.get('[aria-label="Bottom right"]').trigger('click')
     draw()
@@ -87,5 +131,30 @@ describe('thumbnail overlay editor', () => {
     await wrapper.setProps({ src: 'other.png' })
     expect(await (wrapper.vm as any).exportPng()).toBeNull()
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+  })
+  it('reuses size, border, corners, and edge for the next overlay', async () => {
+    await upload([new File(['a'], 'one.png')])
+    await wrapper.get('[aria-label="Overlay width"]').setValue('20')
+    await wrapper.get('[aria-label="White border width"]').setValue('8')
+    await wrapper.get('[aria-label="Corner radius"]').setValue('20')
+    await wrapper.get('[aria-label="Center left"]').trigger('click')
+    await upload([new File(['b'], 'two.png')])
+    draw()
+    const first = ctx.roundRect.mock.calls.at(-2)!
+    const second = ctx.roundRect.mock.calls.at(-1)!
+    expect(first[2]).toBe(100)
+    expect(second[2]).toBe(100)
+    expect(first[0]).toBeCloseTo(second[0])
+    expect(first[4]).toBe(20)
+    expect(second[4]).toBe(20)
+    expect((ctx as any).lineWidth).toBe(16)
+    wrapper.unmount()
+    wrapper = mount(Editor, { props: { src: 'next.png', video: false, size: 500, crop: null, start: 0, end: 3, speed: 1, disabled: false } })
+    await upload([new File(['c'], 'three.png')])
+    draw()
+    const restored = ctx.roundRect.mock.calls.at(-1)!
+    expect(restored[2]).toBe(100)
+    expect(restored[0]).toBeCloseTo(20)
+    expect(restored[4]).toBe(20)
   })
 })

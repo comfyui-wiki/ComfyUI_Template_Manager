@@ -1,6 +1,8 @@
 import { Octokit } from '@octokit/rest'
 import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
+import { isLocalModeEnabled, writeLocalTreeAndCommit } from '~/server/utils/local-template-persist'
+import { readRepoJson } from '~/server/utils/local-repo'
 
 const localeFiles = [
   'index.json',
@@ -17,11 +19,35 @@ const localeFiles = [
   'index.fa.json'
 ]
 
+function applyCreatorUpdates(
+  indexData: any[],
+  updateMap: Map<string, string | null>
+): { modified: boolean; englishCount: number } {
+  let modified = false
+  let englishCount = 0
+  for (const category of indexData) {
+    if (!category.templates || !Array.isArray(category.templates)) continue
+    for (const template of category.templates) {
+      if (!updateMap.has(template.name)) continue
+      const newUsername = updateMap.get(template.name)
+      if (newUsername) {
+        template.username = newUsername
+      } else {
+        delete template.username
+      }
+      modified = true
+      englishCount++
+    }
+  }
+  return { modified, englishCount }
+}
+
 export default defineEventHandler(async (event) => {
   try {
+    const localMode = isLocalModeEnabled()
     const session = await getServerSession(event)
 
-    if (!session?.accessToken) {
+    if (!localMode && !session?.accessToken) {
       throw createError({
         statusCode: 401,
         statusMessage: 'Unauthorized - Please sign in'
@@ -36,7 +62,7 @@ export default defineEventHandler(async (event) => {
 
     const { repo, branch, updates } = body
 
-    if (!repo || !branch) {
+    if (!localMode && (!repo || !branch)) {
       throw createError({
         statusCode: 400,
         statusMessage: 'Missing required parameters: repo, branch'
@@ -50,8 +76,47 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    const updateMap = new Map(updates.map(u => [u.templateName, u.username]))
+    const tree: any[] = []
+    let totalModifiedCount = 0
+
+    if (localMode) {
+      for (const localeFile of localeFiles) {
+        const indexPath = `templates/${localeFile}`
+        try {
+          const indexData = await readRepoJson<any[]>(indexPath)
+          if (!Array.isArray(indexData)) continue
+          const { modified, englishCount } = applyCreatorUpdates(indexData, updateMap)
+          if (!modified) continue
+          tree.push({
+            path: indexPath,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            content: formatTemplateJson(indexData)
+          })
+          if (localeFile === 'index.json') totalModifiedCount += englishCount
+        } catch (error: any) {
+          console.warn(`[creator bulk-update] Skipping ${localeFile}:`, error.message)
+        }
+      }
+
+      if (tree.length === 0) {
+        return { success: true, message: 'No matching templates found', commit: null }
+      }
+
+      const { sha } = await writeLocalTreeAndCommit(
+        tree,
+        `Update creator for ${totalModifiedCount} template(s)\n\nUpdated via Creator Manager`
+      )
+      return {
+        success: true,
+        message: `Updated creator for ${totalModifiedCount} template(s)`,
+        commit: { sha, url: `local://${sha.substring(0, 7)}` }
+      }
+    }
+
     const [owner, repoName] = repo.split('/')
-    const octokit = new Octokit({ auth: session.accessToken })
+    const octokit = new Octokit({ auth: session!.accessToken })
 
     console.log(`[creator bulk-update] Updating ${updates.length} template(s) in ${repo}@${branch}`)
 
@@ -69,12 +134,6 @@ export default defineEventHandler(async (event) => {
       commit_sha: currentCommitSha
     })
     const currentTreeSha = commitData.tree.sha
-
-    // Build lookup map for fast access
-    const updateMap = new Map(updates.map(u => [u.templateName, u.username]))
-
-    const tree: any[] = []
-    let totalModifiedCount = 0
 
     // Update all locale index files
     for (const localeFile of localeFiles) {
@@ -101,32 +160,16 @@ export default defineEventHandler(async (event) => {
           continue
         }
 
-        let modified = false
-
-        for (const category of indexData) {
-          if (!category.templates || !Array.isArray(category.templates)) continue
-          for (const template of category.templates) {
-            if (!updateMap.has(template.name)) continue
-            const newUsername = updateMap.get(template.name)
-            if (newUsername) {
-              template.username = newUsername
-            } else {
-              delete template.username
-            }
-            modified = true
-            if (localeFile === 'index.json') totalModifiedCount++
-          }
-        }
-
-        if (modified) {
-          tree.push({
-            path: indexPath,
-            mode: '100644' as const,
-            type: 'blob' as const,
-            content: formatTemplateJson(indexData)
-          })
-          console.log(`[creator bulk-update] Updated ${localeFile}`)
-        }
+        const { modified, englishCount } = applyCreatorUpdates(indexData, updateMap)
+        if (!modified) continue
+        tree.push({
+          path: indexPath,
+          mode: '100644' as const,
+          type: 'blob' as const,
+          content: formatTemplateJson(indexData)
+        })
+        if (localeFile === 'index.json') totalModifiedCount += englishCount
+        console.log(`[creator bulk-update] Updated ${localeFile}`)
       } catch (error: any) {
         console.error(`[creator bulk-update] Error processing ${localeFile}:`, error.message)
       }

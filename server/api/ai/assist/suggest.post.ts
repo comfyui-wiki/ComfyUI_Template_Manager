@@ -1,5 +1,4 @@
-import { getServerSession } from '#auth'
-import { checkRateLimit, checkOrigin } from '~/server/utils/rate-limiter'
+import { authorizeAiRequest } from '~/server/utils/ai-auth'
 import aiAssistantPromptsImport from '~/config/ai-assistant-prompts.json'
 
 interface RequestBody {
@@ -25,34 +24,7 @@ interface PromptConfig {
 
 export default defineEventHandler(async (event) => {
   try {
-    // Check authentication
-    const session = await getServerSession(event)
-    if (!session?.accessToken) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized - Please sign in'
-      })
-    }
-
-    // Check origin/referer
-    const originCheck = checkOrigin(event)
-    if (!originCheck.allowed) {
-      throw createError({
-        statusCode: 403,
-        statusMessage: originCheck.reason || 'Forbidden - Invalid origin'
-      })
-    }
-
-    // Check rate limit
-    const username = (session.user as any)?.login || (session.user as any)?.name || 'unknown'
-    const rateLimitCheck = checkRateLimit(username)
-    if (!rateLimitCheck.allowed) {
-      const resetTime = rateLimitCheck.resetAt?.toISOString() || 'unknown'
-      throw createError({
-        statusCode: 429,
-        statusMessage: `Rate limit exceeded. Try again after ${resetTime}`
-      })
-    }
+    await authorizeAiRequest(event)
 
     // Parse request body
     const body = await readBody<RequestBody>(event)
