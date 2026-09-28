@@ -42,6 +42,39 @@
             </CardContent>
           </Card>
 
+          <!-- Model links for the Add models importer -->
+          <Card>
+            <CardHeader>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle class="text-base">Model Links</CardTitle>
+                  <p class="text-xs text-muted-foreground mt-1">
+                    JSON list with model_name, url, and directory. Paste or upload it in Add models.
+                  </p>
+                </div>
+                <div class="flex shrink-0 gap-2">
+                  <Button size="sm" variant="outline" :disabled="!modelLinks.length" @click="copyModelLinks">
+                    {{ modelLinksCopied ? 'Copied' : 'Copy JSON' }}
+                  </Button>
+                  <Button size="sm" variant="outline" :disabled="!modelLinks.length" @click="downloadModelLinks">
+                    Download JSON
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p v-if="modelLinksStatus === 'loading'" class="text-sm text-muted-foreground">Reading model links...</p>
+              <p v-else-if="modelLinks.length === 0" class="text-sm text-muted-foreground">No download links found in this workflow.</p>
+              <div v-else class="space-y-2">
+                <p class="text-xs text-muted-foreground">
+                  {{ modelLinks.length }} model{{ modelLinks.length === 1 ? '' : 's' }}
+                  <span v-if="modelLinks.length > 100">. The import form accepts 100 at a time.</span>
+                </p>
+                <pre class="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs font-mono whitespace-pre-wrap">{{ modelLinksJson }}</pre>
+              </div>
+            </CardContent>
+          </Card>
+
           <!-- Input Files -->
           <Card v-if="inputFiles.length > 0">
             <CardHeader>
@@ -290,6 +323,7 @@ import { ref, watch, computed } from 'vue'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import { exportModelLinks, formatModelLinksJson, type ExportedModelLink } from '~/lib/model-link-export'
 import { readMinComfyUIVersion } from '~/lib/template-comfyui-version'
 
 interface Props {
@@ -317,6 +351,10 @@ const isOpen = ref(props.open || false)
 const loading = ref(false)
 const thumbnails = ref<any[]>([])
 const inputFiles = ref<any[]>([])
+const modelLinks = ref<ExportedModelLink[]>([])
+const modelLinksStatus = ref<'idle' | 'loading' | 'ready'>('idle')
+const modelLinksCopied = ref(false)
+const modelLinksJson = computed(() => formatModelLinksJson(modelLinks.value))
 
 
 const outputFiles = computed(() => {
@@ -426,10 +464,41 @@ const formatDate = (dateString: string) => {
   }
 }
 
+const copyModelLinks = async () => {
+  if (!modelLinks.value.length) return
+  try {
+    await navigator.clipboard.writeText(modelLinksJson.value)
+    modelLinksCopied.value = true
+    setTimeout(() => { modelLinksCopied.value = false }, 2000)
+  } catch (error) {
+    console.error('[Copy Model Links] Error:', error)
+    alert('Failed to copy model links')
+  }
+}
+
+const downloadModelLinks = () => {
+  if (!modelLinks.value.length || !props.template?.name) return
+  const blob = new Blob([modelLinksJson.value], { type: 'application/json' })
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = `${props.template.name}-models.json`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(downloadUrl)
+}
+
 const loadInputFiles = async () => {
   inputFiles.value = []
+  modelLinks.value = []
+  modelLinksCopied.value = false
+  modelLinksStatus.value = 'loading'
 
-  if (!props.template?.name) return
+  if (!props.template?.name) {
+    modelLinksStatus.value = 'ready'
+    return
+  }
 
   try {
     // Load workflow JSON
@@ -443,6 +512,7 @@ const loadInputFiles = async () => {
 
     const workflowText = await workflowResponse.text()
     const data = JSON.parse(workflowText)
+    modelLinks.value = exportModelLinks(data)
     const nodes = data.nodes || []
 
     // Asset node types that require input files
@@ -510,6 +580,8 @@ const loadInputFiles = async () => {
     console.log('[TemplateDetailsModal] Input files with existence:', inputFiles.value)
   } catch (error) {
     console.error('[TemplateDetailsModal] Error loading input files:', error)
+  } finally {
+    modelLinksStatus.value = 'ready'
   }
 }
 

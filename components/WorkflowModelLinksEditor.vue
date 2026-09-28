@@ -366,8 +366,8 @@
               />
             </div>
             <div class="flex gap-2">
-              <Button @click="generateNote" class="flex-1" variant="outline">
-                Generate Note
+              <Button @click="generateNote" class="flex-1" variant="outline" :disabled="generatingNote">
+                {{ generatingNote ? 'Reading model sizes...' : 'Generate Note' }}
               </Button>
               <Button
                 v-if="generatedNote"
@@ -440,6 +440,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { analyzeWorkflowModelLinks, isSubgraphNode, normalizeWhitelist } from '~/lib/model-link-scan/analyze'
+import { formatModelFileSize, modelDownloadMarkdown, readModelFileSizes } from '~/lib/model-file-size'
 import { uniqueRepoMarkdownLinks } from '~/lib/model-repo-url'
 
 interface Props {
@@ -463,6 +464,7 @@ const modelNodes = ref<any[]>([])
 const tutorialUrl = ref('')
 const tutorialTitle = ref('Tutorial')
 const generatedNote = ref('')
+const generatingNote = ref(false)
 const inputAssets = ref<Array<{ name: string; url: string; path: string }>>([])
 
 const INPUT_NODE_TYPES = new Set(['LoadImage', 'LoadImageOutput', 'LoadImageSetFromFolderNode', 'LoadImageMask', 'LoadVideo', 'VHS_LoadVideo', 'LoadAudio', 'Load3D'])
@@ -1085,9 +1087,19 @@ const workflowHasSubgraphs = (workflow: any): boolean => {
     && workflow.nodes.some((node: any) => typeof node?.type === 'string' && UUID_TYPE_RE.test(node.type))
 }
 
+async function lookupModelSizes(urls: string[]): Promise<Record<string, number | null>> {
+  if (!urls.length) return {}
+  try {
+    return await readModelFileSizes(urls)
+  } catch (error) {
+    console.warn('[Model Note] Could not read model file sizes:', error)
+    return {}
+  }
+}
+
 // Generate note
-const generateNote = () => {
-  if (!workflowData.value || !config.value) return
+const generateNote = async () => {
+  if (!workflowData.value || !config.value || generatingNote.value) return
 
   const template = config.value.noteTemplate
   let note = ''
@@ -1152,6 +1164,18 @@ const generateNote = () => {
   const linkedModelCount = Object.values(modelsByDir).reduce((sum, models) => sum + models.length, 0)
   const customModelCount = Object.values(customNodeModels).reduce((sum, models) => sum + models.length, 0)
   const totalModelCount = linkedModelCount + customModelCount
+  const linkedUrls = Object.values(modelsByDir).flatMap((models) => models.map((model) => model.url as string))
+
+  let sizes: Record<string, number | null> = {}
+  if (linkedUrls.length) {
+    generatingNote.value = true
+    try {
+      sizes = await lookupModelSizes(linkedUrls)
+    } finally {
+      generatingNote.value = false
+    }
+  }
+  const sizedCount = linkedUrls.filter((url) => formatModelFileSize(sizes[url] ?? 0)).length
 
   if (totalModelCount > 0) {
     note += totalModelCount === 1
@@ -1169,7 +1193,7 @@ const generateNote = () => {
     for (const dir in modelsByDir) {
       note += `**${dir}**\n\n`
       for (const model of modelsByDir[dir]) {
-        note += `- [${model.name}](${model.url})\n`
+        note += `${modelDownloadMarkdown(model.name, model.url, sizes[model.url] ?? null)}\n`
       }
       note += '\n'
     }
@@ -1211,6 +1235,10 @@ const generateNote = () => {
   note += template.reportIssueSection
 
   generatedNote.value = note
+  if (linkedUrls.length && sizedCount < linkedUrls.length) {
+    const missing = linkedUrls.length - sizedCount
+    showNotification(`Note generated. File size was unavailable for ${missing} model${missing === 1 ? '' : 's'}.`, 'info')
+  }
 }
 
 // Copy note
