@@ -115,6 +115,12 @@
             @select-template="jumpToModelLinkIssue"
           />
 
+          <NoteModelSizeScan
+            v-if="isMounted && isLocalMode"
+            class="mt-3"
+            @select-template="jumpToModelLinkIssue"
+          />
+
           <!-- Branch Info and PR Actions -->
           <div v-if="isMounted && selectedRepo && selectedBranch" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
             <!-- Branch Info -->
@@ -556,6 +562,7 @@ import LocalSettingsModal from '~/components/LocalSettingsModal.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 import LocalModeBanner from '~/components/LocalModeBanner.vue'
 import ModelLinkScanBanner from '~/components/ModelLinkScanBanner.vue'
+import NoteModelSizeScan from '~/components/NoteModelSizeScan.vue'
 
 const { status } = useAuth()
 const { resolveRepoFileUrl } = useRepoAssets()
