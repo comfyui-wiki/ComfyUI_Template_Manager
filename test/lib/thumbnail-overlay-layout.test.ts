@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitOverlaySize, layoutOverlaysOnEdge, overlayPosition, overlaySourceCrop } from '../../lib/thumbnail-overlay-layout'
+import { collagePanels, fitOverlayGroup, fitOverlaySize, layoutOverlaysOnEdge, overlayPosition, overlaySourceCrop } from '../../lib/thumbnail-overlay-layout'
 
 describe('overlay layout', () => {
   it('keeps all nine positions inside the canvas with a consistent inset', () => {
@@ -28,4 +28,14 @@ describe('overlay layout', () => {
     expect(top[0].y).toBe(top[1].y)
     expect(top[1].x).toBeCloseTo(top[0].x + .2 + .05)
   })
+})
+
+it('fits large groups without clipping and retains source proportions', () => {
+  const sizes = fitOverlayGroup(Array.from({ length: 20 }, () => ({ w: .6, h: .3 })), true, .12)
+  const positions = layoutOverlaysOnEdge(sizes, 0, .5, .12)
+  positions.forEach((pos, index) => {
+    expect(pos.y + sizes[index].h).toBeLessThanOrEqual(1.000001)
+    expect(sizes[index].w / sizes[index].h).toBeCloseTo(2)
+  })
+  expect(collagePanels(2, 'vertical')).toEqual([{ x: 0, y: 0, w: 1, h: .5 }, { x: 0, y: .5, w: 1, h: .5 }])
 })

@@ -191,7 +191,7 @@
         <CategoryOrderSidebar
           v-if="!isCreateMode || form.category"
           ref="categoryOrderSidebarRef"
-          :templates="categoryTemplates"
+          :templates="categorySidebarTemplates"
           :current-template-name="isCreateMode ? form.templateName : templateName"
           :current-template-title="form.title"
           :current-template-thumbnail="currentTemplateThumbnailPreview"
@@ -258,7 +258,7 @@
                         <span class="text-red-500">*</span>
                       </Label>
                       <span class="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                        {{ requiredThumbnailCount }} file(s) required
+                        {{ requiredThumbnailCount }} output thumbnail(s) required
                       </span>
                     </div>
 
@@ -267,6 +267,10 @@
                          class="p-2 rounded-lg text-sm"
                          :class="thumbnailReuploadStatus.success ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'">
                       {{ thumbnailReuploadStatus.message }}
+                    </div>
+
+                    <div v-if="requiredThumbnailCount === 2" class="flex justify-end">
+                      <Button type="button" variant="outline" size="sm" :disabled="isSubmitting || !thumbnailFiles.some(Boolean)" aria-label="Swap thumbnail order" @click="swapThumbnailOrder">⇄ Swap left / right</Button>
                     </div>
 
                     <!-- Thumbnail Items - Grid Layout -->
@@ -348,6 +352,7 @@
                           :ref="el => thumbnailFileInputs[index - 1] = el"
                           type="file"
                           accept="image/*,video/*,audio/*"
+                          multiple
                           class="hidden"
                           @change="(e) => handleThumbnailReupload(e, index)"
                         />
@@ -1169,7 +1174,7 @@
                     :key="thumbnailPreviewKey"
                     :title="form.title"
                     :description="form.description"
-                    :thumbnail-images="thumbnailFiles"
+                    :thumbnail-images="thumbnailFiles.filter(Boolean)"
                     :thumbnail-variant="form.thumbnailVariant"
                     :tags="form.tags"
                     :logos="form.logos"
@@ -1219,10 +1224,10 @@
         <DialogHeader class="shrink-0 space-y-0 pr-8 text-left">
           <DialogTitle>Thumbnail editor · {{ getThumbnailLabel(converterTargetIndex) }}</DialogTitle>
           <DialogDescription>
-            Choose a source, place overlay images on the canvas, then export {{ getThumbnailLabel(converterTargetIndex) }} as WebP.
+            Choose sources and a layout (single, sequence, or split), then export {{ getThumbnailLabel(converterTargetIndex) }} as WebP.
           </DialogDescription>
         </DialogHeader>
-        <ThumbnailConverter class="min-h-0 flex-1" :initial-file="converterInitialFile" @converted="handleConvertedThumbnail" />
+        <ThumbnailConverter class="min-h-0 flex-1" :initial-file="converterInitialFile" :initial-files="converterInitialFiles" @converted="handleConvertedThumbnail" />
       </DialogScrollContent>
     </Dialog>
 
@@ -1286,6 +1291,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import TemplateCardPreview from '~/components/TemplateCardPreview.vue'
+import { swapThumbnailSlots, swapThumbnailSlotInfo } from '~/lib/thumbnail-slots'
 import ThumbnailConverter from '~/components/ThumbnailConverter.vue'
 import ThumbnailFieldEditor from '~/components/ThumbnailFieldEditor.vue'
 import InputAssetConverter from '~/components/InputAssetConverter.vue'
@@ -1382,6 +1388,7 @@ const isCleaningAfterSave = ref(false)
 const isConverterDialogOpen = ref(false)
 const converterTargetIndex = ref<number>(1)
 const converterInitialFile = ref<File | null>(null)
+const converterInitialFiles = ref<File[]>([])
 
 // Input file converter state
 const isInputAssetConverterOpen = ref(false)
@@ -1483,6 +1490,13 @@ const form = ref({
   searchRank: null as number | null, // Search rank (optional, null means not filled)
   username: '' // Creator username
 })
+
+// Let the sidebar preview sorting with the current unsaved form values.
+const categorySidebarTemplates = computed(() => categoryTemplates.value.map(template =>
+  template.name === (isCreateMode.value ? form.value.templateName : templateName)
+    ? { ...template, usage: form.value.usage, models: form.value.models, openSource: form.value.openSource }
+    : template
+))
 
 const availableCategories = ref<Array<{ moduleName: string; title: string }>>([])
 const availableTags = ref<string[]>([])
@@ -1805,8 +1819,8 @@ const missingFields = computed(() => {
 
   // Check if required thumbnails exist
   const requiredCount = requiredThumbnailCount.value
-  if (thumbnailFiles.value.length < requiredCount) {
-    missing.push(`Thumbnail ${thumbnailFiles.value.length + 1}`)
+  for (let index = 1; index <= requiredCount; index++) {
+    if (!thumbnailFiles.value[index - 1] && !reuploadedThumbnails.value.has(index)) missing.push(`Thumbnail ${index}`)
   }
 
   // Required: Tags (at least one)
@@ -1862,7 +1876,7 @@ const completionStatus = computed(() => {
 
   // Thumbnails (required)
   const requiredCount = requiredThumbnailCount.value
-  if (thumbnailFiles.value.length >= requiredCount) completedRequired++
+  if (Array.from({ length: requiredCount }, (_, i) => thumbnailFiles.value[i] || reuploadedThumbnails.value.get(i + 1)).every(Boolean)) completedRequired++
 
   // Workflow file (required in create mode only)
   if (isCreateMode.value) {
@@ -2052,7 +2066,7 @@ const thumbnailDisplayOrder = computed(() => {
 // Computed: Preview key to force re-render when thumbnails change
 const thumbnailPreviewKey = computed(() => {
   // Create a key based on file names, sizes, and last modified to trigger re-render when files change
-  return thumbnailFiles.value.map(f => `${f.name}_${f.size}_${f.lastModified}`).join('_') + `_${form.value.thumbnailVariant}`
+  return thumbnailFiles.value.map(f => f ? `${f.name}_${f.size}_${f.lastModified}` : 'empty').join('_') + `_${form.value.thumbnailVariant}`
 })
 
 // Get thumbnail label based on variant and index
@@ -2299,6 +2313,7 @@ const handleTemplateNameExtracted = (name: string) => {
 
 // Handler for opening converter for input files
 const handleInputFileConversion = (file: File, targetFilename: string, isExisting: boolean) => {
+  converterInitialFiles.value = []
   converterInitialFile.value = file
   converterTargetInputFilename.value = targetFilename
   converterIsExistingFile.value = isExisting
@@ -2517,6 +2532,18 @@ const downloadThumbnail = async (index: number) => {
   }
 }
 
+// Swap output files, pending writes and cached metadata as one operation.
+const swapThumbnailOrder = () => {
+  if (isSubmitting.value || requiredThumbnailCount.value !== 2) return
+  const swapped = swapThumbnailSlots(thumbnailFiles.value, reuploadedThumbnails.value)
+  thumbnailFiles.value = swapped.files
+  reuploadedThumbnails.value = swapped.pending
+  thumbnailPreviewUrls.value = swapThumbnailSlotInfo(thumbnailPreviewUrls.value)
+  thumbnailFilesInfo.value = swapThumbnailSlotInfo(thumbnailFilesInfo.value)
+  saveSuccess.value = null
+  thumbnailReuploadStatus.value = { success: true, message: '✓ Thumbnail order swapped. Click "Save Changes" to apply.' }
+}
+
 // Trigger thumbnail file upload
 const triggerThumbnailUpload = (index: number) => {
   thumbnailFileInputs.value[index - 1]?.click()
@@ -2525,9 +2552,21 @@ const triggerThumbnailUpload = (index: number) => {
 // Handle thumbnail re-upload
 const handleThumbnailReupload = async (event: Event, index: number) => {
   const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-
+  const files = Array.from(target.files || [])
+  target.value = ''
+  const file = files[0]
   if (!file) return
+  if (files.length > 1) {
+    if (!files.every(item => item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+      thumbnailReuploadStatus.value = { success: false, message: 'Choose images or videos for a sequence or split cover.' }
+      return
+    }
+    converterInitialFile.value = null
+    converterInitialFiles.value = files
+    converterTargetIndex.value = index
+    isConverterDialogOpen.value = true
+    return
+  }
 
   // Validate file type
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/') && !file.type.startsWith('audio/')) {
@@ -2594,6 +2633,7 @@ const handleThumbnailReupload = async (event: Event, index: number) => {
   }
 
   // Store the file and open converter dialog for this index
+  converterInitialFiles.value = []
   converterInitialFile.value = file
   converterTargetIndex.value = index
   isConverterDialogOpen.value = true
@@ -2627,6 +2667,7 @@ const handleConvertedThumbnail = async (file: File) => {
   updateMediaTypeFromThumbnail()
 
   // Clear initial file and close dialog
+  converterInitialFiles.value = []
   converterInitialFile.value = null
   isConverterDialogOpen.value = false
 
@@ -2664,6 +2705,7 @@ const handleConvertedInputFile = (file: File, oldFilename?: string) => {
   }
 
   // Clear state and close dialog
+  converterInitialFiles.value = []
   converterInitialFile.value = null
   converterTargetInputFilename.value = ''
   converterIsExistingFile.value = false
@@ -2730,6 +2772,7 @@ const handleInputFileFormatChange = (oldFilename: string, newFilename: string) =
 watch(isConverterDialogOpen, (isOpen) => {
   if (!isOpen) {
     // Clear initial file when dialog is closed
+    converterInitialFiles.value = []
     converterInitialFile.value = null
   }
 })
@@ -2737,6 +2780,7 @@ watch(isConverterDialogOpen, (isOpen) => {
 watch(isInputAssetConverterOpen, (isOpen) => {
   if (!isOpen) {
     // Clear initial file when dialog is closed
+    converterInitialFiles.value = []
     converterInitialFile.value = null
     converterTargetInputFilename.value = ''
   }

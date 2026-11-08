@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import Editor from '../../components/ThumbnailOverlayEditor.vue'
@@ -28,6 +29,27 @@ async function upload(files = [new File(['a'], 'one.png'), new File(['b'], 'two.
 }
 function draw() { (wrapper.vm as any).drawOverlays(ctx, 500) }
 describe('thumbnail overlay editor', () => {
+  it('keeps overlays when the composition editor changes', async () => {
+    wrapper.unmount()
+    const shared = ref<any[]>([])
+    const props = { src: '', video: false, size: 500, crop: null, start: 0, end: 3, speed: 1, disabled: false }
+    wrapper = mount(Editor, { props, global: { provide: { 'thumbnail-overlay-items': shared } } })
+    await upload()
+    const other = mount(Editor, { props: { ...props, src: 'sequence.png' }, global: { provide: { 'thumbnail-overlay-items': shared } } })
+    expect(other.text()).toContain('one.png')
+    expect(other.text()).toContain('two.png')
+    other.unmount()
+    expect(shared.value).toHaveLength(2)
+    await wrapper.findAll('button').find(b => b.text().includes('Remove image'))!.trigger('click')
+    expect(shared.value).toHaveLength(1)
+  })
+  it('splits the selected overlay with the original source through the parent', async () => {
+    await upload()
+    await wrapper.findAll('button').find(b => b.text() === 'Side by side')!.trigger('click')
+    expect(wrapper.emitted('split')?.[0]).toEqual([expect.objectContaining({ name: 'two.png' }), 'horizontal'])
+    await wrapper.findAll('button').find(b => b.text() === 'Top and bottom')!.trigger('click')
+    expect(wrapper.emitted('split')?.[1]?.[1]).toBe('vertical')
+  })
   it('loads multiple images, exports shared geometry and applies adjustable styles', async () => {
     await upload()
     expect(wrapper.text()).toContain('one.png')

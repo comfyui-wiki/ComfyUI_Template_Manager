@@ -38,6 +38,36 @@
           Restore order
         </button>
       </div>
+      <div class="mt-2 rounded-md border border-input bg-background p-2 space-y-2">
+        <div class="flex gap-1">
+          <button v-for="preset in sortPresets" :key="preset.label" type="button"
+            class="flex-1 rounded border px-1 py-1 text-[10px] hover:bg-accent"
+            :class="activePreset === preset.label ? 'border-primary bg-primary/10' : 'border-input'"
+            @click="applyPreset(preset)">
+            {{ preset.label }}
+          </button>
+        </div>
+        <button type="button" class="w-full text-xs py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90" @click="sortSmart">
+          Smart sort · usage + model + open source
+        </button>
+        <label class="block text-xs text-muted-foreground">
+          Model matching
+          <select v-model="modelMatch" class="mt-1 w-full rounded border border-input bg-background p-1 text-xs">
+            <option value="exact">Exact model name</option>
+            <option value="family">Broad family (Wan2.1 / Wan2.2)</option>
+          </select>
+        </label>
+        <label class="block text-xs text-muted-foreground">
+          Same-model usage gap: {{ familyGapPercent }}%
+          <input v-model.number="familyGapPercent" type="range" min="0" max="100" step="5" class="w-full" />
+        </label>
+        <label class="block text-xs text-muted-foreground">
+          Open-source usage gap: {{ openSourceGapPercent }}%
+          <input v-model.number="openSourceGapPercent" type="range" min="0" max="100" step="5" class="w-full" />
+        </label>
+        <p class="text-[10px] text-muted-foreground">Highest usage stays first. Larger gaps allow more grouping and open-source preference. Broad family uses the first word of each model name. Settings update the order instantly; save the page to keep it.</p>
+        <p v-if="smartSortActive" class="text-[10px] text-primary">Live smart sorting is on. Manual moves pause it.</p>
+      </div>
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 pb-4">
@@ -177,6 +207,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { smartTemplateOrder } from '~/lib/smart-template-order'
 
 interface Template {
   name: string
@@ -184,6 +215,8 @@ interface Template {
   thumbnailVariant?: string
   mediaSubtype?: string
   usage?: number
+  openSource?: boolean
+  models?: string[]
 }
 
 interface Props {
@@ -209,6 +242,37 @@ const emit = defineEmits<{
 const draggedIndex = ref<number | null>(null)
 const originalTemplates = ref<Template[]>([...props.templates])
 const isRefreshing = ref(false)
+const smartSortActive = ref(false)
+const familyGapPercent = ref(25)
+const openSourceGapPercent = ref(10)
+const modelMatch = ref<'exact' | 'family'>('exact')
+const sortPresets = [
+  { label: 'Usage first', familyGapPercent: 0, openSourceGapPercent: 0 },
+  { label: 'Balanced', familyGapPercent: 25, openSourceGapPercent: 10 },
+  { label: 'Group more', familyGapPercent: 50, openSourceGapPercent: 15 }
+] as const
+const activePreset = computed(() => sortPresets.find(preset =>
+  preset.familyGapPercent === familyGapPercent.value &&
+  preset.openSourceGapPercent === openSourceGapPercent.value
+)?.label)
+const applyPreset = (preset: typeof sortPresets[number]) => {
+  familyGapPercent.value = preset.familyGapPercent
+  openSourceGapPercent.value = preset.openSourceGapPercent
+  sortSmart()
+}
+
+watch([familyGapPercent, openSourceGapPercent, modelMatch], () => sortSmart())
+
+// Ignore order-only prop changes caused by sorting or dragging. Re-sort when
+// actual usage/model/open-source data changes while live sorting is active.
+const sortingDataKey = computed(() => JSON.stringify(
+  [...props.templates]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(template => [template.name, template.usage, template.openSource, template.models])
+))
+watch(sortingDataKey, () => {
+  if (smartSortActive.value) sortSmart()
+})
 
 // Watch for prop changes to update internal state
 watch(
@@ -325,6 +389,8 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
     return
   }
 
+  smartSortActive.value = false
+
   console.log('[CategoryOrderSidebar] Dropping from', draggedIndex.value, 'to', targetIndex)
 
   // Reorder the templates array
@@ -344,18 +410,33 @@ const onDragEnd = () => {
 
 // Sort templates by usage (high to low) and emit new order
 const sortByUsage = () => {
+  smartSortActive.value = false
   const sorted = [...props.templates].sort((a, b) => (b.usage ?? 0) - (a.usage ?? 0))
   emit('reorder', sorted)
 }
 
+const sortSmart = () => {
+  smartSortActive.value = true
+  const sorted = smartTemplateOrder(props.templates, {
+    familyGapPercent: familyGapPercent.value,
+    openSourceGapPercent: openSourceGapPercent.value,
+    modelMatch: modelMatch.value
+  })
+  if (sorted.some((template, index) => template.name !== props.templates[index]?.name)) {
+    emit('reorder', sorted)
+  }
+}
+
 // Restore templates to original (saved) order
 const restoreOrder = () => {
+  smartSortActive.value = false
   emit('reorder', [...originalTemplates.value])
 }
 
 // Move template up/down by one position
 const moveUp = (index: number) => {
   if (index <= 0) return
+  smartSortActive.value = false
   const newTemplates = [...props.templates]
   ;[newTemplates[index - 1], newTemplates[index]] = [newTemplates[index], newTemplates[index - 1]]
   emit('reorder', newTemplates)
@@ -363,6 +444,7 @@ const moveUp = (index: number) => {
 
 const moveDown = (index: number) => {
   if (index >= props.templates.length - 1) return
+  smartSortActive.value = false
   const newTemplates = [...props.templates]
   ;[newTemplates[index], newTemplates[index + 1]] = [newTemplates[index + 1], newTemplates[index]]
   emit('reorder', newTemplates)

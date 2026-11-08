@@ -8,7 +8,7 @@
     >
       <ImagePlus class="pointer-events-none h-5 w-5 text-muted-foreground" />
       <div class="pointer-events-none space-y-0.5">
-        <p class="text-sm font-medium">Add overlay images</p>
+        <p class="text-sm font-medium">Add images</p>
         <p class="text-xs text-muted-foreground">Drop files here or click to upload. Drag on the canvas to place them; pull the corner to resize.</p>
       </div>
       <input
@@ -23,7 +23,19 @@
       >
     </label>
 
-    <div class="flex flex-row items-start gap-3">
+    <div v-if="!hideSplit" class="space-y-2 rounded-xl border p-3">
+      <p class="text-sm font-medium">Split source + overlay</p>
+      <div class="flex flex-wrap gap-2">
+        <Button type="button" size="sm" :disabled="disabled || !active" @click="splitSelected('horizontal')">Side by side</Button>
+        <Button type="button" size="sm" :disabled="disabled || !active" @click="splitSelected('vertical')">Top and bottom</Button>
+      </div>
+      <label class="block text-xs">Or add a second image / video to split with the source
+        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" :disabled="disabled" @change="splitUpload">
+      </label>
+      <p class="text-xs text-muted-foreground">The original source fills one panel; the selected overlay fills the other. Crop each panel independently in the split editor.</p>
+    </div>
+
+    <div class="flex flex-col items-start gap-3 sm:flex-row">
       <div class="min-w-0 flex-1 space-y-3">
         <div ref="stage" class="relative mx-auto aspect-square w-full max-w-[min(100%,56vh)] overflow-hidden rounded-xl bg-zinc-950 shadow-inner ring-1 ring-border touch-none" @pointermove="move" @pointerup="end" @pointercancel="end">
           <canvas ref="preview" class="absolute inset-0 h-full w-full" />
@@ -32,7 +44,7 @@
             :key="item.id"
             class="absolute cursor-move"
             :style="{ left: item.x * 100 + '%', top: item.y * 100 + '%', width: item.w * 100 + '%', height: item.h * 100 + '%' }"
-            :class="selected === item.id ? 'z-10' : 'z-0'"
+
             @pointerdown="start($event, item, false)"
           >
             <span
@@ -72,7 +84,7 @@
         </div>
       </div>
 
-      <aside v-if="active" class="w-44 shrink-0 space-y-3 rounded-xl border bg-background p-3 sticky top-0 sm:w-52">
+      <aside v-if="active" class="w-full shrink-0 space-y-3 rounded-xl border bg-background p-3 sticky top-0 sm:w-52">
         <fieldset :disabled="disabled" class="space-y-2">
           <legend class="text-sm font-medium">Quick layout</legend>
           <div class="grid w-[132px] grid-cols-3 gap-1">
@@ -155,11 +167,11 @@
 
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <video v-if="video" ref="media" :src="src" muted playsinline class="hidden" @loadeddata="play" @timeupdate="loop" />
-    <img v-else ref="still" :src="src" class="hidden" alt="" />
+    <img v-else-if="!renderBase" ref="still" :src="src" class="hidden" alt="" />
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, type Component } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, inject, type Ref, type Component } from 'vue'
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -174,19 +186,20 @@ import {
   Trash2,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { overlaySourceCrop, fitOverlaySize, overlayPosition, layoutOverlaysOnEdge, clampOverlayGap } from '~/lib/thumbnail-overlay-layout'
+import { fitOverlayGroup, overlaySourceCrop, fitOverlaySize, overlayPosition, layoutOverlaysOnEdge, clampOverlayGap } from '~/lib/thumbnail-overlay-layout'
 import { loadOverlayStylePrefs, saveOverlayStylePrefs } from '~/lib/thumbnail-overlay-style'
 
-const props = defineProps<{ src: string; video: boolean; size: number; crop: { x: number; y: number; size: number } | null; start: number; end: number; speed: number; disabled: boolean; resetKey?: number }>()
-const emit = defineEmits<{ change: [] }>()
-type Overlay = { id: number; name: string; image: HTMLImageElement; url: string; x: number; y: number; w: number; h: number; border: number; radius: number; ratio: string; focusX: number; focusY: number }
-const items = ref<Overlay[]>([])
+const props = defineProps<{ src: string; video: boolean; size: number; crop: { x: number; y: number; size: number } | null; start: number; end: number; speed: number; disabled: boolean; resetKey?: number; renderBase?: (ctx: CanvasRenderingContext2D, size: number) => void; hideSplit?: boolean }>()
+const emit = defineEmits<{ change: []; split: [file: File, direction: 'horizontal' | 'vertical'] }>()
+type Overlay = { file: File; id: number; name: string; image: HTMLImageElement; url: string; x: number; y: number; w: number; h: number; border: number; radius: number; ratio: string; focusX: number; focusY: number }
+const sharedItems = inject<Ref<Overlay[]> | null>('thumbnail-overlay-items', null)
+const items = sharedItems || ref<Overlay[]>([])
 const selected = ref(0)
 const remembered = loadOverlayStylePrefs()
 const layoutScope = ref<'selected' | 'all'>(remembered.layoutScope)
 const stackGap = ref(remembered.gap)
 const lastLayout = ref<{ x: number; y: number } | null>(remembered.layout)
-const active = computed(() => items.value.find(i => i.id === selected.value))
+const active = computed(() => items.value.find(i => i.id === selected.value) || items.value.at(-1))
 const stage = ref<HTMLElement>()
 const preview = ref<HTMLCanvasElement>()
 const overlayInput = ref<HTMLInputElement>()
@@ -207,6 +220,14 @@ const positions: { label: string; icon: Component; x: number; y: number }[] = [
   { label: 'Bottom center', icon: ArrowDown, x: .5, y: 1 },
   { label: 'Bottom right', icon: ArrowDownRight, x: 1, y: 1 },
 ]
+function splitSelected(direction: 'horizontal' | 'vertical') {
+  if (!props.disabled && active.value) emit('split', active.value.file, direction)
+}
+function splitUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]; input.value = ''
+  if (file && !props.disabled) emit('split', file, 'horizontal')
+}
 function isAt(x: number, y: number) {
   if (layoutScope.value === 'all' && items.value.length > 1 && lastLayout.value) {
     return lastLayout.value.x === x && lastLayout.value.y === y
@@ -238,6 +259,8 @@ function setLayoutScope(scope: 'selected' | 'all') {
   persistPrefs()
 }
 function applyGroupLayout(horizontal: number, vertical: number) {
+  const fitted = fitOverlayGroup(items.value, horizontal === 0 || horizontal === 1, stackGap.value)
+  fitted.forEach((size, index) => Object.assign(items.value[index], size))
   const packed = layoutOverlaysOnEdge(
     items.value.map(item => ({ w: item.w, h: item.h })),
     horizontal,
@@ -322,7 +345,8 @@ async function addFiles(files: File[]) {
       const pos = lastLayout.value
         ? overlayPosition(size.w, size.h, lastLayout.value.x, lastLayout.value.y)
         : { x: .1, y: .1 }
-      items.value.push({ id: ++nextId, name: file.name, image, url, ...pos, ...size, border: style.border, radius: style.radius, ratio: 'original', focusX: .5, focusY: .5 })
+      nextId = Math.max(nextId, ...items.value.map(item => item.id))
+      items.value.push({ file, id: ++nextId, name: file.name, image, url, ...pos, ...size, border: style.border, radius: style.radius, ratio: 'original', focusX: .5, focusY: .5 })
       selected.value = nextId
       changed()
     } catch { URL.revokeObjectURL(url); error.value = `Could not load ${file.name}` }
@@ -342,10 +366,12 @@ async function onDrop(event: DragEvent) {
   if (files.length) await addFiles(files)
 }
 function remove() {
-  if (!active.value) return
+  if (!active.value || props.disabled) return
+  const removedId = active.value.id
   URL.revokeObjectURL(active.value.url)
-  items.value = items.value.filter(i => i.id !== selected.value)
+  items.value = items.value.filter(i => i.id !== removedId)
   selected.value = items.value.at(-1)?.id || 0
+  relayoutIfGrouped()
   changed()
 }
 function start(e: PointerEvent, item: Overlay, resize: boolean) {
@@ -358,6 +384,7 @@ function start(e: PointerEvent, item: Overlay, resize: boolean) {
 function move(e: PointerEvent) {
   if (!drag || !stage.value) return
   const item = items.value.find(i => i.id === drag!.id)!
+  lastLayout.value = null
   const width = stage.value.getBoundingClientRect().width
   const dx = (e.clientX - drag.px) / width, dy = (e.clientY - drag.py) / width
   if (drag.resize) {
@@ -397,7 +424,8 @@ function render() {
     const w = props.video ? media.value?.videoWidth : still.value?.naturalWidth
     const h = props.video ? media.value?.videoHeight : still.value?.naturalHeight
     ctx.fillStyle = 'black'; ctx.fillRect(0, 0, props.size, props.size)
-    if (source && w && h && (!props.video || (media.value?.readyState || 0) >= 2)) {
+    if (props.renderBase) props.renderBase(ctx, props.size)
+    else if (source && w && h && (!props.video || (media.value?.readyState || 0) >= 2)) {
       if (props.crop) ctx.drawImage(source, props.crop.x * w, props.crop.y * h, props.crop.size * w, props.crop.size * w, 0, 0, props.size, props.size)
       else {
         const scale = props.size / Math.max(w, h)
@@ -410,7 +438,8 @@ function render() {
 }
 function play() { if (media.value) { media.value.currentTime = props.start; media.value.playbackRate = props.speed; media.value.play().catch(() => {}) } }
 function loop() { if (media.value && media.value.currentTime >= props.end) media.value.currentTime = props.start }
-function reset() { generation++; items.value.forEach(i => URL.revokeObjectURL(i.url)); items.value = []; selected.value = 0; drag = null }
+function reset() { if (sharedItems) { generation++; selected.value = 0; drag = null; return }; generation++; items.value.forEach(i => URL.revokeObjectURL(i.url)); items.value = []; selected.value = 0; drag = null }
+watch(items, changed, { deep: true })
 watch(() => props.resetKey ?? props.src, reset)
 watch(() => props.src, () => {
   still.value?.decode?.().catch(() => {})

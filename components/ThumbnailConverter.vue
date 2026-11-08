@@ -1,5 +1,6 @@
 <template>
-  <div class="grid min-h-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:h-full">
+  <ThumbnailSplitEditor v-if="splitFiles.length === 2" v-show="compositionMode !== 'sequence'" :key="splitVersion" :mode="compositionMode" :source-error="error" v-model:quality="quality" v-model:speed="videoSpeed" v-model:fps="videoFps" v-model:start="videoStartTime" v-model:end="videoEndTime" v-model:fit="fitMode" :initial-vertical="splitVertical" :files="splitFiles" :native="useNativeLocalConverter" :ready="ffmpegLoaded" :ffmpeg="ffmpeg" @mode="chooseSources" @reorder="syncSourceOrder" @sources="updateManagedSources" @replace="acceptSources" @clear="clearComposition" @converted="emit('converted', $event)" />
+  <div v-show="splitFiles.length !== 2 || compositionMode === 'sequence'" class="grid min-h-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:h-full">
     <section class="min-w-0 rounded-xl bg-muted/20 p-3 lg:overflow-y-auto lg:p-5" aria-label="Thumbnail canvas">
       <div class="flex items-center justify-between mb-4">
         <div>
@@ -17,7 +18,7 @@
         :reset-key="sourceResetKey"
         :video="!!isVideo" :size="Number(targetSize)"
         :crop="overlayCrop" :start="videoStartTime" :end="videoEndTime"
-        :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" />
+        :speed="playbackSpeed" :disabled="isConverting" @change="invalidateOutput" @split="splitWithSource" />
       <div v-if="!sourceFile" class="flex min-h-64 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-background/60 text-muted-foreground">
         <span class="text-sm font-medium text-foreground/80">No source yet</span>
         <span class="text-xs">Choose a still, several stills for a looping cover, or a video.</span>
@@ -25,6 +26,8 @@
     </section>
     <section class="min-w-0 space-y-4 lg:overflow-y-auto lg:pr-2" aria-label="Source and export settings">
 
+      <ThumbnailCompositionMode v-if="compositionFiles.length > 1" :model-value="compositionMode" :count="compositionFiles.length" :stills="compositionFiles.every(f => f.type.startsWith('image/'))" :disabled="isConverting" @update:model-value="chooseSources" />
+      <ThumbnailSourceList v-if="sourceAssets.length" :files="sourceAssets" :disabled="isConverting" @add="files => updateManagedSources([...sourceAssets, ...files])" @remove="index => updateManagedSources(sourceAssets.filter((_, i) => i !== index))" @replace="(index, file) => updateManagedSources(sourceAssets.map((item, i) => i === index ? file : item))" @move="moveManagedSource" />
       <!-- FFmpeg Loading Status with Progress -->
       <div v-if="!ffmpegLoaded && !useNativeLocalConverter" class="space-y-2">
         <div class="p-2.5 bg-blue-50 border border-blue-200 rounded">
@@ -59,7 +62,8 @@
 
       <!-- File Upload -->
       <div class="space-y-2">
-        <Label>Source File</Label>
+        <Label>Source files</Label>
+
         <div class="flex gap-2">
           <Input
             ref="fileInput"
@@ -72,7 +76,7 @@
           <Button v-if="sourceFile" variant="outline" size="sm" @click="clearFile">Clear</Button>
         </div>
         <p class="text-xs text-muted-foreground">
-          One still or video, or several stills (JPG, PNG, WebP) to merge into one looping animated WebP at {{ isSlideshow ? '400×400' : 'cover size' }}.
+          Select one or multiple sources. After selecting multiple files, choose a sequence or a split layout.
         </p>
       </div>
 
@@ -496,8 +500,12 @@
         <!-- FPS for video -->
         <div v-if="isVideo" class="space-y-2">
           <Label>Frame Rate ({{ videoFps }} fps)</Label>
-          <input type="range" v-model.number="videoFps" min="10" max="30" step="5" class="w-full" />
-          <p class="text-xs text-muted-foreground">Lower FPS = smaller file. 15 fps recommended</p>
+          <input type="range" v-model.number="videoFps" min="1" max="60" step="1" class="w-full" />
+          <div class="flex justify-between text-[11px] text-muted-foreground">
+            <span>1 fps</span>
+            <span>60 fps</span>
+          </div>
+          <p class="text-xs text-muted-foreground">Any rate from 1 to 60. Lower is a smaller file. 15 fps is the usual cover.</p>
         </div>
 
         <div v-if="isVideo || isSlideshow" class="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
@@ -634,7 +642,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, provide, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import ThumbnailSourceList from './ThumbnailSourceList.vue'
+import ThumbnailCompositionMode from './ThumbnailCompositionMode.vue'
+import ThumbnailSplitEditor from './ThumbnailSplitEditor.vue'
 import ThumbnailOverlayEditor from './ThumbnailOverlayEditor.vue'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
@@ -662,12 +673,89 @@ import {
 
 const props = defineProps<{
   initialFile?: File | null
+  initialFiles?: File[]
 }>()
 
 const emit = defineEmits<{
   converted: [file: File]
 }>()
 
+const sharedOverlays = ref<any[]>([])
+provide('thumbnail-overlay-items', sharedOverlays)
+const clearOverlays = () => { sharedOverlays.value.forEach(item => URL.revokeObjectURL(item.url)); sharedOverlays.value = [] }
+onBeforeUnmount(() => sharedOverlays.value.forEach(item => URL.revokeObjectURL(item.url)))
+const splitFiles = ref<File[]>([])
+const splitVersion = ref(0)
+const compositionFiles = ref<File[]>([])
+const compositionMode = ref('horizontal')
+const sourceAssets = computed(() => splitFiles.value.length ? splitFiles.value : slideFrames.value.length ? slideFrames.value.map(frame => frame.file) : sourceFile.value ? [sourceFile.value] : [])
+const syncSourceOrder = (files: File[]) => { splitFiles.value = files; compositionFiles.value = files }
+const updateManagedSources = async (files: File[]) => {
+  error.value = ''
+  const settings = { speed: videoSpeed.value, start: videoStartTime.value, end: videoEndTime.value }
+  try {
+    if (files.length > 2 && files.some(file => !file.type.startsWith('image/'))) throw new Error('Split covers support two sources. Sequences currently support still images only.')
+    if (files.length > SLIDESHOW_MAX_FRAMES) throw new Error(`Use at most ${SLIDESHOW_MAX_FRAMES} sources`)
+    if (!files.length) { clearComposition(); return }
+    invalidateOutput()
+    if (files.length === 1) {
+      await loadFile(files[0], true)
+      splitFiles.value = []; compositionFiles.value = []
+      videoSpeed.value = settings.speed
+      const limit = videoDuration.value || 30
+      videoStartTime.value = Math.min(settings.start, Math.max(0, limit - .1))
+      videoEndTime.value = Math.min(limit, Math.max(videoStartTime.value + .1, settings.end))
+      return
+    }
+    if (files.length === 2) {
+      compositionFiles.value = files
+      splitFiles.value = files
+      if (compositionMode.value === 'sequence' && files.every(file => file.type.startsWith('image/'))) await loadSlideshow(files)
+      else if (compositionMode.value === 'sequence') compositionMode.value = 'horizontal'
+    } else {
+      await loadSlideshow(files)
+      compositionFiles.value = files; splitFiles.value = []; compositionMode.value = 'sequence'
+    }
+  } catch (err: any) { error.value = err.message || 'Could not update sources' }
+}
+const moveManagedSource = (index: number, delta: number) => {
+  const files = [...sourceAssets.value], next = index + delta
+  if (next < 0 || next >= files.length) return
+  const [file] = files.splice(index, 1); files.splice(next, 0, file)
+  return updateManagedSources(files)
+}
+const clearComposition = () => { splitFiles.value = []; compositionFiles.value = []; clearFile() }
+const acceptSources = async (files: File[]) => {
+  clearOverlays()
+  compositionFiles.value = [...files]
+  if (files.length === 2) {
+    compositionMode.value = 'horizontal'
+    replaceSplit(files)
+  } else {
+    splitFiles.value = []
+    compositionMode.value = 'sequence'
+    await loadSlideshow(files)
+  }
+}
+const chooseSources = async (mode: string) => {
+  invalidateOutput()
+  error.value = ''
+  try {
+    if (mode === 'sequence') {
+      await loadSlideshow(splitFiles.value.length ? splitFiles.value : compositionFiles.value)
+    }
+    compositionMode.value = mode
+  } catch (err: any) { error.value = err.message || 'Could not load sources' }
+}
+const splitVertical = ref(false)
+const splitWithSource = (file: File, direction: 'horizontal' | 'vertical') => {
+  if (!sourceFile.value) return
+  splitVertical.value = direction === 'vertical'
+  compositionMode.value = direction
+  compositionFiles.value = [sourceFile.value, file]
+  replaceSplit(compositionFiles.value)
+}
+const replaceSplit = (files: File[]) => { splitFiles.value = files; splitVersion.value++ }
 const overlayEditor = ref<InstanceType<typeof ThumbnailOverlayEditor>>()
 const invalidateOutput = () => {
   if (convertedPreviewUrl.value) URL.revokeObjectURL(convertedPreviewUrl.value)
@@ -1250,7 +1338,8 @@ onBeforeUnmount(() => {
 })
 
 // Load file programmatically (for initial file prop)
-const loadFile = async (file: File) => {
+const loadFile = async (file: File, preserveOverlays = false) => {
+  if (!preserveOverlays) clearOverlays()
   clearSlides()
   if (sourcePreviewUrl.value) URL.revokeObjectURL(sourcePreviewUrl.value)
   invalidateOutput()
@@ -1330,18 +1419,14 @@ const moveSlide = async (index: number, delta: number) => {
   const [item] = copy.splice(index, 1)
   copy.splice(next, 0, item)
   slideFrames.value = copy
+  compositionFiles.value = copy.map(frame => frame.file)
+  if (splitFiles.value.length) splitFiles.value = compositionFiles.value
   await applySlideSelection(next)
   invalidateOutput()
 }
 
 const removeSlide = async (index: number) => {
-  if (slideFrames.value.length <= SLIDESHOW_MIN_FRAMES) return
-  const copy = [...slideFrames.value]
-  const [removed] = copy.splice(index, 1)
-  URL.revokeObjectURL(removed.url)
-  slideFrames.value = copy
-  await applySlideSelection(Math.min(index, copy.length - 1))
-  invalidateOutput()
+  await updateManagedSources(slideFrames.value.filter((_, i) => i !== index).map(frame => frame.file))
 }
 
 const onFileSelect = async (event: Event) => {
@@ -1355,6 +1440,12 @@ const onFileSelect = async (event: Event) => {
   error.value = ''
 
   try {
+    if (files.length > 1) {
+      if (images.length + videos.length !== files.length) throw new Error('Choose image or video sources.')
+      await acceptSources(files)
+      return
+    }
+    compositionFiles.value = []; splitFiles.value = []
     if (videos.length && images.length) {
       throw new Error('Pick either stills or one video, not both')
     }
@@ -1412,6 +1503,7 @@ const loadVideoDimensions = (file: File): Promise<void> => {
 }
 
 const clearFile = () => {
+  clearOverlays()
   if (sourcePreviewUrl.value && !slideFrames.value.some(frame => frame.url === sourcePreviewUrl.value)) {
     URL.revokeObjectURL(sourcePreviewUrl.value)
   }
@@ -1792,9 +1884,15 @@ watch(playbackSpeed, () => {
 
 // Watch for initialFile prop and auto-load it
 watch(() => props.initialFile, async (file) => {
-  if (file) {
+  if (file && !props.initialFiles?.length) {
+    compositionFiles.value = []; splitFiles.value = []
     await loadFile(file)
   }
+}, { immediate: true })
+watch(() => props.initialFiles, async (files) => {
+  if (!files?.length) return
+  if (files.length > 1) await acceptSources(files)
+  else await loadFile(files[0])
 }, { immediate: true })
 
 // Watch for video timeline changes and update preview

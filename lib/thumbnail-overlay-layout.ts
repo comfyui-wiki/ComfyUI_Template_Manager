@@ -32,7 +32,7 @@ export function layoutOverlaysOnEdge(
   if (!sizes.length) return []
   if (sizes.length === 1) return [overlayPosition(sizes[0].w, sizes[0].h, horizontal, vertical)]
 
-  const spacing = clampOverlayGap(gap)
+  const spacing = Math.min(clampOverlayGap(gap), .9 / (sizes.length - 1))
   const stackVertical = horizontal === 0 || horizontal === 1
   if (stackVertical) {
     const total = sizes.reduce((sum, item) => sum + item.h, 0) + spacing * (sizes.length - 1)
@@ -65,4 +65,19 @@ export function overlaySourceCrop(width: number, height: number, ratio: number, 
     width: cropWidth,
     height: cropHeight,
   }
+}
+
+/** Equal panels cover the entire square; source cropping preserves aspect ratio. */
+export function collagePanels(count: number, direction: 'horizontal' | 'vertical') {
+  return Array.from({ length: count }, (_, index) => direction === 'horizontal'
+    ? { x: index / count, y: 0, w: 1 / count, h: 1 }
+    : { x: 0, y: index / count, w: 1, h: 1 / count })
+}
+
+/** Shrink an oversized group uniformly so every overlay stays on the canvas. */
+export function fitOverlayGroup(sizes: { w: number; h: number }[], vertical: boolean, gap: number) {
+  const available = Math.max(.001, 1 - Math.min(clampOverlayGap(gap), .9 / Math.max(1, sizes.length - 1)) * Math.max(0, sizes.length - 1))
+  const total = sizes.reduce((sum, size) => sum + (vertical ? size.h : size.w), 0)
+  const scale = total > 0 ? Math.min(1, available / total) : 1
+  return sizes.map(size => ({ w: size.w * scale, h: size.h * scale }))
 }

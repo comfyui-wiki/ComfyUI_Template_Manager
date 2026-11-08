@@ -151,8 +151,10 @@
                       </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="font-medium text-sm truncate">{{ file.nodeType }}</p>
+                      <p class="font-medium text-sm truncate">{{ file.file || file.filename || file.nodeType }}</p>
                       <div class="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <span>{{ file.nodeType }}</span>
+                        <span>•</span>
                         <span>Node #{{ file.nodeId }}</span>
                         <span>•</span>
                         <span class="capitalize">{{ file.mediaType || 'unknown' }}</span>
