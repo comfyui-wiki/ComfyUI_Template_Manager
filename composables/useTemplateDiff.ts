@@ -93,6 +93,8 @@ export const useTemplateDiff = () => {
   const mainTemplates = ref<any>(null)
   const currentBundles = ref<BundlesData>({})
   const mainBundles = ref<BundlesData>({})
+  /** Template names whose templates/<name>.json body differs from the compare branch */
+  const contentChangedTemplates = ref<string[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -148,9 +150,25 @@ export const useTemplateDiff = () => {
     return response.categories
   }
 
+  /** Load workflow-file changes (templates/<name>.json) vs the compare branch */
+  const loadContentChangedTemplates = async (owner: string, repo: string, branch: string) => {
+    try {
+      const response = await $fetch<{ success?: boolean; names?: string[] }>('/api/templates/content-diff', {
+        query: { owner, repo, branch }
+      })
+      contentChangedTemplates.value = Array.isArray(response?.names) ? response.names : []
+      console.log('[useTemplateDiff] Workflow-content changes:', contentChangedTemplates.value.length)
+    } catch (err) {
+      console.warn('[useTemplateDiff] Workflow-content diff unavailable:', err)
+      contentChangedTemplates.value = []
+    }
+  }
+
   /** Load main/bundle comparison data in background — never blocks the template list */
   const loadComparisonInBackground = async (owner: string, repo: string, branch: string, forceRefresh = false) => {
     const skipMain = owner === mainRepo.owner && repo === mainRepo.name && branch === mainRepo.branch
+    // Never carry content-diff results over from a previously selected branch
+    contentChangedTemplates.value = []
 
     if (forceRefresh) {
       clearCache(mainRepo.owner, mainRepo.name, mainRepo.branch)
@@ -180,6 +198,8 @@ export const useTemplateDiff = () => {
     } else {
       mainTemplates.value = currentTemplates.value
     }
+
+    tasks.push(loadContentChangedTemplates(owner, repo, branch))
 
     tasks.push((async () => {
       currentBundles.value = await fetchBundlesJson(owner, repo, branch, 'current')
@@ -309,6 +329,8 @@ export const useTemplateDiff = () => {
 
     const mainMap = createTemplateMap(mainTemplates.value)
     const currentMap = createTemplateMap(currentTemplates.value)
+    // Body-only workflow edits never change index.json metadata, so union them in
+    const contentChanged = new Set(contentChangedTemplates.value)
 
     const enrichedTemplates: any[] = []
 
@@ -325,7 +347,7 @@ export const useTemplateDiff = () => {
         const currentHash = getTemplateHash(template)
         const mainHash = getTemplateHash(mainTemplate)
 
-        if (currentHash !== mainHash) {
+        if (currentHash !== mainHash || contentChanged.has(name)) {
           status = 'modified'
         }
       }
