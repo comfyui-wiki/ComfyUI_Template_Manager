@@ -7,6 +7,7 @@ import {
   isLocalModeEnabled,
   writeLocalTreeAndCommit
 } from '~/server/utils/local-template-persist'
+import { localeCodeByIndexFile, localeIndexFiles } from '~/server/utils/locale-index-files'
 
 interface I18nData {
   _status: any
@@ -91,35 +92,8 @@ export default defineEventHandler(async (event) => {
     console.log('[Update i18n] Updated i18n.json at path:', i18nPath)
 
     // 2. Sync translations to all locale files
-    const localeFiles = [
-      'index.json',
-      'index.zh.json',
-      'index.zh-TW.json',
-      'index.ja.json',
-      'index.ko.json',
-      'index.es.json',
-      'index.fr.json',
-      'index.ru.json',
-      'index.tr.json',
-      'index.ar.json',
-      'index.pt-BR.json',
-      'index.fa.json'
-    ]
-
-    const langCodeMap: Record<string, string> = {
-      'index.json': 'en',
-      'index.zh.json': 'zh',
-      'index.zh-TW.json': 'zh-TW',
-      'index.ja.json': 'ja',
-      'index.ko.json': 'ko',
-      'index.es.json': 'es',
-      'index.fr.json': 'fr',
-      'index.ru.json': 'ru',
-      'index.tr.json': 'tr',
-      'index.ar.json': 'ar',
-      'index.pt-BR.json': 'pt-BR',
-      'index.fa.json': 'fa'
-    }
+    const localeFiles = localeIndexFiles
+    const langCodeMap = localeCodeByIndexFile
 
     for (const localeFile of localeFiles) {
       const langCode = langCodeMap[localeFile]

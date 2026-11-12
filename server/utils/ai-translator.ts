@@ -71,10 +71,12 @@ const LANGUAGE_NAMES: Record<string, string> = {
   tr: 'Turkish (Türkçe)',
   ar: 'Arabic (العربية)',
   'pt-BR': 'Brazilian Portuguese (Português do Brasil)',
-  fa: 'Persian (فارسی)'
+  fa: 'Persian (فارسی)',
+  it: 'Italian (Italiano)',
+  he: 'Hebrew (עברית)'
 }
 
-function getLanguageName(code: string): string {
+export function getLanguageName(code: string): string {
   return LANGUAGE_NAMES[code] || code
 }
 

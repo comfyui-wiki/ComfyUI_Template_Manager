@@ -7,21 +7,9 @@ import {
   isLocalModeEnabled,
   writeLocalTreeAndCommit
 } from '~/server/utils/local-template-persist'
+import { localeCodeByIndexFile, localeIndexFiles } from '~/server/utils/locale-index-files'
 
-const localeFiles = [
-  'index.json',
-  'index.zh.json',
-  'index.zh-TW.json',
-  'index.ja.json',
-  'index.ko.json',
-  'index.es.json',
-  'index.fr.json',
-  'index.ru.json',
-  'index.tr.json',
-  'index.ar.json',
-  'index.pt-BR.json',
-  'index.fa.json'
-]
+const localeFiles = localeIndexFiles
 
 export default defineEventHandler(async (event) => {
   try {
@@ -109,20 +97,7 @@ export default defineEventHandler(async (event) => {
       console.warn('[tags-models update] Could not read i18n.json, falling back to English keys only:', e.message)
     }
 
-    const langCodeMap: Record<string, string> = {
-      'index.json': 'en',
-      'index.zh.json': 'zh',
-      'index.zh-TW.json': 'zh-TW',
-      'index.ja.json': 'ja',
-      'index.ko.json': 'ko',
-      'index.es.json': 'es',
-      'index.fr.json': 'fr',
-      'index.ru.json': 'ru',
-      'index.tr.json': 'tr',
-      'index.ar.json': 'ar',
-      'index.pt-BR.json': 'pt-BR',
-      'index.fa.json': 'fa'
-    }
+    const langCodeMap = localeCodeByIndexFile
 
     // 1. Update all locale index files (remove tags/models from templates)
     for (const localeFile of localeFiles) {

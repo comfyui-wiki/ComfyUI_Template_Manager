@@ -62,6 +62,16 @@
       "code": "fa",
       "name": "فارسی",
       "indexFile": "index.fa.json"
+    },
+    {
+      "code": "it",
+      "name": "Italiano",
+      "indexFile": "index.it.json"
+    },
+    {
+      "code": "he",
+      "name": "עברית",
+      "indexFile": "index.he.json"
     }
   ],
   "i18nDataPath": {

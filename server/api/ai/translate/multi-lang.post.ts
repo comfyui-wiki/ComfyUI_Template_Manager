@@ -1,5 +1,5 @@
 import { authorizeAiRequest } from '~/server/utils/ai-auth'
-import { translateText } from '~/server/utils/ai-translator'
+import { getLanguageName, translateText } from '~/server/utils/ai-translator'
 import i18nConfigImport from '~/config/i18n-config.json'
 
 interface RequestBody {
@@ -20,26 +20,6 @@ interface I18nConfig {
 // Use directly imported config (works in both dev and production/Vercel)
 function getI18nConfig(): I18nConfig {
   return i18nConfigImport as I18nConfig
-}
-
-// Language name mapping
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English',
-  zh: 'Simplified Chinese (简体中文)',
-  'zh-TW': 'Traditional Chinese (繁體中文)',
-  ja: 'Japanese (日本語)',
-  ko: 'Korean (한국어)',
-  es: 'Spanish (Español)',
-  fr: 'French (Français)',
-  ru: 'Russian (Русский)',
-  tr: 'Turkish (Türkçe)',
-  ar: 'Arabic (العربية)',
-  'pt-BR': 'Brazilian Portuguese (Português do Brasil)',
-  fa: 'Persian (فارسی)'
-}
-
-function getLanguageName(code: string): string {
-  return LANGUAGE_NAMES[code] || code
 }
 
 /**

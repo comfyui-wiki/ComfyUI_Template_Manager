@@ -2,21 +2,9 @@ import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { isLocalModeEnabled, writeLocalTreeAndCommit } from '~/server/utils/local-template-persist'
 import { readRepoJson } from '~/server/utils/local-repo'
+import { templateIndexPaths } from '~/server/utils/locale-index-files'
 
-const INDEX_FILES = [
-  'templates/index.json',
-  'templates/index.zh.json',
-  'templates/index.zh-TW.json',
-  'templates/index.ja.json',
-  'templates/index.ko.json',
-  'templates/index.es.json',
-  'templates/index.fr.json',
-  'templates/index.ru.json',
-  'templates/index.tr.json',
-  'templates/index.ar.json',
-  'templates/index.pt-BR.json',
-  'templates/index.fa.json'
-]
+const INDEX_FILES = templateIndexPaths
 
 type TreeItem = { path: string; mode: '100644'; type: 'blob'; content: string }
 

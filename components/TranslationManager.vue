@@ -91,6 +91,11 @@ function languageOptionLabel(lang: { code: string; name: string }) {
   return `${lang.name} (${lang.code.toLowerCase()})`
 }
 
+const rtlLanguages = new Set(['ar', 'fa', 'he'])
+function textDir(code: string) {
+  return rtlLanguages.has(code) ? 'rtl' : 'ltr'
+}
+
 const loading = ref(false)
 const saving = ref(false)
 const saveSuccess = ref<{ commitSha: string; commitUrl: string } | null>(null)
@@ -1420,6 +1425,7 @@ const saveAllChanges = async () => {
                       <Textarea
                         v-model="editValue"
                         class="text-sm min-h-[80px] resize-y pr-10"
+                        :dir="textDir(lang.code)"
                         @keyup.ctrl.enter="saveTranslation(item.key, lang.code, editValue)"
                         @keyup.meta.enter="saveTranslation(item.key, lang.code, editValue)"
                         @keyup.esc="cancelEdit"
@@ -1471,6 +1477,7 @@ const saveAllChanges = async () => {
                   <div
                     v-else
                     class="text-sm p-1.5 rounded min-h-[32px] border"
+                    :dir="textDir(lang.code)"
                     :class="{
                       'text-muted-foreground italic': !item.translations[lang.code] || (lang.code !== 'en' && item.translations[lang.code] === item.englishValue),
                       'bg-amber-100/40 border-amber-300/70 dark:bg-amber-950/[0.14] dark:border-amber-800/60': lang.code !== 'en' && item.untranslatedLangs.includes(lang.code) && !isCellModified(item.key, lang.code) && !item.glossaryMismatchesByLang[lang.code]?.length,

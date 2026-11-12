@@ -3,21 +3,9 @@ import { getServerSession } from '#auth'
 import { formatTemplateJson } from '~/server/utils/json-formatter'
 import { isLocalModeEnabled, writeLocalTreeAndCommit } from '~/server/utils/local-template-persist'
 import { readRepoJson } from '~/server/utils/local-repo'
+import { localeIndexFiles } from '~/server/utils/locale-index-files'
 
-const localeFiles = [
-  'index.json',
-  'index.zh.json',
-  'index.zh-TW.json',
-  'index.ja.json',
-  'index.ko.json',
-  'index.es.json',
-  'index.fr.json',
-  'index.ru.json',
-  'index.tr.json',
-  'index.ar.json',
-  'index.pt-BR.json',
-  'index.fa.json'
-]
+const localeFiles = localeIndexFiles
 
 function applyCreatorUpdates(
   indexData: any[],
