@@ -367,46 +367,6 @@
           Not available on cloud
         </Button>
 
-        <!-- Local buttons -->
-        <div v-if="isLocalAvailable" class="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            class="flex-1 text-xs h-9"
-            @click="openInLocal"
-            :title="localUrlNotice"
-          >
-            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Open in Local
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-9 w-9 p-0"
-            @click="openLocalSettings"
-            title="Configure local URL"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </Button>
-        </div>
-        <Button
-          v-else
-          size="sm"
-          variant="outline"
-          class="w-full text-xs h-9"
-          disabled
-        >
-          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-          </svg>
-          Not available on local
-        </Button>
-
         <!-- Edit, Download and View buttons (icon only for space) -->
         <div class="flex gap-2">
           <Button
@@ -453,8 +413,6 @@ import { getCardDistributionStatuses, isAvailableOnDistribution } from '@/compos
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TemplateDetailsModal from '@/components/TemplateDetailsModal.vue'
-import { buildLocalComfyTemplateUrl, getLocalComfyBaseUrl } from '~/lib/local-comfy-url'
-
 interface LogoInfo {
   provider: string | string[]
   label?: string
@@ -580,10 +538,6 @@ const isCloudAvailable = computed(() =>
   isAvailableOnDistribution(props.template.includeOnDistributions, 'cloud')
 )
 
-const isLocalAvailable = computed(() =>
-  isAvailableOnDistribution(props.template.includeOnDistributions, 'local')
-)
-
 // Creator info
 const creatorInfo = computed(() => {
   if (!props.template.username || !props.creatorsData) return null
@@ -641,28 +595,6 @@ const copyCloudLink = async () => {
   } catch (err) {
     console.error('Failed to copy:', err)
   }
-}
-
-const localUrlNotice = computed(() => {
-  if (!getLocalComfyBaseUrl()) {
-    return 'Configure local URL first'
-  }
-  return 'Note: This template may not be available in your local instance'
-})
-
-const openInLocal = () => {
-  const saved = localStorage.getItem('comfyui_local_base_url')?.trim()
-  if (!saved) {
-    window.dispatchEvent(new CustomEvent('open-local-settings'))
-    return
-  }
-
-  window.open(buildLocalComfyTemplateUrl(saved, props.template.name), '_blank')
-}
-
-const openLocalSettings = () => {
-  // Emit event to parent component to open settings dialog
-  window.dispatchEvent(new CustomEvent('open-local-settings'))
 }
 
 // Helper functions for logos

@@ -38,8 +38,17 @@ export const useGitHubRepo = () => {
   const mainRepo = {
     owner: 'Comfy-Org',
     name: 'workflow_templates',
-    fullName: 'Comfy-Org/workflow_templates'
+    fullName: 'Comfy-Org/workflow_templates',
+    branch: 'main'
   }
+
+  // Local clones are not a GitHub repository. Public links must target upstream main.
+  const githubLinkRepo = computed(() =>
+    isLocalMode.value ? mainRepo.fullName : (selectedRepo.value || mainRepo.fullName)
+  )
+  const githubLinkBranch = computed(() =>
+    isLocalMode.value ? mainRepo.branch : (selectedBranch.value || mainRepo.branch)
+  )
 
   // Get auth state
   const { data: session, status } = useAuth()
@@ -561,6 +570,8 @@ export const useGitHubRepo = () => {
     localRepoInfo,
     selectedRepo,
     selectedBranch,
+    githubLinkRepo,
+    githubLinkBranch,
     branches,
     isLoading,
     forkInfo,

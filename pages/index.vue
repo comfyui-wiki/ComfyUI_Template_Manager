@@ -126,17 +126,17 @@
             <!-- Branch Info -->
             <div class="flex items-center gap-3 flex-wrap">
               <a
-                :href="`https://github.com/${selectedRepo || 'Comfy-Org/workflow_templates'}/tree/${selectedBranch || 'main'}`"
+                :href="`https://github.com/${githubLinkRepo}/tree/${githubLinkBranch}`"
                 target="_blank"
                 class="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors group"
-                :title="`View on GitHub: ${selectedRepo || 'Comfy-Org/workflow_templates'} @ ${selectedBranch || 'main'}`"
+                :title="`View on GitHub: ${githubLinkRepo} @ ${githubLinkBranch}`"
               >
                 <svg class="w-4 h-4 text-muted-foreground" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878zm3.75 7.378a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm3-8.75a.75.75 0 100-1.5.75.75 0 000 1.5z"/>
                 </svg>
-                <span class="font-mono font-medium text-foreground">{{ selectedRepo || 'Comfy-Org/workflow_templates' }}</span>
+                <span class="font-mono font-medium text-foreground">{{ githubLinkRepo }}</span>
                 <span class="text-muted-foreground/70">@</span>
-                <span class="font-mono font-semibold text-foreground">{{ selectedBranch || 'main' }}</span>
+                <span class="font-mono font-semibold text-foreground">{{ githubLinkBranch }}</span>
                 <svg class="w-3 h-3 text-muted-foreground group-hover:text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -588,7 +588,9 @@ const {
   branchPermission,
   checkBranchPermission,
   initialize: initializeGitHub,
-  isLocalMode
+  isLocalMode,
+  githubLinkRepo,
+  githubLinkBranch
 } = useGitHubRepo()
 
 // Template diff detection
@@ -1267,9 +1269,9 @@ const editTemplate = (template: any) => {
 }
 
 const viewTemplate = (template: any) => {
-  // Open workflow in new tab using current repo and branch
-  const repo = selectedRepo.value || 'Comfy-Org/workflow_templates'
-  const branch = selectedBranch.value || 'main'
+  // Local clones have no GitHub remote of their own, so the eye always opens upstream main.
+  const repo = githubLinkRepo.value
+  const branch = githubLinkBranch.value
   const url = `https://github.com/${repo}/blob/${branch}/templates/${template.name}.json`
   console.log('[View Template] Opening:', url)
   window.open(url, '_blank')
