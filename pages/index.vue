@@ -467,7 +467,6 @@
       @clear-filters="clearFilters"
       @refresh="refreshTemplates"
       @edit-template="editTemplate"
-      @view-template="viewTemplate"
       @edit-thumbnail-field="openThumbnailFieldEditor"
     />
 
@@ -1266,15 +1265,6 @@ const editTemplate = (template: any) => {
     return
   }
   navigateTo(`/admin/edit/${template.name}`)
-}
-
-const viewTemplate = (template: any) => {
-  // Local clones have no GitHub remote of their own, so the eye always opens upstream main.
-  const repo = githubLinkRepo.value
-  const branch = githubLinkBranch.value
-  const url = `https://github.com/${repo}/blob/${branch}/templates/${template.name}.json`
-  console.log('[View Template] Opening:', url)
-  window.open(url, '_blank')
 }
 
 const openThumbnailFieldEditor = (template: any) => {

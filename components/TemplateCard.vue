@@ -367,7 +367,36 @@
           Not available on cloud
         </Button>
 
-        <!-- Edit, Download and View buttons (icon only for space) -->
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            class="flex-1 text-xs h-9"
+            title="View this workflow on GitHub"
+            @click="openOnGitHub"
+          >
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            Open on GitHub
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-9 w-9 p-0"
+            @click="copyGitHubLink"
+            :title="githubCopySuccess ? 'Copied!' : 'Copy GitHub link'"
+          >
+            <svg v-if="!githubCopySuccess" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </Button>
+        </div>
+
+        <!-- Edit and download buttons -->
         <div class="flex gap-2">
           <Button
             variant="outline"
@@ -384,12 +413,6 @@
           <Button variant="outline" size="sm" class="flex-1 h-8 px-2" @click="showDetailsModal = true" title="View details and download">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </Button>
-          <Button variant="outline" size="sm" class="flex-1 h-8 px-2" @click="$emit('view', template)" title="View workflow on GitHub">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
           </Button>
         </div>
@@ -435,7 +458,7 @@ const props = defineProps<{
   repoBaseUrl?: string
 }>()
 
-defineEmits(['edit', 'view', 'edit-thumbnail-field'])
+defineEmits(['edit', 'edit-thumbnail-field'])
 
 const imageError = ref(false)
 const sliderPosition = ref(50) // For compareSlider, start at 50%
@@ -443,6 +466,12 @@ const isHovered = ref(false)
 const compareContainer = ref<HTMLElement | null>(null)
 const showDetailsModal = ref(false)
 const copySuccess = ref(false)
+const githubCopySuccess = ref(false)
+const { githubLinkRepo, githubLinkBranch } = useGitHubRepo()
+
+const githubWorkflowUrl = computed(() =>
+  `https://github.com/${githubLinkRepo.value}/blob/${githubLinkBranch.value}/templates/${props.template.name}.json`
+)
 
 const { resolveRepoFileUrl, isLocalMode } = useRepoAssets()
 const { getTemplateCompat } = useNodeCompat()
@@ -591,6 +620,22 @@ const copyCloudLink = async () => {
     copySuccess.value = true
     setTimeout(() => {
       copySuccess.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
+
+const openOnGitHub = () => {
+  window.open(githubWorkflowUrl.value, '_blank')
+}
+
+const copyGitHubLink = async () => {
+  try {
+    await navigator.clipboard.writeText(githubWorkflowUrl.value)
+    githubCopySuccess.value = true
+    setTimeout(() => {
+      githubCopySuccess.value = false
     }, 2000)
   } catch (err) {
     console.error('Failed to copy:', err)
